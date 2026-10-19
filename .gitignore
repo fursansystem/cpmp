@@ -1,0 +1,23 @@
+node_modules
+dist
+.DS_Store
+server/public
+vite.config.ts.*
+*.tar.gz
+
+# Throwaway investigation scripts — never part of the app
+scratch/
+*.tmp.ts
+*.tmp.js
+*.tmp.cjs
+
+# Secrets: these hold live database, storage and mail credentials
+.env
+.env.*
+!.env.example
+
+# Local Claude Code session settings
+.claude/settings.local.json
+
+# Local SQLite database
+sqlite.db

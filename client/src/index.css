@@ -1,0 +1,149 @@
+@import "tailwindcss/base";
+@import "tailwindcss/components";
+@import "tailwindcss/utilities";
+
+/* LIGHT MODE */
+:root {
+  --button-outline: rgba(0,0,0, .10);
+  --badge-outline: rgba(0,0,0, .05);
+  --opaque-button-border-intensity: -8;
+  --elevate-1: rgba(0,0,0, .03);
+  --elevate-2: rgba(0,0,0, .08);
+  --background: 0 0% 94.12%;
+  --foreground: 0 0% 10.2%;
+  --border: 0 0% 90.98%;
+  --card: 0 0% 98.82%;
+  --card-foreground: 0deg 0% 0%;
+  --card-border: 0 0% 89.8%;
+  --sidebar: 45 25% 97%;
+  --sidebar-foreground: 20 14% 17%;
+  --sidebar-border: 45 15% 80%;
+  --sidebar-primary: 9 75% 61%;
+  --sidebar-primary-foreground: 0 0% 100%;
+  --sidebar-accent: 25 45% 80%;
+  --sidebar-accent-foreground: 20 14% 17%;
+  --sidebar-ring: 9 75% 61%;
+  --popover: 45 25% 97%;
+  --popover-foreground: 0deg 0% 0%;
+  --popover-border: 0 0% 89.8%;
+  --primary: 41.41deg 58.2% 52.16%;
+  --primary-foreground: 0deg 0% 100%;
+  --secondary: 0 0% 76.86%;
+  --secondary-foreground: 0deg 0% 10.2%;
+  --muted: 0 0% 89.02%;
+  --muted-foreground: 0 0% 12.94%;
+  --accent: 60deg 3.23% 81.76%;
+  --accent-foreground: 0deg 0% 10.2%;
+  --destructive: 40.93deg 54.89% 53.92%;
+  --destructive-foreground: 0deg 0% 100%;
+  --input: 0 0% 70.98%;
+  --ring: 40.32deg 69.83% 64.9%;
+  --radius: 1.5rem;
+  --font-sans: 'Poppins', sans-serif;
+  
+  --sidebar-primary-border: hsl(var(--sidebar-primary));
+  --sidebar-accent-border: hsl(var(--sidebar-accent));
+  --primary-border: hsl(var(--primary));
+  --secondary-border: hsl(var(--secondary));
+  --muted-border: hsl(var(--muted));
+  --accent-border: hsl(var(--accent));
+  --destructive-border: hsl(var(--destructive));
+}
+
+.dark {
+  --button-outline: rgba(255,255,255, .10);
+  --badge-outline: rgba(255,255,255, .05);
+  --opaque-button-border-intensity: 9;
+  --elevate-1: rgba(255,255,255, .04);
+  --elevate-2: rgba(255,255,255, .09);
+  --background: 20 14% 4%;
+  --foreground: 45 25% 91%;
+  --border: 20 14% 15%;
+  --card: 20 14% 8%;
+  --card-foreground: 45 25% 85%;
+  --card-border: 20 14% 15%;
+  --sidebar: 20 14% 4%;
+  --sidebar-foreground: 45 25% 85%;
+  --sidebar-border: 20 14% 15%;
+  --sidebar-primary: 9 75% 61%;
+  --sidebar-primary-foreground: 0 0% 100%;
+  --sidebar-accent: 25 45% 20%;
+  --sidebar-accent-foreground: 45 25% 85%;
+  --sidebar-ring: 9 75% 61%;
+  --popover: 20 14% 4%;
+  --popover-foreground: 45 25% 91%;
+  --popover-border: 20 14% 18%;
+  --primary: 8.86deg 74.87% 60.98%;
+  --primary-foreground: 0deg 0% 100%;
+  --secondary: 30 15% 52%;
+  --secondary-foreground: 0deg 0% 100%;
+  --muted: 20 14% 15%;
+  --muted-foreground: 45 15% 46%;
+  --accent: 24.78deg 45.1% 20%;
+  --accent-foreground: 47.37deg 24.68% 84.9%;
+  --destructive: 8.86deg 74.87% 60.98%;
+  --destructive-foreground: 0 0% 100%;
+  --input: 20 14% 18%;
+  --ring: 8.86deg 74.87% 60.98%;
+  
+  --sidebar-primary-border: hsl(var(--sidebar-primary));
+  --sidebar-accent-border: hsl(var(--sidebar-accent));
+  --primary-border: hsl(var(--primary));
+  --secondary-border: hsl(var(--secondary));
+  --muted-border: hsl(var(--muted));
+  --accent-border: hsl(var(--accent));
+  --destructive-border: hsl(var(--destructive));
+  
+  --radius: 1.5rem;
+  --font-sans: Open Sans, sans-serif;
+}
+
+@layer base {
+  * {
+    border-color: hsl(var(--border) / 1);
+  }
+  body {
+    font-family: var(--font-sans), sans-serif;
+    background-color: hsl(var(--background));
+    color: hsl(var(--foreground));
+  }
+}
+
+@layer utilities {
+  input[type="search"]::-webkit-search-cancel-button {
+    display: none;
+  }
+
+  /* Hide number input spinner arrows across all browsers */
+  input[type="number"]::-webkit-inner-spin-button,
+  input[type="number"]::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+  input[type="number"] {
+    -moz-appearance: textfield;
+    appearance: textfield;
+  }
+
+  /* Custom sleek scrollbar styles */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: rgba(0, 0, 0, 0.15);
+    border-radius: 9999px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgba(0, 0, 0, 0.3);
+  }
+  .dark ::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.15);
+  }
+  .dark ::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.3);
+  }
+}
