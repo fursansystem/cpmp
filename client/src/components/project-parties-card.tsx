@@ -91,41 +91,42 @@ export function ProjectPartiesCard({ project }: { project: Project }) {
         </p>
       </div>
 
-      <div className="divide-y divide-border/60">
+      {/* One column per party on a wide screen; they stack again when it is narrow */}
+      <div className="grid divide-y divide-border/60 sm:grid-cols-3 sm:divide-y-0 sm:divide-x">
         {rows.map((row) => (
           <div
             key={row.key}
-            className="flex items-center justify-between gap-3 py-3 first:pt-0 last:pb-0"
+            className="flex min-w-0 flex-col gap-1 py-3 first:pt-0 last:pb-0 sm:px-4 sm:py-0 sm:first:pl-0 sm:last:pr-0"
             data-testid={`party-${row.key}`}
           >
-            <div className="flex items-center gap-3 min-w-0">
+            <div className="flex items-center gap-2">
               <row.icon className="w-4 h-4 text-muted-foreground shrink-0" />
-              <div className="min-w-0">
-                <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
-                  {row.label}
-                </p>
-                {row.assigned ? (
-                  <p className="font-medium truncate">{row.assigned}</p>
-                ) : row.invitation ? (
-                  <p className="flex items-center gap-1.5 text-sm text-amber-600 dark:text-amber-400">
-                    <Clock className="w-3.5 h-3.5 shrink-0" />
-                    <span className="truncate">
-                      Waiting for{" "}
-                      {row.invitation.invitedOrganizationName || row.invitation.email} to
-                      accept
-                    </span>
-                  </p>
-                ) : (
-                  <p className="text-sm text-muted-foreground">Not assigned</p>
-                )}
-              </div>
+              <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+                {row.label}
+              </p>
             </div>
+
+            {row.assigned ? (
+              <p className="font-medium truncate">{row.assigned}</p>
+            ) : row.invitation ? (
+              <p className="flex items-center gap-1.5 text-sm text-amber-600 dark:text-amber-400">
+                <Clock className="w-3.5 h-3.5 shrink-0" />
+                <span className="truncate">
+                  Waiting for{" "}
+                  {row.invitation.invitedOrganizationName || row.invitation.email} to
+                  accept
+                </span>
+              </p>
+            ) : (
+              <p className="text-sm text-muted-foreground">Not assigned</p>
+            )}
 
             {/* Withdrawing only makes sense while an answer is still outstanding */}
             {row.invitation && canWithdraw && (
               <Button
                 variant="ghost"
                 size="sm"
+                className="-ml-2 mt-1 self-start"
                 onClick={() => withdraw.mutate(row.invitation!.id)}
                 disabled={withdraw.isPending}
                 data-testid={`button-withdraw-${row.key}`}
