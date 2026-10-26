@@ -98,6 +98,8 @@ const orderSchema = z.object({
   certificateId: z.string().nullish().transform((v) => v || null),
   payeeName: z.string().trim().min(1, "Payee is required").max(300),
   amount: z.coerce.number().gt(0, "Amount must be greater than zero").max(1e12),
+  // Only meaningful when there is no bill/fine/clearance behind the order
+  purpose: z.enum(["advance", "other"]).optional(),
   reason: optText(),
 });
 
@@ -540,6 +542,7 @@ export function registerPaymentsRoutes(app: Express, deps: Deps) {
         purchaseOrderId: data.purchaseOrderId,
         certificateId: data.certificateId,
         payeeName: data.payeeName,
+        purpose: data.billRequestId ? "bill" : data.fineId ? "fine" : data.clearanceId ? "clearance" : data.purpose ?? "other",
         reason: data.reason,
         amount: String(data.amount),
         createdBy: ctx.cu.user.id,

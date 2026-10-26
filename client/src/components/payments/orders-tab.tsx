@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus, Search, Paperclip, Printer, Send, CheckCircle2, XCircle, Banknote, Ban } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -25,8 +25,10 @@ import {
   StatusBadge,
   errorMessage,
   fmtDate,
+  getJson,
   invalidatePayments,
   money,
+  paymentsQuery,
   type PaymentsContext,
   type PaymentsOverview,
 } from "./payments-common";
@@ -133,10 +135,14 @@ function sourceLabel(o: any, data: PaymentsOverview): string {
   if (o.billRequestId) return `فواتير ${data.billRequests.find((b) => b.id === o.billRequestId)?.requestNo ?? ""}`.trim();
   if (o.fineId) return `غرامة: ${data.fines.find((f) => f.id === o.fineId)?.title ?? ""}`;
   if (o.clearanceId) return `رسوم: ${data.clearances.find((c) => c.id === o.clearanceId)?.title ?? ""}`;
+  if (o.purpose === "advance") return o.reason && o.reason !== ADVANCE_REASON ? `${ADVANCE_REASON}: ${o.reason}` : ADVANCE_REASON;
   return o.reason ?? "—";
 }
 
-type SourceKind = "bill" | "fine" | "clearance" | "other";
+type SourceKind = "bill" | "fine" | "clearance" | "advance" | "other";
+// These three are paid against an existing record; advance and other stand on their own
+const isSourced = (k: SourceKind): k is "bill" | "fine" | "clearance" => k === "bill" || k === "fine" || k === "clearance";
+const ADVANCE_REASON = "دفعة مقدمة";
 
 function CreateOrderDialog({ ctx, defaultProjectId, data, draft, onClose }: { ctx: PaymentsContext; defaultProjectId: string; data: PaymentsOverview; draft: OrderDraft; onClose: () => void }) {
   const { toast } = useToast();
@@ -153,6 +159,14 @@ function CreateOrderDialog({ ctx, defaultProjectId, data, draft, onClose }: { ct
   const [payeeName, setPayeeName] = useState("");
   const [amount, setAmount] = useState("");
   const [reason, setReason] = useState("");
+  const [advancePoId, setAdvancePoId] = useState("");
+
+  const { data: sources } = useQuery<{ purchaseOrders: any[] }>({
+    queryKey: ["payments", "sources", projectId],
+    queryFn: () => getJson(`/api/payments/sources?projectId=${projectId}`),
+    enabled: !!projectId && kind === "advance",
+    meta: paymentsQuery,
+  });
 
   const hasLive = (key: "billRequestId" | "fineId" | "clearanceId", id: string) =>
     data.orders.some((o) => o[key] === id && LIVE.includes(o.status));
@@ -169,7 +183,7 @@ function CreateOrderDialog({ ctx, defaultProjectId, data, draft, onClose }: { ct
 
   // Prefill payee / amount / reason from whatever the order is paying for
   useEffect(() => {
-    if (kind === "other" || !sourceId) return;
+    if (!isSourced(kind) || !sourceId) return;
     if (kind === "bill") {
       const b = data.billRequests.find((x) => x.id === sourceId);
       if (b) { setPayeeName(b.payeeName); setAmount(String(b.amount)); setReason(b.description); }
@@ -189,8 +203,9 @@ function CreateOrderDialog({ ctx, defaultProjectId, data, draft, onClose }: { ct
         billRequestId: kind === "bill" ? sourceId || null : null,
         fineId: kind === "fine" ? sourceId || null : null,
         clearanceId: kind === "clearance" ? sourceId || null : null,
-        purchaseOrderId: kind === "bill" ? data.billRequests.find((b) => b.id === sourceId)?.purchaseOrderId ?? null : null,
+        purchaseOrderId: kind === "bill" ? data.billRequests.find((b) => b.id === sourceId)?.purchaseOrderId ?? null : kind === "advance" ? advancePoId || null : null,
         certificateId: kind === "bill" ? data.billRequests.find((b) => b.id === sourceId)?.certificateId ?? null : null,
+        purpose: kind === "advance" || kind === "other" ? kind : undefined,
         payeeName,
         amount,
         reason: reason || null,
@@ -203,7 +218,7 @@ function CreateOrderDialog({ ctx, defaultProjectId, data, draft, onClose }: { ct
     onError: (e) => toast({ title: "تعذّر إنشاء أمر الدفع", description: errorMessage(e), variant: "destructive" }),
   });
 
-  const list = kind === "other" ? [] : options[kind];
+  const list = isSourced(kind) ? options[kind] : [];
   const optionLabel = (r: any) =>
     kind === "bill" ? `${r.requestNo} · ${r.payeeName} · ${money(r.amount)}`
     : kind === "fine" ? `${r.title} · ${money(Number(r.amount) - Number(r.paidAmount))}`
@@ -226,17 +241,35 @@ function CreateOrderDialog({ ctx, defaultProjectId, data, draft, onClose }: { ct
           </div>
           <div className="space-y-1.5">
             <Label>سبب الدفع</Label>
-            <Select value={kind} onValueChange={(v) => { setKind(v as SourceKind); setSourceId(""); setPayeeName(""); setAmount(""); setReason(""); }} disabled={!!draftProject}>
+            <Select value={kind} onValueChange={(v) => { setKind(v as SourceKind); setSourceId(""); setAdvancePoId(""); setPayeeName(""); setAmount(""); setReason(v === "advance" ? ADVANCE_REASON : ""); }} disabled={!!draftProject}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="bill">فواتير تم استلام أصولها</SelectItem>
                 <SelectItem value="fine">سداد غرامة</SelectItem>
                 <SelectItem value="clearance">رسوم مخالصة / تصريح</SelectItem>
+                <SelectItem value="advance">دفعة مقدمة</SelectItem>
                 <SelectItem value="other">أخرى (مع بيان السبب)</SelectItem>
               </SelectContent>
             </Select>
           </div>
-          {kind !== "other" && (
+          {kind === "advance" && (
+            <div className="space-y-1.5">
+              <Label>أمر شراء (اختياري)</Label>
+              <Select value={advancePoId || "none"} onValueChange={(v) => {
+                const po = sources?.purchaseOrders.find((p) => p.id === v);
+                setAdvancePoId(v === "none" ? "" : v);
+                if (po && !payeeName) setPayeeName(po.supplierName ?? "");
+              }}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">—</SelectItem>
+                  {sources?.purchaseOrders.map((p) => <SelectItem key={p.id} value={p.id}>{p.poNumber} · {p.supplierName} · {money(p.totalAmount)}</SelectItem>)}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">اربط الدفعة بأمر الشراء الذي تُدفع مقدماً عنه، إن وُجد.</p>
+            </div>
+          )}
+          {isSourced(kind) && (
             <div className="space-y-1.5">
               <Label>المصدر</Label>
               <Select value={sourceId} onValueChange={setSourceId} disabled={!!draftProject}>
@@ -264,7 +297,7 @@ function CreateOrderDialog({ ctx, defaultProjectId, data, draft, onClose }: { ct
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>إلغاء</Button>
           <Button
-            disabled={create.isPending || !projectId || !payeeName.trim() || !(Number(amount) > 0) || (kind !== "other" ? !sourceId : !reason.trim())}
+            disabled={create.isPending || !projectId || !payeeName.trim() || !(Number(amount) > 0) || (isSourced(kind) ? !sourceId : !reason.trim())}
             onClick={() => create.mutate()}
           >
             إنشاء المسودة

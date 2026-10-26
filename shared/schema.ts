@@ -2741,6 +2741,7 @@ export const paymentOrders = pgTable("payment_orders", {
   purchaseOrderId: varchar("purchase_order_id").references(() => purchaseOrders.id, { onDelete: "set null" }),
   certificateId: varchar("certificate_id").references(() => progressPaymentCertificates.id, { onDelete: "set null" }),
   payeeName: text("payee_name").notNull(),
+  purpose: text("purpose"), // bill, fine, clearance, advance, other (null on rows made before this column existed)
   reason: text("reason"),
   amount: decimal("amount", { precision: 14, scale: 2 }).notNull(),
   status: text("status").notNull().default("draft"), // draft, pending_approval, approved, paid, rejected, cancelled

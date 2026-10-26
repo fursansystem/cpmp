@@ -48,6 +48,7 @@ async function main() {
       purchase_order_id VARCHAR REFERENCES purchase_orders(id) ON DELETE SET NULL,
       certificate_id VARCHAR REFERENCES progress_payment_certificates(id) ON DELETE SET NULL,
       payee_name TEXT NOT NULL,
+      purpose TEXT,
       reason TEXT,
       amount DECIMAL(14,2) NOT NULL,
       status TEXT NOT NULL DEFAULT 'draft',
@@ -65,6 +66,8 @@ async function main() {
       updated_at TIMESTAMP NOT NULL DEFAULT NOW()
     );
   `);
+  // For databases that already ran an earlier version of this script
+  await db.execute(sql`ALTER TABLE payment_orders ADD COLUMN IF NOT EXISTS purpose TEXT;`);
   await db.execute(sql`CREATE UNIQUE INDEX IF NOT EXISTS payment_orders_seq_uq ON payment_orders (project_id, seq);`);
   await db.execute(sql`CREATE INDEX IF NOT EXISTS payment_orders_project_idx ON payment_orders (project_id);`);
   console.log("Table 'payment_orders' ready.");
