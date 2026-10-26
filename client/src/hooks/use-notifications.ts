@@ -192,6 +192,9 @@ export function useNotifications() {
               queryKey: ["/api/documents", projectId]
             });
           }
+        } else if (message.type === "payments_updated") {
+          // Another user changed a bill request, payment order, clearance or fine
+          queryClient.invalidateQueries({ queryKey: ["payments"] });
         } else if (message.type === "progress_matrix_updated") {
           // Progress matrix / payment certificates changed: refresh the project, its matrix and certificates
           const projectId = message.data?.projectId;

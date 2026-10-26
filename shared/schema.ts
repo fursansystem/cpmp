@@ -2696,4 +2696,154 @@ export type ProgressCellLog = typeof progressCellLogs.$inferSelect;
 export type ProgressPaymentCertificate = typeof progressPaymentCertificates.$inferSelect;
 export type ProgressPaymentCertificateLine = typeof progressPaymentCertificateLines.$inferSelect;
 
+// ---------------------------------------------------------------------------
+// Payments (المدفوعات): bill-attachment requests, payment orders, clearances and fines.
+// The status vocabularies live in shared/payments.ts.
+// ---------------------------------------------------------------------------
+
+// Accounting asks the project side for the original bills/attachments behind a payment
+export const paymentBillRequests = pgTable("payment_bill_requests", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  projectId: varchar("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
+  seq: integer("seq").notNull(),
+  requestNo: text("request_no").notNull(), // BR-0001, numbered per project
+  supplierId: varchar("supplier_id").references(() => suppliers.id, { onDelete: "set null" }),
+  purchaseOrderId: varchar("purchase_order_id").references(() => purchaseOrders.id, { onDelete: "set null" }),
+  certificateId: varchar("certificate_id").references(() => progressPaymentCertificates.id, { onDelete: "set null" }),
+  payeeName: text("payee_name").notNull(),
+  description: text("description").notNull(),
+  amount: decimal("amount", { precision: 14, scale: 2 }).notNull().default("0"),
+  dueDate: date("due_date"),
+  status: text("status").notNull().default("requested"), // requested, submitted, received, returned, cancelled
+  notes: text("notes"),
+  requestedBy: varchar("requested_by").references(() => users.id, { onDelete: "set null" }),
+  submittedBy: varchar("submitted_by").references(() => users.id, { onDelete: "set null" }),
+  submittedAt: timestamp("submitted_at"),
+  receivedBy: varchar("received_by").references(() => users.id, { onDelete: "set null" }),
+  receivedAt: timestamp("received_at"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => ({
+  seqUq: uniqueIndex("payment_bill_requests_seq_uq").on(table.projectId, table.seq),
+  projectIdx: index("payment_bill_requests_project_idx").on(table.projectId),
+}));
+
+// A payment order is the instruction to pay. It has one source: a received bill request, a
+// fine, a clearance fee, or none, in which case `reason` explains what it is for.
+export const paymentOrders = pgTable("payment_orders", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  projectId: varchar("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
+  seq: integer("seq").notNull(),
+  orderNo: text("order_no").notNull(), // PO-... is taken by purchase orders, so payment orders are PAY-0001
+  billRequestId: varchar("bill_request_id").references(() => paymentBillRequests.id, { onDelete: "set null" }),
+  fineId: varchar("fine_id"),
+  clearanceId: varchar("clearance_id"),
+  purchaseOrderId: varchar("purchase_order_id").references(() => purchaseOrders.id, { onDelete: "set null" }),
+  certificateId: varchar("certificate_id").references(() => progressPaymentCertificates.id, { onDelete: "set null" }),
+  payeeName: text("payee_name").notNull(),
+  reason: text("reason"),
+  amount: decimal("amount", { precision: 14, scale: 2 }).notNull(),
+  status: text("status").notNull().default("draft"), // draft, pending_approval, approved, paid, rejected, cancelled
+  rejectReason: text("reject_reason"),
+  paymentMethod: text("payment_method"),
+  paymentReference: text("payment_reference"),
+  paidDate: date("paid_date"),
+  createdBy: varchar("created_by").references(() => users.id, { onDelete: "set null" }),
+  submittedAt: timestamp("submitted_at"),
+  approvedBy: varchar("approved_by").references(() => users.id, { onDelete: "set null" }),
+  approvedAt: timestamp("approved_at"),
+  paidBy: varchar("paid_by").references(() => users.id, { onDelete: "set null" }),
+  paidAt: timestamp("paid_at"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => ({
+  seqUq: uniqueIndex("payment_orders_seq_uq").on(table.projectId, table.seq),
+  projectIdx: index("payment_orders_project_idx").on(table.projectId),
+}));
+
+// Permits and clearances (authority approvals, handover/utility clearances...) tracked per project
+export const paymentClearances = pgTable("payment_clearances", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  projectId: varchar("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
+  title: text("title").notNull(),
+  authority: text("authority"),
+  referenceNo: text("reference_no"),
+  status: text("status").notNull().default("pending"), // pending, in_progress, obtained, rejected, expired
+  responsibleName: text("responsible_name"),
+  dueDate: date("due_date"),
+  issueDate: date("issue_date"),
+  expiryDate: date("expiry_date"),
+  feeAmount: decimal("fee_amount", { precision: 14, scale: 2 }).notNull().default("0"),
+  feePaid: boolean("fee_paid").notNull().default(false),
+  notes: text("notes"),
+  createdBy: varchar("created_by").references(() => users.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => ({
+  projectIdx: index("payment_clearances_project_idx").on(table.projectId),
+}));
+
+export const paymentFines = pgTable("payment_fines", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  projectId: varchar("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
+  title: text("title").notNull(),
+  authority: text("authority"),
+  referenceNo: text("reference_no"),
+  reason: text("reason"),
+  liableParty: text("liable_party").notNull().default("contractor"),
+  amount: decimal("amount", { precision: 14, scale: 2 }).notNull().default("0"),
+  paidAmount: decimal("paid_amount", { precision: 14, scale: 2 }).notNull().default("0"),
+  issueDate: date("issue_date"),
+  dueDate: date("due_date"),
+  status: text("status").notNull().default("open"), // open, under_appeal, waiver_requested, payment_requested, paid, waived, cancelled
+  waiverReason: text("waiver_reason"),
+  waiverRequestedBy: varchar("waiver_requested_by").references(() => users.id, { onDelete: "set null" }),
+  waiverDecidedBy: varchar("waiver_decided_by").references(() => users.id, { onDelete: "set null" }),
+  notes: text("notes"),
+  createdBy: varchar("created_by").references(() => users.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => ({
+  projectIdx: index("payment_fines_project_idx").on(table.projectId),
+}));
+
+// Files attached to any of the four records above (original bills, clearance copies, fine notices...)
+export const paymentAttachments = pgTable("payment_attachments", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  projectId: varchar("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
+  entityType: text("entity_type").notNull(), // bill_request, payment_order, clearance, fine
+  entityId: varchar("entity_id").notNull(),
+  fileName: text("file_name").notNull(),
+  objectPath: text("object_path").notNull(),
+  contentType: text("content_type"),
+  size: integer("size"),
+  uploadedBy: varchar("uploaded_by").references(() => users.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => ({
+  entityIdx: index("payment_attachments_entity_idx").on(table.entityType, table.entityId),
+}));
+
+// Who did what and when, for every record: the tracking trail managers read
+export const paymentActivity = pgTable("payment_activity", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  projectId: varchar("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
+  entityType: text("entity_type").notNull(),
+  entityId: varchar("entity_id").notNull(),
+  action: text("action").notNull(),
+  fromStatus: text("from_status"),
+  toStatus: text("to_status"),
+  note: text("note"),
+  userId: varchar("user_id").references(() => users.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => ({
+  entityIdx: index("payment_activity_entity_idx").on(table.entityType, table.entityId),
+}));
+
+export type PaymentBillRequest = typeof paymentBillRequests.$inferSelect;
+export type PaymentOrder = typeof paymentOrders.$inferSelect;
+export type PaymentClearance = typeof paymentClearances.$inferSelect;
+export type PaymentFine = typeof paymentFines.$inferSelect;
+export type PaymentAttachment = typeof paymentAttachments.$inferSelect;
+export type PaymentActivity = typeof paymentActivity.$inferSelect;
+
 

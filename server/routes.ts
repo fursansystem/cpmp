@@ -62,6 +62,7 @@ import { inArray, eq, and, sql, or, isNotNull, isNull, desc, notInArray, gte, lt
 import { requests, requestRevisions, requestWorkLocations, requestPurposes, workListActivities, workListChapters, workListDivisions, workLevels, requestWorkLevels, projectFolders, requestDeliveries, deliveries, deliveryItems, suppliers, requestSuppliers, materials, documents, requestDocuments, requestAttachments, requestTypes, users, snagLists } from "@shared/schema";
 import { Resend } from "resend";
 import { registerProgressMatrixRoutes } from "./progress-matrix-routes";
+import { registerPaymentsRoutes } from "./payments-routes";
 import { applyApprovedWirRevision, countCertificatesByProject } from "./progress-matrix-service";
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
@@ -569,6 +570,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Progress Matrix & Payment Certificates (مصفوفة الإنجاز والمستخلصات)
   registerProgressMatrixRoutes(app, { getCurrentUserWithOrg, handleError });
+  registerPaymentsRoutes(app, { getCurrentUserWithOrg, handleError });
 
   app.post("/api/deliveries/bulk", async (req, res) => {
     try {

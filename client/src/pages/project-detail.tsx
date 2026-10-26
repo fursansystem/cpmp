@@ -26,7 +26,8 @@ import {
   Warehouse,
   Boxes,
   Grid3X3,
-  Receipt
+  Receipt,
+  Wallet
 } from "lucide-react";
 import { format, differenceInDays, startOfDay } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -126,6 +127,16 @@ export default function ProjectDetail() {
       link: `/projects/${projectId}/progress-matrix?tab=certificates`,
       color: "text-emerald-600",
       bg: "bg-emerald-50 dark:bg-emerald-900/10",
+      active: true
+    },
+    {
+      title: "المدفوعات (Payments)",
+      description: "طلب أصول الفواتير، أوامر الدفع، المخالصات والغرامات لهذا المشروع.",
+      icon: Wallet,
+      count: "—",
+      link: `/payments?project=${projectId}`,
+      color: "text-teal-600",
+      bg: "bg-teal-50 dark:bg-teal-900/10",
       active: true
     },
     {
