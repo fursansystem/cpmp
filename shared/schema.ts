@@ -2757,6 +2757,7 @@ export const paymentOrders = pgTable("payment_orders", {
   fineId: varchar("fine_id"),
   clearanceId: varchar("clearance_id"),
   subcontractorCertificateId: varchar("subcontractor_certificate_id"),
+  supplierId: varchar("supplier_id").references(() => suppliers.id, { onDelete: "set null" }),
   purchaseOrderId: varchar("purchase_order_id").references(() => purchaseOrders.id, { onDelete: "set null" }),
   certificateId: varchar("certificate_id").references(() => progressPaymentCertificates.id, { onDelete: "set null" }),
   payeeName: text("payee_name").notNull(),

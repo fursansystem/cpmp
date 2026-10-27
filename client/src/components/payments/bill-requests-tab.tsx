@@ -157,10 +157,10 @@ function CreateBillRequestDialog({ ctx, defaultProjectId, open, onClose }: { ctx
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [projectId, setProjectId] = useState(defaultProjectId === "all" ? "" : defaultProjectId);
-  const [form, setForm] = useState({ payeeName: "", description: "", amount: "", dueDate: "", purchaseOrderId: "", certificateId: "", notes: "" });
+  const [form, setForm] = useState({ payeeName: "", description: "", amount: "", dueDate: "", supplierId: "", purchaseOrderId: "", certificateId: "", notes: "" });
   const set = (k: keyof typeof form) => (v: string) => setForm((f) => ({ ...f, [k]: v }));
 
-  const { data: sources } = useQuery<{ purchaseOrders: any[]; certificates: any[] }>({
+  const { data: sources } = useQuery<{ purchaseOrders: any[]; certificates: any[]; suppliers: { id: string; name: string; taxNumber: string | null }[] }>({
     queryKey: ["payments", "sources", projectId],
     queryFn: () => getJson(`/api/payments/sources?projectId=${projectId}`),
     enabled: !!projectId && open,
@@ -175,6 +175,7 @@ function CreateBillRequestDialog({ ctx, defaultProjectId, open, onClose }: { ctx
         description: form.description,
         amount: form.amount || 0,
         dueDate: form.dueDate || null,
+        supplierId: form.supplierId || null,
         purchaseOrderId: form.purchaseOrderId || null,
         certificateId: form.certificateId || null,
         notes: form.notes || null,
@@ -182,7 +183,7 @@ function CreateBillRequestDialog({ ctx, defaultProjectId, open, onClose }: { ctx
     onSuccess: () => {
       invalidatePayments(queryClient);
       toast({ title: "تم إرسال طلب أصول الفواتير" });
-      setForm({ payeeName: "", description: "", amount: "", dueDate: "", purchaseOrderId: "", certificateId: "", notes: "" });
+      setForm({ payeeName: "", description: "", amount: "", dueDate: "", supplierId: "", purchaseOrderId: "", certificateId: "", notes: "" });
       onClose();
     },
     onError: (e) => toast({ title: "تعذّر إنشاء الطلب", description: errorMessage(e), variant: "destructive" }),
@@ -193,6 +194,7 @@ function CreateBillRequestDialog({ ctx, defaultProjectId, open, onClose }: { ctx
     setForm((f) => ({
       ...f,
       purchaseOrderId: id === "none" ? "" : id,
+      supplierId: po && !f.supplierId ? po.supplierId ?? "" : f.supplierId,
       payeeName: po && !f.payeeName ? po.supplierName ?? "" : f.payeeName,
       amount: po && !f.amount ? String(po.totalAmount ?? "") : f.amount,
     }));
@@ -208,7 +210,7 @@ function CreateBillRequestDialog({ ctx, defaultProjectId, open, onClose }: { ctx
         <div className="grid gap-3">
           <div className="space-y-1.5">
             <Label>المشروع</Label>
-            <Select value={projectId} onValueChange={(v) => { setProjectId(v); setForm((f) => ({ ...f, purchaseOrderId: "", certificateId: "" })); }}>
+            <Select value={projectId} onValueChange={(v) => { setProjectId(v); setForm((f) => ({ ...f, supplierId: "", purchaseOrderId: "", certificateId: "" })); }}>
               <SelectTrigger><SelectValue placeholder="اختر المشروع" /></SelectTrigger>
               <SelectContent>{ctx.projects.map((p) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent>
             </Select>
@@ -235,6 +237,24 @@ function CreateBillRequestDialog({ ctx, defaultProjectId, open, onClose }: { ctx
                   </SelectContent>
                 </Select>
               </div>
+            </div>
+          )}
+          {projectId && (sources?.suppliers.length ?? 0) > 0 && (
+            <div className="space-y-1.5">
+              <Label>المورد (من سجل الموردين)</Label>
+              <Select
+                value={form.supplierId || "none"}
+                onValueChange={(v) => {
+                  const s = sources?.suppliers.find((x) => x.id === v);
+                  setForm((f) => ({ ...f, supplierId: v === "none" ? "" : v, payeeName: s ? s.name : f.payeeName }));
+                }}
+              >
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">— غير محدد —</SelectItem>
+                  {sources?.suppliers.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
             </div>
           )}
           <div className="space-y-1.5">

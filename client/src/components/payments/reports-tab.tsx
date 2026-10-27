@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { Printer, FileSpreadsheet, FileText, Banknote, ShieldAlert, Gavel, Hourglass, HardHat, ShoppingCart, AlertTriangle } from "lucide-react";
+import { Printer, FileSpreadsheet, FileText, Banknote, ShieldAlert, Gavel, Hourglass, HardHat, ShoppingCart, AlertTriangle, FileWarning, Clock, Receipt, Timer } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -8,7 +8,9 @@ import { cn } from "@/lib/utils";
 import { BILL_REQUEST_LABELS, CLEARANCE_LABELS, FINE_LABELS, LIABLE_PARTY_LABELS, type PaymentsReport } from "@shared/payments";
 import { fmtDate, fmtDateTime, getJson, money, paymentsQuery } from "./payments-common";
 
-const REASON_LABEL = { expired: "منتهي", expiring: "ينتهي قريباً", overdue: "متأخر" } as const;
+const PURPOSE_LABEL: Record<string, string> = { advance: "دفعة مقدمة", other: "أخرى", subcontractor: "مستخلص باطن" };
+const DECISION_KIND = { order: "أمر دفع", certificate: "مستخلص باطن", waiver: "طلب إعفاء" } as const;
+const REASON_LABEL ={ expired: "منتهي", expiring: "ينتهي قريباً", overdue: "متأخر" } as const;
 
 function Kpi({ icon: Icon, label, value, sub, tone }: { icon: any; label: string; value: string | number; sub?: string; tone?: "warn" | "ok" }) {
   return (
@@ -39,6 +41,9 @@ export function ReportsTab({ projectId, projectName }: { projectId: string; proj
   }
 
   const t = data.totals;
+  const m = data.monitoring;
+  // The full list of purchase orders is in the Reports page; here only the ones that need a look
+  const flaggedPos = data.purchaseOrders.filter((p) => p.over || p.goodsNotInvoiced > 0.005 || p.noActivity);
   const maxMonth = Math.max(1, ...data.monthlyPaid.map((m) => m.amount));
 
   const exportExcel = async () => {
@@ -46,6 +51,13 @@ export function ReportsTab({ projectId, projectName }: { projectId: string; proj
     const wb = XLSX.utils.book_new();
     const add = (name: string, rows: Record<string, unknown>[]) =>
       XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows.length ? rows : [{ "—": "لا توجد بيانات" }]), name);
+    add("مدفوعات بلا أصول", m.paymentsWithoutOriginals.rows.map((r) => ({
+      الأمر: r.orderNo, المشروع: r.projectName, المستفيد: r.payeeName, النوع: PURPOSE_LABEL[r.purpose] ?? r.purpose, المبلغ: r.amount,
+      الحالة: r.state === "not_requested" ? "لم يُطلب الأصل" : `طُلب ${r.requestNo ?? ""}`, "منذ (يوم)": r.ageDays,
+    })));
+    add("أوامر دفع متأخرة", m.delayedDecisions.rows.map((r) => ({
+      النوع: DECISION_KIND[r.kind], المرجع: r.ref, المشروع: r.projectName, البيان: r.title, المبلغ: r.amount, "منذ (يوم)": r.ageDays,
+    })));
     add("حسب المشروع", data.byProject.map((p) => ({
       المشروع: p.projectName,
       "أصول فواتير مفتوحة": p.openBillRequests,
@@ -55,8 +67,8 @@ export function ReportsTab({ projectId, projectName }: { projectId: string; proj
       "المصروف": p.paidAmount,
       "رخص مفتوحة": p.openClearances,
       "رخص تحتاج انتباه": p.clearancesAttention,
-      "غرامات مفتوحة": p.openFinesCount,
-      "قيمة الغرامات المفتوحة": p.openFinesAmount,
+      "خصومات مفتوحة": p.openFinesCount,
+      "قيمة الخصومات المفتوحة": p.openFinesAmount,
     })));
     add("أصول الفواتير", data.billRequestAging.map((b) => ({
       المشروع: b.projectName, الرقم: b.requestNo, المستفيد: b.payeeName,
@@ -68,8 +80,8 @@ export function ReportsTab({ projectId, projectName }: { projectId: string; proj
       الحالة: CLEARANCE_LABELS[c.status as keyof typeof CLEARANCE_LABELS] ?? c.status,
       الانتهاء: c.expiryDate ?? "", الاستحقاق: c.dueDate ?? "", السبب: REASON_LABEL[c.reason],
     })));
-    add("غرامات مفتوحة", data.openFines.map((f) => ({
-      المشروع: f.projectName, الغرامة: f.title, الجهة: f.authority ?? "",
+    add("خصومات مفتوحة", data.openFines.map((f) => ({
+      المشروع: f.projectName, الخصم: f.title, الجهة: f.authority ?? "",
       المتحمّل: LIABLE_PARTY_LABELS[f.liableParty as keyof typeof LIABLE_PARTY_LABELS] ?? f.liableParty,
       الحالة: FINE_LABELS[f.status as keyof typeof FINE_LABELS] ?? f.status, المتبقي: f.amount, الاستحقاق: f.dueDate ?? "",
     })));
@@ -99,17 +111,96 @@ export function ReportsTab({ projectId, projectName }: { projectId: string; proj
         </div>
       </div>
 
+      {/* Control cards: what needs a manager's attention first */}
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <Kpi
+          icon={FileWarning}
+          label="مدفوعات بلا أصول فواتير"
+          value={money(m.paymentsWithoutOriginals.notRequested.amount + m.paymentsWithoutOriginals.requestedPending.amount)}
+          sub={`${m.paymentsWithoutOriginals.notRequested.count} لم يُطلب أصلها · ${m.paymentsWithoutOriginals.requestedPending.count} طُلبت ولم تصل · منها دفعات مقدمة ${m.paymentsWithoutOriginals.advances.count} (${money(m.paymentsWithoutOriginals.advances.amount)})`}
+          tone={m.paymentsWithoutOriginals.notRequested.count + m.paymentsWithoutOriginals.requestedPending.count > 0 ? "warn" : "ok"}
+        />
+        <Kpi
+          icon={Clock}
+          label="أوامر دفع متأخرة"
+          value={m.delayedDecisions.total}
+          sub={m.delayedDecisions.total ? `${m.delayedDecisions.orders} أمر · ${m.delayedDecisions.certificates} مستخلص · ${m.delayedDecisions.waivers} إعفاء · أقدمها ${m.delayedDecisions.oldestDays} يوماً` : `لا قرارات تجاوزت ${m.delayedDecisions.thresholdDays} أيام`}
+          tone={m.delayedDecisions.total ? "warn" : "ok"}
+        />
+        <Kpi
+          icon={Receipt}
+          label="فواتير غير مسددة"
+          value={money(m.unpaidInvoices.amount)}
+          sub={`${m.unpaidInvoices.withoutOrder.requests} بلا أمر دفع (${money(m.unpaidInvoices.withoutOrder.amount)}) · ${m.unpaidInvoices.inPayment.requests} قيد الصرف (${money(m.unpaidInvoices.inPayment.amount)})`}
+        />
+        <Kpi
+          icon={Timer}
+          label="متوسط زمن الدورة"
+          value={`${m.cycleTimes.requestToReceiptDays ?? "—"} / ${m.cycleTimes.approvalToPaymentDays ?? "—"} يوم`}
+          sub={`طلب الأصول ← الاستلام (${m.cycleTimes.requestToReceiptSamples}) / الاعتماد ← الصرف (${m.cycleTimes.approvalToPaymentSamples})`}
+        />
+      </div>
+
+      <div className="grid gap-5 xl:grid-cols-2">
+        <Card className="rounded-2xl">
+          <CardHeader className="pb-2"><CardTitle className="text-base">مدفوعات بلا أصول فواتير</CardTitle></CardHeader>
+          <CardContent className="p-0 overflow-x-auto">
+            <Table>
+              <TableHeader><TableRow><TableHead>الأمر</TableHead><TableHead>المشروع</TableHead><TableHead>المستفيد</TableHead><TableHead>النوع</TableHead><TableHead className="text-end">المبلغ</TableHead><TableHead>الحالة</TableHead><TableHead className="text-end">منذ (يوم)</TableHead></TableRow></TableHeader>
+              <TableBody>
+                {m.paymentsWithoutOriginals.rows.length === 0 && <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-6">كل المدفوعات لها أصول فواتير</TableCell></TableRow>}
+                {m.paymentsWithoutOriginals.rows.map((r) => (
+                  <TableRow key={r.orderNo + r.projectName}>
+                    <TableCell className="font-mono text-xs">{r.orderNo}</TableCell>
+                    <TableCell>{r.projectName}</TableCell>
+                    <TableCell>{r.payeeName}</TableCell>
+                    <TableCell>{PURPOSE_LABEL[r.purpose] ?? r.purpose}</TableCell>
+                    <TableCell className="text-end tabular-nums">{money(r.amount)}</TableCell>
+                    <TableCell className={r.state === "not_requested" ? "text-destructive font-semibold" : ""}>{r.state === "not_requested" ? "لم يُطلب الأصل" : `طُلب ${r.requestNo ?? ""}`}</TableCell>
+                    <TableCell className="text-end tabular-nums">{r.ageDays}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+
+        <Card className="rounded-2xl">
+          <CardHeader className="pb-2"><CardTitle className="text-base">أوامر دفع متأخرة (أكثر من {m.delayedDecisions.thresholdDays} أيام بانتظار القرار)</CardTitle></CardHeader>
+          <CardContent className="p-0 overflow-x-auto">
+            <Table>
+              <TableHeader><TableRow><TableHead>النوع</TableHead><TableHead>المرجع</TableHead><TableHead>المشروع</TableHead><TableHead>البيان</TableHead><TableHead className="text-end">المبلغ</TableHead><TableHead className="text-end">منذ (يوم)</TableHead></TableRow></TableHeader>
+              <TableBody>
+                {m.delayedDecisions.rows.length === 0 && <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground py-6">لا توجد قرارات متأخرة</TableCell></TableRow>}
+                {m.delayedDecisions.rows.map((r, i) => (
+                  <TableRow key={i}>
+                    <TableCell>{DECISION_KIND[r.kind]}</TableCell>
+                    <TableCell className="font-mono text-xs">{r.ref || "—"}</TableCell>
+                    <TableCell>{r.projectName}</TableCell>
+                    <TableCell>{r.title}</TableCell>
+                    <TableCell className="text-end tabular-nums">{money(r.amount)}</TableCell>
+                    <TableCell className="text-end tabular-nums text-destructive font-semibold">{r.ageDays}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      </div>
+
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <Kpi icon={FileText} label="أصول فواتير مطلوبة" value={t.openBillRequests} sub={t.overdueBillRequests ? `${t.overdueBillRequests} متأخر` : "لا يوجد تأخير"} tone={t.overdueBillRequests ? "warn" : undefined} />
         <Kpi icon={Hourglass} label="بانتظار الاعتماد" value={money(t.ordersPendingApprovalAmount)} sub={`${t.ordersPendingApproval} أمر دفع`} />
         <Kpi icon={Banknote} label="معتمد وبانتظار الصرف" value={money(t.ordersApprovedUnpaidAmount)} />
         <Kpi icon={Banknote} label="المصروف هذا الشهر" value={money(t.paidThisMonthAmount)} sub={`الإجمالي ${money(t.paidTotalAmount)}`} tone="ok" />
         <Kpi icon={ShieldAlert} label="رخص مفتوحة" value={t.openClearances} sub={t.clearancesAttention ? `${t.clearancesAttention} تحتاج انتباه` : "لا تنبيهات"} tone={t.clearancesAttention ? "warn" : undefined} />
-        <Kpi icon={Gavel} label="غرامات مفتوحة" value={t.openFinesCount} sub={money(t.openFinesAmount)} tone={t.openFinesCount ? "warn" : undefined} />
-        <Kpi icon={Gavel} label="غرامات تم سدادها" value={money(t.paidFinesAmount)} tone="ok" />
+        <Kpi icon={Gavel} label="خصومات مفتوحة" value={t.openFinesCount} sub={money(t.openFinesAmount)} tone={t.openFinesCount ? "warn" : undefined} />
+        <Kpi icon={Gavel} label="خصومات تم سدادها" value={money(t.paidFinesAmount)} tone="ok" />
         <Kpi icon={HardHat} label="مستخلصات باطن بانتظار الاعتماد" value={money(t.subCertsPendingAmount)} sub={`${t.subCertsPendingCount} مستخلص`} />
         <Kpi icon={HardHat} label="مستخلصات باطن معتمدة غير مصروفة" value={money(t.subCertsApprovedUnpaidAmount)} />
         <Kpi icon={HardHat} label="ضمان حسن التنفيذ المحتجز" value={money(t.subRetentionHeld)} sub="على مستخلصات الباطن" />
+        <Kpi icon={ShoppingCart} label="بضاعة مستلمة بلا فاتورة" value={money(m.goodsReceivedNotInvoiced.amount)} sub={`${m.goodsReceivedNotInvoiced.count} أمر شراء`} tone={m.goodsReceivedNotInvoiced.count ? "warn" : "ok"} />
+        <Kpi icon={ShoppingCart} label="أوامر شراء بلا حركة مالية" value={m.poNoActivity.count} sub={money(m.poNoActivity.value)} />
         <Kpi icon={ShoppingCart} label="أوامر شراء تجاوزت قيمتها" value={t.poOverCount} sub={data.purchaseOrders.length ? `من ${data.purchaseOrders.length} أمر شراء` : "لا توجد أوامر شراء مرتبطة"} tone={t.poOverCount ? "warn" : undefined} />
       </div>
 
@@ -125,7 +216,7 @@ export function ReportsTab({ projectId, projectName }: { projectId: string; proj
                 <TableHead className="text-end">معتمد غير مصروف</TableHead>
                 <TableHead className="text-end">المصروف</TableHead>
                 <TableHead className="text-end">رخص مفتوحة</TableHead>
-                <TableHead className="text-end">غرامات مفتوحة</TableHead>
+                <TableHead className="text-end">خصومات مفتوحة</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -185,7 +276,7 @@ export function ReportsTab({ projectId, projectName }: { projectId: string; proj
       </Card>
 
       <Card className="rounded-2xl">
-        <CardHeader className="pb-2"><CardTitle className="text-base">أوامر الشراء: المفوتر والمدفوع مقابل القيمة</CardTitle></CardHeader>
+        <CardHeader className="pb-2"><CardTitle className="text-base">أوامر شراء تحتاج متابعة (تجاوز، بضاعة بلا فاتورة، أو بلا حركة مالية)</CardTitle></CardHeader>
         <CardContent className="p-0 overflow-x-auto">
           <Table>
             <TableHeader>
@@ -201,10 +292,13 @@ export function ReportsTab({ projectId, projectName }: { projectId: string; proj
               </TableRow>
             </TableHeader>
             <TableBody>
-              {data.purchaseOrders.length === 0 && <TableRow><TableCell colSpan={8} className="text-center text-muted-foreground py-6">لا توجد أوامر شراء مرتبطة بطلبات أو دفعات</TableCell></TableRow>}
-              {data.purchaseOrders.map((p) => (
+              {flaggedPos.length === 0 && <TableRow><TableCell colSpan={8} className="text-center text-muted-foreground py-6">لا توجد أوامر شراء تحتاج متابعة</TableCell></TableRow>}
+              {flaggedPos.map((p) => (
                 <TableRow key={p.id}>
-                  <TableCell className="font-mono text-xs">{p.poNumber}</TableCell>
+                  <TableCell className="font-mono text-xs">
+                    {p.poNumber}
+                    <div className="text-[11px] font-sans text-muted-foreground">{p.over ? "تجاوز القيمة" : p.goodsNotInvoiced > 0.005 ? `مستلم غير مفوتر ${money(p.goodsNotInvoiced)}` : "بلا حركة مالية"}</div>
+                  </TableCell>
                   <TableCell>{p.projectName}</TableCell>
                   <TableCell>{p.supplierName ?? "—"}</TableCell>
                   <TableCell className="text-end tabular-nums">{money(p.value)}</TableCell>
@@ -280,12 +374,12 @@ export function ReportsTab({ projectId, projectName }: { projectId: string; proj
       </div>
 
       <Card className="rounded-2xl">
-        <CardHeader className="pb-2"><CardTitle className="text-base">الغرامات المفتوحة</CardTitle></CardHeader>
+        <CardHeader className="pb-2"><CardTitle className="text-base">الخصومات المفتوحة</CardTitle></CardHeader>
         <CardContent className="p-0 overflow-x-auto">
           <Table>
-            <TableHeader><TableRow><TableHead>الغرامة</TableHead><TableHead>المشروع</TableHead><TableHead>الجهة</TableHead><TableHead>المتحمّل</TableHead><TableHead>الحالة</TableHead><TableHead>الاستحقاق</TableHead><TableHead className="text-end">المتبقي</TableHead></TableRow></TableHeader>
+            <TableHeader><TableRow><TableHead>الخصم</TableHead><TableHead>المشروع</TableHead><TableHead>الجهة</TableHead><TableHead>المتحمّل</TableHead><TableHead>الحالة</TableHead><TableHead>الاستحقاق</TableHead><TableHead className="text-end">المتبقي</TableHead></TableRow></TableHeader>
             <TableBody>
-              {data.openFines.length === 0 && <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-6">لا توجد غرامات مفتوحة</TableCell></TableRow>}
+              {data.openFines.length === 0 && <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-6">لا توجد خصومات مفتوحة</TableCell></TableRow>}
               {data.openFines.map((f, i) => (
                 <TableRow key={i}>
                   <TableCell className="font-semibold">{f.title}</TableCell>

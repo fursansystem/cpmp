@@ -79,13 +79,13 @@ export const CLEARANCE_LABELS: Record<ClearanceStatus, string> = {
 };
 
 export const FINE_LABELS: Record<FineStatus, string> = {
-  open: "مفتوحة (Open)",
+  open: "مفتوح (Open)",
   under_appeal: "قيد الاعتراض (Under appeal)",
   payment_requested: "تم طلب السداد (Payment requested)",
-  paid: "مسددة (Paid)",
+  paid: "مسدد (Paid)",
   waiver_requested: "طلب إعفاء (Waiver requested)",
-  waived: "معفاة (Waived)",
-  cancelled: "ملغاة (Cancelled)",
+  waived: "معفى (Waived)",
+  cancelled: "ملغى (Cancelled)",
 };
 
 export const LIABLE_PARTY_LABELS: Record<LiableParty, string> = {
@@ -146,8 +146,12 @@ export interface PoSummary {
   projectName: string;
   poNumber: string;
   title: string;
+  status: string; // the purchase order's own status: draft, approved, issued, partially_received, completed
+  supplierId: string | null;
   supplierName: string | null;
   value: number;
+  receivedValue: number; // value of the goods received so far, from the receiving quantities on its items
+  receivedPct: number;
   invoiced: number;
   ordered: number;
   paid: number;
@@ -155,11 +159,84 @@ export interface PoSummary {
   committed: number;
   remaining: number; // negative when over
   over: boolean;
+  // Every non-cancelled purchase order of the project is listed; this says whether any bill request or
+  // payment order points at it. Orders nobody has touched financially are `noActivity`.
+  linked: boolean;
+  noActivity: boolean;
+  goodsNotInvoiced: number; // received but not invoiced yet (goods received / invoice not received)
+}
+
+// A project's contract against what is committed and paid out of it
+export interface ProjectBudgetRow {
+  projectId: string;
+  projectName: string;
+  contractValue: number;
+  estimatedCost: number;
+  actualCost: number;
+  committedPo: number; // purchase orders approved or beyond
+  committedSub: number; // subcontract values
+  committed: number;
+  paid: number; // payment orders paid
+  remainingBudget: number; // estimated cost - committed (negative when over)
+  expectedMargin: number; // contract value - committed
+  over: boolean;
 }
 
 export const poCommitted = (invoiced: number, ordered: number) => Math.max(invoiced, ordered);
 // A cent of rounding is not an overrun
 export const isPoOver =(committed: number, value: number) => value > 0 && committed > value + 0.005;
+
+// A decision (order, subcontractor certificate, waiver) waiting on a manager longer than this is "late"
+export const DECISION_OVERDUE_DAYS = 3;
+
+// The control cards on the follow-up dashboard (لوحة المتابعة)
+export interface PaymentsMonitoring {
+  // Money that has gone out without the original invoice behind it. Orders raised from a bill request
+  // collected their originals first, and fines / licence fees have no invoice, so neither is counted.
+  paymentsWithoutOriginals: {
+    notRequested: { count: number; amount: number };
+    requestedPending: { count: number; amount: number };
+    advances: { count: number; amount: number }; // the advance payments among them
+    rows: { projectName: string; orderNo: string; payeeName: string; purpose: string; amount: number; paidDate: string | null; ageDays: number; state: "not_requested" | "pending"; requestNo: string | null }[];
+  };
+  // Waiting on a project manager for more than DECISION_OVERDUE_DAYS
+  delayedDecisions: {
+    thresholdDays: number;
+    orders: number;
+    certificates: number;
+    waivers: number;
+    total: number;
+    oldestDays: number;
+    rows: { projectName: string; kind: "order" | "certificate" | "waiver"; ref: string; title: string; amount: number; ageDays: number }[];
+  };
+  // Invoices whose originals are in but which are not paid yet: what the company owes
+  unpaidInvoices: {
+    requests: number;
+    amount: number;
+    withoutOrder: { requests: number; amount: number };
+    inPayment: { requests: number; amount: number }; // an order exists but is not paid
+  };
+  // Goods that arrived against a purchase order but whose invoice has not been entered
+  goodsReceivedNotInvoiced: {
+    count: number;
+    amount: number;
+    rows: { projectName: string; poNumber: string; supplierName: string | null; received: number; invoiced: number; amount: number }[];
+  };
+  // Purchase orders (not draft) with no bill request, invoice or payment against them at all
+  poNoActivity: { count: number; value: number };
+  cycleTimes: {
+    requestToReceiptDays: number | null; // bill request created -> originals received
+    requestToReceiptSamples: number;
+    approvalToPaymentDays: number | null; // payment order approved -> paid
+    approvalToPaymentSamples: number;
+  };
+}
+
+export interface ApprovalsReport {
+  approvers: { name: string; approvals: number; rejections: number; avgDecisionHours: number | null }[];
+  rejectionReasons: { reason: string; count: number }[];
+  totals: { approvals: number; rejections: number; avgDecisionHours: number | null };
+}
 
 export interface PaymentsReport {
   generatedAt: string;
@@ -186,6 +263,8 @@ export interface PaymentsReport {
   monthlyPaid: { month: string; amount: number }[];
   billRequestAging: { projectName: string; requestNo: string; payeeName: string; status: string; ageDays: number; dueDate: string | null; overdue: boolean }[];
   purchaseOrders: PoSummary[];
+  projectBudgets: ProjectBudgetRow[];
+  monitoring: PaymentsMonitoring;
   // One row per subcontractor: where its contract stands
   subcontractors: { projectName: string; subcontractorName: string; contractValue: number; certifiedGross: number; retentionHeld: number; paidNet: number; payableNet: number; certificates: number }[];
   clearancesAttention: { projectName: string; title: string; authority: string | null; status: string; expiryDate: string | null; dueDate: string | null; reason: "expired" | "expiring" | "overdue" }[];

@@ -44,6 +44,7 @@ import ProjectMaterialGallery from "@/pages/ProjectMaterialGallery";
 import ProjectSnagList from "@/pages/ProjectSnagList";
 import ProjectProgressMatrix from "@/pages/ProjectProgressMatrix";
 import Payments from "@/pages/Payments";
+import Reports from "@/pages/Reports";
 import Login from "@/pages/login";
 import ForgotPassword from "@/pages/forgot-password";
 import ResetPassword from "@/pages/reset-password";
@@ -106,6 +107,7 @@ function ProtectedRoutes() {
       <Route path="/projects/:projectId/requests" component={ProjectRequests} />
       <Route path="/projects/:projectId" component={ProjectDetail} />
       <Route path="/payments" component={Payments} />
+      <Route path="/reports" component={Reports} />
       <Route path="/tasks" component={Tasks} />
       <Route path="/organizations" component={Organizations} />
       <Route path="/invitations" component={Invitations} />

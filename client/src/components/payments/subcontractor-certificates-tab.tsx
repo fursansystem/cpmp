@@ -257,7 +257,7 @@ function SubCertDialog({ ctx, defaultProjectId, row, allRows, orders, onClose, o
           {L("نسبة ضريبة القيمة المضافة %", <Input type="number" min="0" max="100" step="0.01" value={form.vatPercent} disabled={!editable} onChange={(e) => set("vatPercent")(e.target.value)} />)}
           {L("استرداد الدفعة المقدمة", <Input type="number" min="0" step="0.01" value={form.advanceRecovery} disabled={!editable} onChange={(e) => set("advanceRecovery")(e.target.value)} />)}
           {L("خصومات أخرى", <Input type="number" min="0" step="0.01" value={form.otherDeductions} disabled={!editable} onChange={(e) => set("otherDeductions")(e.target.value)} />)}
-          {L("بيان الخصومات", <Input value={form.deductionsNote} disabled={!editable} onChange={(e) => set("deductionsNote")(e.target.value)} placeholder="غرامات تأخير، مواد مصروفة…" />, "sm:col-span-2")}
+          {L("بيان الخصومات", <Input value={form.deductionsNote} disabled={!editable} onChange={(e) => set("deductionsNote")(e.target.value)} placeholder="خصم تأخير، مواد مصروفة…" />, "sm:col-span-2")}
           {L("ملاحظات", <Textarea rows={2} value={form.notes} disabled={!editable} onChange={(e) => set("notes")(e.target.value)} />, "sm:col-span-2")}
         </div>
 

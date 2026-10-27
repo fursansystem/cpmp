@@ -87,6 +87,7 @@ async function main() {
   `);
   // For databases that already ran an earlier version of this script
   await db.execute(sql`ALTER TABLE payment_orders ADD COLUMN IF NOT EXISTS purpose TEXT;`);
+  await db.execute(sql`ALTER TABLE payment_orders ADD COLUMN IF NOT EXISTS supplier_id VARCHAR REFERENCES suppliers(id) ON DELETE SET NULL;`);
   await db.execute(sql`CREATE UNIQUE INDEX IF NOT EXISTS payment_orders_seq_uq ON payment_orders (project_id, seq);`);
   await db.execute(sql`CREATE INDEX IF NOT EXISTS payment_orders_project_idx ON payment_orders (project_id);`);
   console.log("Table 'payment_orders' ready.");

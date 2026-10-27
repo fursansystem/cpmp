@@ -152,7 +152,7 @@ function sourceLabel(o: any, data: PaymentsOverview): string {
     const nos = (b?.invoices ?? []).map((i: any) => i.invoiceNo).join("، ");
     return `فواتير ${b?.requestNo ?? ""}${nos ? ` (${nos})` : ""}`.trim();
   }
-  if (o.fineId) return `غرامة: ${data.fines.find((f) => f.id === o.fineId)?.title ?? ""}`;
+  if (o.fineId) return `خصم: ${data.fines.find((f) => f.id === o.fineId)?.title ?? ""}`;
   if (o.clearanceId) return `رسوم: ${data.clearances.find((c) => c.id === o.clearanceId)?.title ?? ""}`;
   if (o.subcontractorCertificateId) return `مستخلص باطن ${data.subcontractorCertificates.find((c) => c.id === o.subcontractorCertificateId)?.certNo ?? ""}`.trim();
   if (o.purpose === "advance") return o.reason && o.reason !== ADVANCE_REASON ? `${ADVANCE_REASON}: ${o.reason}` : ADVANCE_REASON;
@@ -184,8 +184,9 @@ function CreateOrderDialog({ ctx, defaultProjectId, data, draft, onClose }: { ct
   const [amount, setAmount] = useState("");
   const [reason, setReason] = useState("");
   const [advancePoId, setAdvancePoId] = useState("");
+  const [supplierId, setSupplierId] = useState("");
 
-  const { data: sources } = useQuery<{ purchaseOrders: any[] }>({
+  const { data: sources } = useQuery<{ purchaseOrders: any[]; suppliers: { id: string; name: string }[] }>({
     queryKey: ["payments", "sources", projectId],
     queryFn: () => getJson(`/api/payments/sources?projectId=${projectId}`),
     enabled: !!projectId,
@@ -238,6 +239,8 @@ function CreateOrderDialog({ ctx, defaultProjectId, data, draft, onClose }: { ct
         fineId: kind === "fine" ? sourceId || null : null,
         clearanceId: kind === "clearance" ? sourceId || null : null,
         subcontractorCertificateId: kind === "subcontractor" ? sourceId || null : null,
+        // a bill request brings its own supplier and PO; anything else can name them
+        supplierId: kind === "bill" ? null : supplierId || null,
         purchaseOrderId: kind === "bill" ? data.billRequests.find((b) => b.id === sourceId)?.purchaseOrderId ?? null : advancePoId || null,
         certificateId: kind === "bill" ? data.billRequests.find((b) => b.id === sourceId)?.certificateId ?? null : null,
         purpose: kind === "advance" || kind === "other" ? kind : undefined,
@@ -287,11 +290,11 @@ function CreateOrderDialog({ ctx, defaultProjectId, data, draft, onClose }: { ct
           </div>
           <div className="space-y-1.5">
             <Label>سبب الدفع</Label>
-            <Select value={kind} onValueChange={(v) => { setKind(v as SourceKind); setSourceId(""); setAdvancePoId(""); setPayeeName(""); setAmount(""); setReason(v === "advance" ? ADVANCE_REASON : ""); }} disabled={!!draftProject}>
+            <Select value={kind} onValueChange={(v) => { setKind(v as SourceKind); setSourceId(""); setAdvancePoId(""); setSupplierId(""); setPayeeName(""); setAmount(""); setReason(v === "advance" ? ADVANCE_REASON : ""); }} disabled={!!draftProject}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="bill">فواتير تم استلام أصولها</SelectItem>
-                <SelectItem value="fine">سداد غرامة</SelectItem>
+                <SelectItem value="fine">سداد خصم</SelectItem>
                 <SelectItem value="clearance">رسوم رخصة</SelectItem>
                 <SelectItem value="subcontractor">مستخلص مقاول باطن</SelectItem>
                 <SelectItem value="advance">دفعة مقدمة</SelectItem>
@@ -299,6 +302,25 @@ function CreateOrderDialog({ ctx, defaultProjectId, data, draft, onClose }: { ct
               </SelectContent>
             </Select>
           </div>
+          {(kind === "advance" || kind === "other") && (sources?.suppliers.length ?? 0) > 0 && (
+            <div className="space-y-1.5">
+              <Label>المورد (من سجل الموردين)</Label>
+              <Select
+                value={supplierId || "none"}
+                onValueChange={(v) => {
+                  const s = sources?.suppliers.find((x) => x.id === v);
+                  setSupplierId(v === "none" ? "" : v);
+                  if (s && !payeeName) setPayeeName(s.name);
+                }}
+              >
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">— غير محدد —</SelectItem>
+                  {sources?.suppliers.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
           {kind !== "bill" && (
             <div className="space-y-1.5">
               <Label>أمر شراء (اختياري)</Label>
@@ -306,6 +328,7 @@ function CreateOrderDialog({ ctx, defaultProjectId, data, draft, onClose }: { ct
                 const po = sources?.purchaseOrders.find((p) => p.id === v);
                 setAdvancePoId(v === "none" ? "" : v);
                 if (po && !payeeName && (kind === "advance" || kind === "other")) setPayeeName(po.supplierName ?? "");
+                if (po?.supplierId && !supplierId) setSupplierId(po.supplierId);
               }}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>

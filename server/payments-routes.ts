@@ -14,6 +14,7 @@ import { storage } from "./storage";
 import {
   projects,
   purchaseOrders,
+  poItems,
   suppliers,
   progressPaymentCertificates,
   paymentBillRequests,
@@ -30,6 +31,10 @@ import {
 import { ProjectPermissions, type PermissionUser } from "@shared/permissions";
 import {
   computeSubCert,
+  DECISION_OVERDUE_DAYS,
+  type ApprovalsReport,
+  type PaymentsMonitoring,
+  type ProjectBudgetRow,
   isPoOver,
   poCommitted,
   type PoSummary,
@@ -90,6 +95,7 @@ const billRequestSchema = z.object({
   description: z.string().trim().min(1, "Describe the bills required").max(3000),
   amount: money.default(0),
   dueDate: optDate,
+  supplierId: z.string().nullish().transform((v) => v || null),
   purchaseOrderId: z.string().nullish().transform((v) => v || null),
   certificateId: z.string().nullish().transform((v) => v || null),
   notes: optText(),
@@ -97,6 +103,7 @@ const billRequestSchema = z.object({
 
 const orderSchema = z.object({
   projectId: z.string().min(1),
+  supplierId: z.string().nullish().transform((v) => v || null),
   billRequestId: z.string().nullish().transform((v) => v || null),
   fineId: z.string().nullish().transform((v) => v || null),
   clearanceId: z.string().nullish().transform((v) => v || null),
@@ -331,49 +338,74 @@ export function registerPaymentsRoutes(app: Express, deps: Deps) {
     return Array.from(ctx.projectIds);
   };
 
-  // Per purchase order: its value against what has been invoiced and ordered/paid on it. Only POs that
-  // a bill request or payment order points at are included. Purely a view: nothing here blocks a payment.
+  // Per purchase order: its value against what has been received, invoiced, ordered and paid. Every
+  // non-cancelled PO of the projects in scope is listed, whether or not payments have touched it, so the
+  // reports start from the purchasing section rather than from payment records. Purely a view: nothing
+  // here blocks a payment.
   async function buildPoSummaries(ctx: Ctx, ids: string[]): Promise<PoSummary[]> {
     if (ids.length === 0) return [];
-    const [bills, orders] = await Promise.all([
+    const [pos, bills, orders] = await Promise.all([
+      db
+        .select({
+          id: purchaseOrders.id,
+          projectId: purchaseOrders.projectId,
+          poNumber: purchaseOrders.poNumber,
+          title: purchaseOrders.title,
+          status: purchaseOrders.status,
+          total: purchaseOrders.totalAmount,
+          supplierId: purchaseOrders.supplierId,
+          supplierName: suppliers.supplierName,
+        })
+        .from(purchaseOrders)
+        .leftJoin(suppliers, eq(suppliers.id, purchaseOrders.supplierId))
+        .where(and(inArray(purchaseOrders.projectId, ids), sql`${purchaseOrders.status} <> 'cancelled'`)),
       db.select().from(paymentBillRequests).where(and(inArray(paymentBillRequests.projectId, ids), isNotNull(paymentBillRequests.purchaseOrderId))),
       db.select().from(paymentOrders).where(and(inArray(paymentOrders.projectId, ids), isNotNull(paymentOrders.purchaseOrderId))),
     ]);
-    // A PO is listed only while something live points at it; cancelled/rejected records don't count
+    if (pos.length === 0) return [];
+
+    // Cancelled/rejected records don't count
     const liveBills = bills.filter((b) => b.status !== "cancelled");
     const liveOrders = orders.filter((o) => !["cancelled", "rejected"].includes(o.status));
-    const poIds = Array.from(new Set([...liveBills, ...liveOrders].map((r) => r.purchaseOrderId as string)));
-    if (poIds.length === 0) return [];
-
-    const [pos, invoices] = await Promise.all([
-      db
-        .select({ id: purchaseOrders.id, projectId: purchaseOrders.projectId, poNumber: purchaseOrders.poNumber, title: purchaseOrders.title, total: purchaseOrders.totalAmount, supplierName: suppliers.supplierName })
-        .from(purchaseOrders)
-        .leftJoin(suppliers, eq(suppliers.id, purchaseOrders.supplierId))
-        .where(inArray(purchaseOrders.id, poIds)),
+    const poIds = pos.map((p) => p.id);
+    const [invoices, items] = await Promise.all([
       liveBills.length
         ? db.select().from(paymentInvoices).where(inArray(paymentInvoices.billRequestId, liveBills.map((b) => b.id)))
         : Promise.resolve([] as (typeof paymentInvoices.$inferSelect)[]),
+      db
+        .select({ poId: poItems.poId, quantity: poItems.quantity, received: poItems.receivedQuantity, unitPrice: poItems.unitPrice, totalPrice: poItems.totalPrice })
+        .from(poItems)
+        .where(inArray(poItems.poId, poIds)),
     ]);
     const billPo = new Map(liveBills.map((b) => [b.id, b.purchaseOrderId as string]));
     const projectName = new Map(ctx.projects.map((p) => [p.id, p.name]));
 
     return pos.map((po) => {
+      const mine = liveOrders.filter((o) => o.purchaseOrderId === po.id);
+      const linkedBills = liveBills.filter((b) => b.purchaseOrderId === po.id);
       const invoiced = invoices.filter((i) => billPo.get(i.billRequestId) === po.id).reduce((s, i) => s + n(i.amount), 0);
-      const mine = orders.filter((o) => o.purchaseOrderId === po.id && !["cancelled", "rejected"].includes(o.status));
       const ordered = mine.reduce((s, o) => s + n(o.amount), 0);
       const paid = mine.filter((o) => o.status === "paid").reduce((s, o) => s + n(o.amount), 0);
       const advances = mine.filter((o) => o.purpose === "advance").reduce((s, o) => s + n(o.amount), 0);
-      const value = n(po.total);
+
+      const lines = items.filter((i) => i.poId === po.id);
+      // value of what has actually been received (never more than ordered on a line)
+      const receivedValue = lines.reduce((s, i) => s + Math.min(n(i.received), n(i.quantity)) * n(i.unitPrice), 0);
+      const value = n(po.total) > 0 ? n(po.total) : lines.reduce((s, i) => s + n(i.totalPrice), 0);
       const committed = poCommitted(invoiced, ordered);
+      const isDraft = po.status === "draft";
       return {
         id: po.id,
         projectId: po.projectId,
         projectName: projectName.get(po.projectId) ?? "",
         poNumber: po.poNumber,
         title: po.title,
+        status: po.status,
+        supplierId: po.supplierId,
         supplierName: po.supplierName,
         value,
+        receivedValue,
+        receivedPct: value > 0 ? Math.min(100, (receivedValue / value) * 100) : 0,
         invoiced,
         ordered,
         paid,
@@ -381,6 +413,9 @@ export function registerPaymentsRoutes(app: Express, deps: Deps) {
         committed,
         remaining: value - committed,
         over: isPoOver(committed, value),
+        linked: linkedBills.length > 0 || mine.length > 0,
+        noActivity: !isDraft && linkedBills.length === 0 && mine.length === 0,
+        goodsNotInvoiced: isDraft ? 0 : Math.max(0, receivedValue - invoiced),
       };
     }).sort((a, b) => a.projectName.localeCompare(b.projectName) || a.poNumber.localeCompare(b.poNumber));
   }
@@ -404,6 +439,7 @@ export function registerPaymentsRoutes(app: Express, deps: Deps) {
           poNumber: purchaseOrders.poNumber,
           title: purchaseOrders.title,
           totalAmount: purchaseOrders.totalAmount,
+          supplierId: purchaseOrders.supplierId,
           supplierName: suppliers.supplierName,
         })
         .from(purchaseOrders)
@@ -422,14 +458,23 @@ export function registerPaymentsRoutes(app: Express, deps: Deps) {
         .where(eq(progressPaymentCertificates.projectId, projectId))
         .orderBy(desc(progressPaymentCertificates.certNo)),
     ]);
-    res.json({ purchaseOrders: pos, certificates: certs });
+    const projectSuppliers = await db
+      .select({ id: suppliers.id, name: suppliers.supplierName, taxNumber: suppliers.taxNumber })
+      .from(suppliers)
+      .where(eq(suppliers.projectId, projectId))
+      .orderBy(suppliers.supplierName);
+    res.json({ purchaseOrders: pos, certificates: certs, suppliers: projectSuppliers });
   }));
 
   // ---- Everything the page shows, in one round trip ----
   app.get(`${base}/overview`, route(async (req, res, ctx) => {
     const ids = scopedIds(ctx, req.query.projectId);
-    if (ids.length === 0) return res.json({ billRequests: [], orders: [], subcontractorCertificates: [], clearances: [], fines: [], purchaseOrders: [] });
+    if (ids.length === 0) return res.json({ billRequests: [], orders: [], subcontractorCertificates: [], clearances: [], fines: [], purchaseOrders: [], suppliers: [] });
 
+    const supplierRows = await db
+      .select({ id: suppliers.id, projectId: suppliers.projectId, name: suppliers.supplierName, taxNumber: suppliers.taxNumber })
+      .from(suppliers)
+      .where(inArray(suppliers.projectId, ids));
     const [bills, orders, subCerts, clearances, fines, userRows] = await Promise.all([
       db.select().from(paymentBillRequests).where(inArray(paymentBillRequests.projectId, ids)).orderBy(desc(paymentBillRequests.createdAt)),
       db.select().from(paymentOrders).where(inArray(paymentOrders.projectId, ids)).orderBy(desc(paymentOrders.createdAt)),
@@ -472,6 +517,7 @@ export function registerPaymentsRoutes(app: Express, deps: Deps) {
       clearances: await withAttachments("clearance", decorate(clearances)),
       fines: await withAttachments("fine", decorate(fines)),
       purchaseOrders: await buildPoSummaries(ctx, ids),
+      suppliers: supplierRows,
     });
   }));
 
@@ -511,11 +557,17 @@ export function registerPaymentsRoutes(app: Express, deps: Deps) {
     const data = billRequestSchema.parse(req.body);
     requireProject(ctx, data.projectId);
 
+    // The supplier a person picked wins; otherwise the purchase order's supplier
     let supplierId: string | null = null;
+    if (data.supplierId) {
+      const [s] = await db.select({ id: suppliers.id }).from(suppliers).where(and(eq(suppliers.id, data.supplierId), eq(suppliers.projectId, data.projectId)));
+      if (!s) return fail(400, "Supplier does not belong to this project");
+      supplierId = s.id;
+    }
     if (data.purchaseOrderId) {
       const [po] = await db.select().from(purchaseOrders).where(and(eq(purchaseOrders.id, data.purchaseOrderId), eq(purchaseOrders.projectId, data.projectId)));
       if (!po) return fail(400, "Purchase order does not belong to this project");
-      supplierId = po.supplierId;
+      supplierId = supplierId ?? po.supplierId;
     }
     if (data.certificateId) {
       const [cert] = await db.select().from(progressPaymentCertificates).where(and(eq(progressPaymentCertificates.id, data.certificateId), eq(progressPaymentCertificates.projectId, data.projectId)));
@@ -674,12 +726,18 @@ export function registerPaymentsRoutes(app: Express, deps: Deps) {
 
     // An order raised from a bill request belongs to that request's purchase order unless one is chosen
     let purchaseOrderId = data.purchaseOrderId;
+    let supplierId = data.supplierId;
+    if (supplierId) {
+      const [s] = await db.select({ id: suppliers.id }).from(suppliers).where(and(eq(suppliers.id, supplierId), eq(suppliers.projectId, data.projectId)));
+      if (!s) return fail(400, "Supplier does not belong to this project");
+    }
     if (data.billRequestId) {
       const [bill] = await db.select().from(paymentBillRequests).where(and(eq(paymentBillRequests.id, data.billRequestId), eq(paymentBillRequests.projectId, data.projectId)));
       if (!bill) return fail(400, "Bill request not found in this project");
       // A request raised after the fact only collects the original invoice; the payment is already made
       if (bill.paymentOrderId) return fail(409, "This request is for an order that has already been paid; no new payment order is needed");
       purchaseOrderId = purchaseOrderId ?? bill.purchaseOrderId;
+      supplierId = supplierId ?? bill.supplierId;
       if (bill.status !== "received") return fail(409, "The original bills must be received before a payment order is raised");
       // An order pays the invoices listed on the request: it can pay less (deductions), never more
       const listed = await db.select({ amount: paymentInvoices.amount }).from(paymentInvoices).where(eq(paymentInvoices.billRequestId, bill.id));
@@ -709,8 +767,9 @@ export function registerPaymentsRoutes(app: Express, deps: Deps) {
       if (Math.abs(data.amount - n(cert.netPayable)) > 0.005) return fail(400, "The amount must equal the certificate's net payable");
     }
     if (purchaseOrderId) {
-      const [po] = await db.select({ id: purchaseOrders.id }).from(purchaseOrders).where(and(eq(purchaseOrders.id, purchaseOrderId), eq(purchaseOrders.projectId, data.projectId)));
+      const [po] = await db.select({ id: purchaseOrders.id, supplierId: purchaseOrders.supplierId }).from(purchaseOrders).where(and(eq(purchaseOrders.id, purchaseOrderId), eq(purchaseOrders.projectId, data.projectId)));
       if (!po) return fail(400, "Purchase order does not belong to this project");
+      supplierId = supplierId ?? po.supplierId;
     }
     if (data.certificateId) {
       const [cert] = await db.select({ id: progressPaymentCertificates.id }).from(progressPaymentCertificates).where(and(eq(progressPaymentCertificates.id, data.certificateId), eq(progressPaymentCertificates.projectId, data.projectId)));
@@ -726,6 +785,7 @@ export function registerPaymentsRoutes(app: Express, deps: Deps) {
         fineId: data.fineId,
         clearanceId: data.clearanceId,
         subcontractorCertificateId: data.subcontractorCertificateId,
+        supplierId,
         purchaseOrderId,
         certificateId: data.certificateId,
         payeeName: data.payeeName,
@@ -863,8 +923,8 @@ export function registerPaymentsRoutes(app: Express, deps: Deps) {
       .limit(1);
     if (existing) return fail(409, `The originals for this order have already been requested on ${existing.requestNo}`);
 
-    let supplierId: string | null = null;
-    if (order.purchaseOrderId) {
+    let supplierId: string | null = order.supplierId;
+    if (!supplierId && order.purchaseOrderId) {
       const [po] = await db.select({ supplierId: purchaseOrders.supplierId }).from(purchaseOrders).where(eq(purchaseOrders.id, order.purchaseOrderId));
       supplierId = po?.supplierId ?? null;
     }
@@ -1277,6 +1337,142 @@ export function registerPaymentsRoutes(app: Express, deps: Deps) {
       months.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
     }
 
+    // ---- Control cards for the follow-up dashboard ----
+    const dayMs = 86_400_000;
+    const ageOf = (d: Date | string | null | undefined) => (d ? Math.max(0, Math.floor((now.getTime() - new Date(d).getTime()) / dayMs)) : 0);
+    const avg = (values: number[]) => (values.length ? Math.round((values.reduce((s, v) => s + v, 0) / values.length) * 10) / 10 : null);
+
+    // Orders already paid whose original invoice has not arrived (or was never asked for)
+    const liveRequestForOrder = new Map(bills.filter((b) => b.paymentOrderId && b.status !== "cancelled").map((b) => [b.paymentOrderId as string, b]));
+    const noOriginals = orders
+      .filter((o) => o.status === "paid" && !o.billRequestId && !o.fineId && !o.clearanceId)
+      .map((o) => ({ o, req: liveRequestForOrder.get(o.id) }))
+      .filter(({ req }) => req?.status !== "received");
+    const sumAmount = (list: { o: typeof orders[number] }[]) => list.reduce((s, x) => s + n(x.o.amount), 0);
+    const notRequested = noOriginals.filter((x) => !x.req);
+    const requestedPending = noOriginals.filter((x) => x.req);
+    const advancesOpen = noOriginals.filter((x) => x.o.purpose === "advance");
+
+    // Decisions waiting on a manager for longer than the threshold
+    const late = DECISION_OVERDUE_DAYS;
+    const lateRows: PaymentsMonitoring["delayedDecisions"]["rows"] = [
+      ...orders.filter((o) => o.status === "pending_approval" && ageOf(o.submittedAt) > late).map((o) => ({
+        projectName: name.get(o.projectId) ?? "", kind: "order" as const, ref: o.orderNo, title: o.payeeName, amount: n(o.amount), ageDays: ageOf(o.submittedAt),
+      })),
+      ...subCerts.filter((c) => c.status === "submitted" && ageOf(c.submittedAt) > late).map((c) => ({
+        projectName: name.get(c.projectId) ?? "", kind: "certificate" as const, ref: c.certNo, title: c.subcontractorName, amount: n(c.netPayable), ageDays: ageOf(c.submittedAt),
+      })),
+      // a waiver request locks the fine, so its last update is when it was asked
+      ...fines.filter((f) => f.status === "waiver_requested" && ageOf(f.updatedAt) > late).map((f) => ({
+        projectName: name.get(f.projectId) ?? "", kind: "waiver" as const, ref: f.referenceNo ?? "", title: f.title, amount: Math.max(0, n(f.amount) - n(f.paidAmount)), ageDays: ageOf(f.updatedAt),
+      })),
+    ].sort((a, b) => b.ageDays - a.ageDays);
+
+    // Invoices received but not paid: what is owed
+    const receivedBills = bills.filter((b) => b.status === "received" && !b.paymentOrderId);
+    const receivedIds = receivedBills.map((b) => b.id);
+    const receivedInvoices = receivedIds.length
+      ? await db.select().from(paymentInvoices).where(inArray(paymentInvoices.billRequestId, receivedIds))
+      : [];
+    const owedOf = (b: typeof bills[number]) => {
+      const mine = receivedInvoices.filter((i) => i.billRequestId === b.id);
+      return mine.length ? mine.reduce((s, i) => s + n(i.amount), 0) : n(b.amount);
+    };
+    const unpaidBills = receivedBills.filter((b) => !orders.some((o) => o.billRequestId === b.id && o.status === "paid"));
+    const inPaymentBills = unpaidBills.filter((b) => orders.some((o) => o.billRequestId === b.id && (OPEN_PAYMENT_ORDER as readonly string[]).includes(o.status)));
+    const noOrderBills = unpaidBills.filter((b) => !inPaymentBills.includes(b));
+
+    const monitoring: PaymentsMonitoring = {
+      paymentsWithoutOriginals: {
+        notRequested: { count: notRequested.length, amount: sumAmount(notRequested) },
+        requestedPending: { count: requestedPending.length, amount: sumAmount(requestedPending) },
+        advances: { count: advancesOpen.length, amount: sumAmount(advancesOpen) },
+        rows: noOriginals
+          .map(({ o, req }) => ({
+            projectName: name.get(o.projectId) ?? "",
+            orderNo: o.orderNo,
+            payeeName: o.payeeName,
+            purpose: o.purpose ?? "other",
+            amount: n(o.amount),
+            paidDate: o.paidDate,
+            ageDays: ageOf(o.paidAt ?? o.paidDate),
+            state: (req ? "pending" : "not_requested") as "pending" | "not_requested",
+            requestNo: req?.requestNo ?? null,
+          }))
+          .sort((a, b) => b.ageDays - a.ageDays)
+          .slice(0, 20),
+      },
+      delayedDecisions: {
+        thresholdDays: late,
+        orders: lateRows.filter((r) => r.kind === "order").length,
+        certificates: lateRows.filter((r) => r.kind === "certificate").length,
+        waivers: lateRows.filter((r) => r.kind === "waiver").length,
+        total: lateRows.length,
+        oldestDays: lateRows[0]?.ageDays ?? 0,
+        rows: lateRows.slice(0, 20),
+      },
+      unpaidInvoices: {
+        requests: unpaidBills.length,
+        amount: unpaidBills.reduce((s, b) => s + owedOf(b), 0),
+        withoutOrder: { requests: noOrderBills.length, amount: noOrderBills.reduce((s, b) => s + owedOf(b), 0) },
+        inPayment: { requests: inPaymentBills.length, amount: inPaymentBills.reduce((s, b) => s + owedOf(b), 0) },
+      },
+      goodsReceivedNotInvoiced: {
+        count: poSummaries.filter((p) => p.goodsNotInvoiced > 0.005).length,
+        amount: poSummaries.reduce((s, p) => s + p.goodsNotInvoiced, 0),
+        rows: poSummaries
+          .filter((p) => p.goodsNotInvoiced > 0.005)
+          .map((p) => ({ projectName: p.projectName, poNumber: p.poNumber, supplierName: p.supplierName, received: p.receivedValue, invoiced: p.invoiced, amount: p.goodsNotInvoiced }))
+          .sort((a, b) => b.amount - a.amount)
+          .slice(0, 15),
+      },
+      poNoActivity: {
+        count: poSummaries.filter((p) => p.noActivity).length,
+        value: poSummaries.filter((p) => p.noActivity).reduce((s, p) => s + p.value, 0),
+      },
+      cycleTimes: (() => {
+        const toReceipt = bills.filter((b) => b.status === "received" && b.receivedAt).map((b) => (b.receivedAt as Date).getTime() - b.createdAt.getTime());
+        const toPayment = orders.filter((o) => o.status === "paid" && o.approvedAt && o.paidAt).map((o) => (o.paidAt as Date).getTime() - (o.approvedAt as Date).getTime());
+        return {
+          requestToReceiptDays: avg(toReceipt.map((ms) => ms / dayMs)),
+          requestToReceiptSamples: toReceipt.length,
+          approvalToPaymentDays: avg(toPayment.map((ms) => ms / dayMs)),
+          approvalToPaymentSamples: toPayment.length,
+        };
+      })(),
+    };
+
+    // ---- Each project's contract against what is committed and paid ----
+    // Committed = purchase orders approved or beyond (drafts and cancelled ones are not commitments)
+    // + the value of each subcontract (the largest contract value entered on that subcontractor's certificates).
+    const COMMITTED_PO = ["approved", "issued", "partially_received", "completed"];
+    const subContracts = new Map<string, number>(); // project|subcontractor -> contract value
+    for (const c of subCerts) {
+      if (c.status === "cancelled") continue;
+      const key = `${c.projectId}|${c.subcontractorName.trim().toLowerCase()}`;
+      subContracts.set(key, Math.max(subContracts.get(key) ?? 0, n(c.contractValue)));
+    }
+    const projectBudgets: ProjectBudgetRow[] = scope.map((p) => {
+      const committedPo = poSummaries.filter((x) => x.projectId === p.id && COMMITTED_PO.includes(x.status)).reduce((s, x) => s + x.value, 0);
+      const committedSub = Array.from(subContracts.entries()).filter(([k]) => k.startsWith(`${p.id}|`)).reduce((s, [, v]) => s + v, 0);
+      const committed = committedPo + committedSub;
+      const estimatedCost = n(p.estimatedCost);
+      return {
+        projectId: p.id,
+        projectName: p.name,
+        contractValue: n(p.contractValue),
+        estimatedCost,
+        actualCost: n(p.actualCost),
+        committedPo,
+        committedSub,
+        committed,
+        paid: orders.filter((o) => o.projectId === p.id && o.status === "paid").reduce((s, o) => s + n(o.amount), 0),
+        remainingBudget: estimatedCost - committed,
+        expectedMargin: n(p.contractValue) - committed,
+        over: estimatedCost > 0 && committed > estimatedCost + 0.005,
+      };
+    }).sort((a, b) => a.projectName.localeCompare(b.projectName));
+
     const report: PaymentsReport = {
       generatedAt: now.toISOString(),
       totals: {
@@ -1299,6 +1495,8 @@ export function registerPaymentsRoutes(app: Express, deps: Deps) {
         poOverCount: poSummaries.filter((p) => p.over).length,
       },
       purchaseOrders: poSummaries,
+      projectBudgets,
+      monitoring,
       subcontractors: Array.from(subMap.values()).sort((a, b) => a.projectName.localeCompare(b.projectName) || a.subcontractorName.localeCompare(b.subcontractorName)),
       byProject,
       monthlyPaid: months.map((m) => ({
@@ -1343,5 +1541,71 @@ export function registerPaymentsRoutes(app: Express, deps: Deps) {
         .sort((a, b) => b.amount - a.amount),
     };
     res.json(report);
+  }));
+
+  // ---- Approvals performance: who decided what, how fast, and why things were rejected ----
+  // Built from the activity trail, so it covers decisions made since each record started being tracked.
+  app.get(`${base}/reports/approvals`, route(async (req, res, ctx) => {
+    const ids = scopedIds(ctx, req.query.projectId);
+    const empty: ApprovalsReport = { approvers: [], rejectionReasons: [], totals: { approvals: 0, rejections: 0, avgDecisionHours: null } };
+    if (ids.length === 0) return res.json(empty);
+
+    const rows = await db
+      .select({
+        entityType: paymentActivity.entityType,
+        entityId: paymentActivity.entityId,
+        action: paymentActivity.action,
+        note: paymentActivity.note,
+        createdAt: paymentActivity.createdAt,
+        userId: paymentActivity.userId,
+        userName: users.username,
+      })
+      .from(paymentActivity)
+      .leftJoin(users, eq(users.id, paymentActivity.userId))
+      .where(and(
+        inArray(paymentActivity.projectId, ids),
+        inArray(paymentActivity.entityType, ["payment_order", "subcontractor_certificate", "fine"]),
+        inArray(paymentActivity.action, ["submit", "approve", "reject", "waiver_request", "waiver_approve", "waiver_reject"]),
+      ))
+      .orderBy(paymentActivity.createdAt);
+
+    const SUBMITS = new Set(["submit", "waiver_request"]);
+    const lastSubmit = new Map<string, Date>(); // entity -> when it was last put forward
+    const perUser = new Map<string, { name: string; approvals: number; rejections: number; hours: number[] }>();
+    const reasons = new Map<string, number>();
+    const allHours: number[] = [];
+
+    for (const r of rows) {
+      const key = `${r.entityType}:${r.entityId}`;
+      if (SUBMITS.has(r.action)) { lastSubmit.set(key, r.createdAt); continue; }
+      const approved = r.action === "approve" || r.action === "waiver_approve";
+      const who = perUser.get(r.userId ?? "") ?? { name: r.userName ?? "—", approvals: 0, rejections: 0, hours: [] };
+      if (approved) who.approvals += 1; else who.rejections += 1;
+      const since = lastSubmit.get(key);
+      if (since) {
+        const hours = (r.createdAt.getTime() - since.getTime()) / 3_600_000;
+        who.hours.push(hours);
+        allHours.push(hours);
+      }
+      perUser.set(r.userId ?? "", who);
+      if (!approved && r.note) {
+        const reason = r.note.trim();
+        reasons.set(reason, (reasons.get(reason) ?? 0) + 1);
+      }
+    }
+
+    const avgHours = (v: number[]) => (v.length ? Math.round((v.reduce((s, x) => s + x, 0) / v.length) * 10) / 10 : null);
+    const result: ApprovalsReport = {
+      approvers: Array.from(perUser.values())
+        .map((u) => ({ name: u.name, approvals: u.approvals, rejections: u.rejections, avgDecisionHours: avgHours(u.hours) }))
+        .sort((a, b) => b.approvals + b.rejections - (a.approvals + a.rejections)),
+      rejectionReasons: Array.from(reasons.entries()).map(([reason, count]) => ({ reason, count })).sort((a, b) => b.count - a.count).slice(0, 10),
+      totals: {
+        approvals: Array.from(perUser.values()).reduce((s, u) => s + u.approvals, 0),
+        rejections: Array.from(perUser.values()).reduce((s, u) => s + u.rejections, 0),
+        avgDecisionHours: avgHours(allHours),
+      },
+    };
+    res.json(result);
   }));
 }

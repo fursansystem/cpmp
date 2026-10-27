@@ -1,6 +1,7 @@
 import { useRef, useState, type ReactNode } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Paperclip, Trash2, Loader2, FileText, Upload, AlertTriangle, ShoppingCart } from "lucide-react";
+import { Link } from "wouter";
+import { Paperclip, Trash2, Loader2, FileText, Upload, AlertTriangle, ShoppingCart, BarChart3 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
@@ -286,9 +287,14 @@ export interface PaymentsOverview {
   clearances: any[];
   fines: any[];
   purchaseOrders: PoSummary[];
+  suppliers: { id: string; projectId: string; name: string; taxNumber: string | null }[];
 }
 
-export const poLabel = (po?: { poNumber: string; supplierName: string | null } | null) =>
+// Suppliers are kept per project, so one company in two projects is two rows. For a statement they count as
+// one supplier when the tax number matches, or the name when there is no tax number.
+export const supplierKey = (s: { name: string; taxNumber: string | null }) => (s.taxNumber?.trim() || s.name.trim()).toLowerCase();
+
+export const poLabel =(po?: { poNumber: string; supplierName: string | null } | null) =>
   po ? `${po.poNumber}${po.supplierName ? ` · ${po.supplierName}` : ""}` : "";
 
 // A visible alert, never a block: the PO's invoices/payments exceed its value
@@ -310,9 +316,17 @@ export function PoCard({ po }: { po: PoSummary }) {
   );
   return (
     <div className="space-y-2">
-      <div className="flex items-center gap-2 text-sm font-bold"><ShoppingCart className="w-4 h-4" /> أمر الشراء <span className="font-mono">{po.poNumber}</span>{po.supplierName && <span className="font-normal text-muted-foreground">· {po.supplierName}</span>}</div>
-      <div className="rounded-2xl border bg-muted/30 p-3 grid grid-cols-2 sm:grid-cols-5 gap-3 text-sm">
+      <div className="flex items-center gap-2 text-sm font-bold"><ShoppingCart className="w-4 h-4" /> أمر الشراء <span className="font-mono">{po.poNumber}</span>{po.supplierName && <span className="font-normal text-muted-foreground">· {po.supplierName}</span>}
+        <Link href={`/reports?report=po&po=${po.id}&project=${po.projectId}`} className="ms-auto inline-flex items-center gap-1 text-xs font-normal text-primary hover:underline" title="كشف أمر الشراء">
+          <BarChart3 className="w-3.5 h-3.5" /> كشف أمر الشراء
+        </Link>
+      </div>
+      <div className="rounded-2xl border bg-muted/30 p-3 grid grid-cols-2 sm:grid-cols-6 gap-3 text-sm">
         {stat("قيمة الأمر", po.value)}
+        <div>
+          <div className="text-xs text-muted-foreground">المستلم</div>
+          <div className="font-semibold tabular-nums">{money(po.receivedValue)} <span className="text-xs font-normal text-muted-foreground">({po.receivedPct.toFixed(0)}%)</span></div>
+        </div>
         {stat("المفوتر", po.invoiced)}
         {stat("أوامر الدفع", po.ordered)}
         {stat("المدفوع", po.paid, "text-emerald-700 dark:text-emerald-300")}

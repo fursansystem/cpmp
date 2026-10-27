@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Wallet } from "lucide-react";
+import { useLocation } from "wouter";
+import { BarChart3, Wallet } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -10,6 +11,7 @@ import { OrdersTab, type OrderDraft } from "@/components/payments/orders-tab";
 import { ClearancesTab, FinesTab, clearanceAttention } from "@/components/payments/clearances-fines-tab";
 import { SubcontractorCertificatesTab } from "@/components/payments/subcontractor-certificates-tab";
 import { ReportsTab } from "@/components/payments/reports-tab";
+import type { ReportId } from "@/components/payments/reports-library-tab";
 import { getJson, paymentsQuery, type PaymentsContext, type PaymentsOverview } from "@/components/payments/payments-common";
 
 const query = (key: string) => {
@@ -20,13 +22,34 @@ const query = (key: string) => {
   }
 };
 
+// The report that belongs to a tab. It sits inside the tab and opens the Reports page on that report,
+// for the project currently selected. mousedown is stopped so pressing it doesn't also switch tabs.
+function TabReportIcon({ report, projectId, title }: { report: ReportId; projectId: string; title: string }) {
+  const [, navigate] = useLocation();
+  return (
+    <span
+      role="link"
+      title={title}
+      aria-label={title}
+      className="ms-2 inline-flex items-center justify-center rounded-md p-1 text-muted-foreground hover:bg-primary/10 hover:text-primary"
+      onMouseDown={(e) => e.stopPropagation()}
+      onClick={(e) => {
+        e.stopPropagation();
+        navigate(`/reports?report=${report}${projectId !== "all" ? `&project=${projectId}` : ""}`);
+      }}
+    >
+      <BarChart3 className="w-3.5 h-3.5" />
+    </span>
+  );
+}
+
 function CountBadge({ n }: { n: number }) {
   if (n <= 0) return null;
   return <Badge variant="secondary" className="ms-2 h-5 min-w-5 px-1.5 rounded-full bg-primary/15 text-primary">{n}</Badge>;
 }
 
 export default function Payments() {
-  const [tab, setTab] = useState(query("tab") || "reports");
+  const [tab, setTab] = useState(["reports", null, ""].includes(query("tab")) ? "dashboard" : (query("tab") as string)); // reports moved to /reports
   const [projectId, setProjectId] = useState(query("project") || "all");
   const [draft, setDraft] = useState<OrderDraft | null>(null);
   // A bill request to open as soon as the أصول الفواتير tab shows (used when jumping from a payment order)
@@ -54,7 +77,7 @@ export default function Payments() {
     );
   }
 
-  const overview: PaymentsOverview = data ?? { billRequests: [], orders: [], subcontractorCertificates: [], clearances: [], fines: [], purchaseOrders: [] };
+  const overview: PaymentsOverview = data ?? { billRequests: [], orders: [], subcontractorCertificates: [], clearances: [], fines: [], purchaseOrders: [], suppliers: [] };
   const projectName = projectId === "all" ? "كل المشاريع" : ctx.projects.find((p) => p.id === projectId)?.name ?? "";
 
   // What is waiting on somebody, shown on the tabs
@@ -82,7 +105,7 @@ export default function Payments() {
           <div>
             <h1 className="text-2xl font-bold tracking-tight">المدفوعات <span className="text-muted-foreground font-medium">Payments</span></h1>
             <p className="text-sm text-muted-foreground">
-              {ctx.perms.isAccounting ? "طلب أصول الفواتير، أوامر الدفع، مستخلصات الباطن، الرخص والغرامات" : "الرد على طلبات المحاسبة، ومتابعة الرخص والغرامات"}
+              {ctx.perms.isAccounting ? "طلب أصول الفواتير، أوامر الدفع، مستخلصات الباطن، الرخص والخصومات" : "الرد على طلبات المحاسبة، ومتابعة الرخص والخصومات"}
             </p>
           </div>
         </div>
@@ -100,15 +123,15 @@ export default function Payments() {
       ) : (
         <Tabs value={tab} onValueChange={setTab} className="space-y-4">
           <TabsList className="h-auto flex-wrap justify-start">
-            <TabsTrigger value="reports">التقارير</TabsTrigger>
-            <TabsTrigger value="bills">أصول الفواتير<CountBadge n={actionable.bills} /></TabsTrigger>
-            <TabsTrigger value="orders">أوامر الدفع<CountBadge n={actionable.orders} /></TabsTrigger>
-            <TabsTrigger value="subcontractors">مستخلصات الباطن<CountBadge n={actionable.subCerts} /></TabsTrigger>
-            <TabsTrigger value="clearances">الرخص<CountBadge n={actionable.clearances} /></TabsTrigger>
-            <TabsTrigger value="fines">الغرامات<CountBadge n={actionable.fines} /></TabsTrigger>
+            <TabsTrigger value="dashboard">لوحة المتابعة<TabReportIcon report="approvals" projectId={projectId} title="تقرير: أداء الموافقات" /></TabsTrigger>
+            <TabsTrigger value="bills">أصول الفواتير<CountBadge n={actionable.bills} /><TabReportIcon report="aging" projectId={projectId} title="تقرير: أعمار الالتزامات" /></TabsTrigger>
+            <TabsTrigger value="orders">أوامر الدفع<CountBadge n={actionable.orders} /><TabReportIcon report="cashflow" projectId={projectId} title="تقرير: تدفق نقدي متوقع" /></TabsTrigger>
+            <TabsTrigger value="subcontractors">مستخلصات الباطن<CountBadge n={actionable.subCerts} /><TabReportIcon report="sub" projectId={projectId} title="تقرير: كشف مقاول باطن" /></TabsTrigger>
+            <TabsTrigger value="clearances">الرخص<CountBadge n={actionable.clearances} /><TabReportIcon report="licences" projectId={projectId} title="تقرير: متابعة الرخص" /></TabsTrigger>
+            <TabsTrigger value="fines">الخصومات<CountBadge n={actionable.fines} /><TabReportIcon report="deductions" projectId={projectId} title="تقرير: الخصومات حسب الجهة والمتحمّل" /></TabsTrigger>
           </TabsList>
 
-          <TabsContent value="reports"><ReportsTab projectId={projectId} projectName={projectName} /></TabsContent>
+          <TabsContent value="dashboard"><ReportsTab projectId={projectId} projectName={projectName} /></TabsContent>
 
           {isLoading ? (
             <Skeleton className="h-96 rounded-2xl" />

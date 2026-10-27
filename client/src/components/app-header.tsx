@@ -31,7 +31,7 @@ export function AppHeader() {
   const navItems = [
     { label: "Home", href: "/", icon: Home },
     { label: "Projects", href: "/projects", icon: Briefcase },
-    { label: "Reports", href: "/budget", icon: BarChart3 },
+    { label: "Reports", href: "/reports", icon: BarChart3 },
   ].filter(item => {
     if (item.label === "Reports" && user?.organizationSectorType === "Consultant") {
       return false;

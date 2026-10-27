@@ -274,13 +274,13 @@ export function FinesTab({ ctx, projectId, rows, orders, onRequestPayment }: Tab
 
   return (
     <div className="space-y-4">
-      <Toolbar search={search} setSearch={setSearch} status={status} setStatus={setStatus} labels={FINE_LABELS} onNew={() => setEditing("new")} newLabel="غرامة جديدة" />
+      <Toolbar search={search} setSearch={setSearch} status={status} setStatus={setStatus} labels={FINE_LABELS} onNew={() => setEditing("new")} newLabel="خصم جديد" />
       <Card className="rounded-2xl">
         <CardContent className="p-0 overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>الغرامة</TableHead>
+                <TableHead>الخصم</TableHead>
                 {projectId === "all" && <TableHead>المشروع</TableHead>}
                 <TableHead>الجهة</TableHead>
                 <TableHead>المتحمّل</TableHead>
@@ -292,7 +292,7 @@ export function FinesTab({ ctx, projectId, rows, orders, onRequestPayment }: Tab
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filtered.length === 0 && <TableRow><TableCell colSpan={9} className="text-center text-muted-foreground py-10">لا توجد غرامات</TableCell></TableRow>}
+              {filtered.length === 0 && <TableRow><TableCell colSpan={9} className="text-center text-muted-foreground py-10">لا توجد خصومات</TableCell></TableRow>}
               {filtered.map((r) => {
                 const overdue = ["open", "under_appeal"].includes(r.status) && r.dueDate && r.dueDate < today;
                 return (
@@ -370,12 +370,12 @@ function FineDialog({ ctx, defaultProjectId, row, orders, onClose, onRequestPaym
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-3">{row ? row.title : "غرامة جديدة"}{row && <StatusBadge status={row.status} labels={FINE_LABELS} />}</DialogTitle>
-          <DialogDescription>{row ? row.projectName : "سجّل الغرامة لتُتابع مع المشروع والمالية حتى السداد."}</DialogDescription>
+          <DialogTitle className="flex items-center gap-3">{row ? row.title : "خصم جديد"}{row && <StatusBadge status={row.status} labels={FINE_LABELS} />}</DialogTitle>
+          <DialogDescription>{row ? row.projectName : "سجّل الخصم لتُتابع مع المشروع والمالية حتى السداد."}</DialogDescription>
         </DialogHeader>
         <div className="grid sm:grid-cols-2 gap-3">
           <div className="sm:col-span-2"><ProjectSelect ctx={ctx} value={projectId} onChange={setProjectId} disabled={!!row} /></div>
-          <div className="space-y-1.5 sm:col-span-2"><Label>الغرامة</Label><Input value={form.title} disabled={locked} onChange={(e) => set("title")(e.target.value)} placeholder="مثال: غرامة تأخير، مخالفة سلامة موقع…" /></div>
+          <div className="space-y-1.5 sm:col-span-2"><Label>الخصم</Label><Input value={form.title} disabled={locked} onChange={(e) => set("title")(e.target.value)} placeholder="مثال: خصم تأخير، مخالفة سلامة موقع…" /></div>
           <div className="space-y-1.5"><Label>الجهة المصدرة</Label><Input value={form.authority} disabled={locked} onChange={(e) => set("authority")(e.target.value)} /></div>
           <div className="space-y-1.5"><Label>رقم المرجع</Label><Input value={form.referenceNo} disabled={locked} onChange={(e) => set("referenceNo")(e.target.value)} /></div>
           <div className="space-y-1.5">
@@ -398,10 +398,10 @@ function FineDialog({ ctx, defaultProjectId, row, orders, onClose, onRequestPaym
             </div>
           )}
           {row && <div className="space-y-1.5"><Label>المسدد حتى الآن</Label><div className="h-10 flex items-center text-sm tabular-nums">{money(row.paidAmount)}</div></div>}
-          <div className="space-y-1.5 sm:col-span-2"><Label>سبب الغرامة</Label><Textarea rows={2} value={form.reason} disabled={locked} onChange={(e) => set("reason")(e.target.value)} /></div>
+          <div className="space-y-1.5 sm:col-span-2"><Label>سبب الخصم</Label><Textarea rows={2} value={form.reason} disabled={locked} onChange={(e) => set("reason")(e.target.value)} /></div>
           <div className="space-y-1.5 sm:col-span-2"><Label>ملاحظات</Label><Textarea rows={2} value={form.notes} disabled={locked} onChange={(e) => set("notes")(e.target.value)} /></div>
         </div>
-        {locked && <p className="text-xs text-muted-foreground">هذه الغرامة ضمن مسار السداد أو الإعفاء ولا يمكن تعديلها.</p>}
+        {locked && <p className="text-xs text-muted-foreground">هذا الخصم ضمن مسار السداد أو الإعفاء ولا يمكن تعديلها.</p>}
         {row?.waiverReason && ["waiver_requested", "waived"].includes(row.status) && (
           <div className="rounded-xl border bg-violet-50 dark:bg-violet-900/10 p-3 text-sm">
             <div className="font-bold mb-1">سبب طلب الإعفاء</div>
@@ -410,7 +410,7 @@ function FineDialog({ ctx, defaultProjectId, row, orders, onClose, onRequestPaym
         )}
         {waiverPanel && (
           <div className="space-y-2 rounded-xl border p-3">
-            <Label>{waiverPanel === "request" ? "لماذا يجب إعفاء هذه الغرامة؟" : "سبب رفض الإعفاء"}</Label>
+            <Label>{waiverPanel === "request" ? "لماذا يجب إعفاء هذا الخصم؟" : "سبب رفض الإعفاء"}</Label>
             <Textarea rows={2} value={waiverNote} onChange={(e) => setWaiverNote(e.target.value)} />
             <div className="flex justify-end gap-2">
               <Button variant="outline" size="sm" onClick={() => setWaiverPanel(null)}>تراجع</Button>
@@ -423,7 +423,7 @@ function FineDialog({ ctx, defaultProjectId, row, orders, onClose, onRequestPaym
 
         {row && (
           <>
-            <AttachmentsPanel entityType="fine" entityId={row.id} projectId={row.projectId} files={row.attachments} editable canRemove={(f) => f.uploadedBy === user?.id || ctx.perms.isAccounting} hint="أرفق إشعار الغرامة وأي مراسلات اعتراض أو إيصال السداد." />
+            <AttachmentsPanel entityType="fine" entityId={row.id} projectId={row.projectId} files={row.attachments} editable canRemove={(f) => f.uploadedBy === user?.id || ctx.perms.isAccounting} hint="أرفق إشعار الخصم وأي مراسلات اعتراض أو إيصال السداد." />
             <ActivityTimeline entityType="fine" entityId={row.id} labels={FINE_LABELS} />
           </>
         )}
@@ -432,7 +432,7 @@ function FineDialog({ ctx, defaultProjectId, row, orders, onClose, onRequestPaym
           {row && ctx.perms.isAccounting && !locked && (
             <Button variant="ghost" className="text-destructive me-auto" disabled={remove.isPending} onClick={() => remove.mutate()}><Trash2 className="w-4 h-4 mr-1" /> حذف</Button>
           )}
-          {canRequestPayment && <Button variant="outline" onClick={() => onRequestPayment(row.id)}><Banknote className="w-4 h-4 mr-1" /> أمر دفع للغرامة</Button>}
+          {canRequestPayment && <Button variant="outline" onClick={() => onRequestPayment(row.id)}><Banknote className="w-4 h-4 mr-1" /> أمر دفع للخصم</Button>}
           {canRequestWaiver && <Button variant="outline" onClick={() => { setWaiverNote(""); setWaiverPanel("request"); }}><HandHelping className="w-4 h-4 mr-1" /> طلب إعفاء</Button>}
           {row?.status === "waiver_requested" && ctx.perms.canApprove && (
             <>
