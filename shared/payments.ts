@@ -19,8 +19,39 @@ export type LiableParty = (typeof LIABLE_PARTIES)[number];
 export const PAYMENT_METHODS = ["bank_transfer", "cheque", "cash"] as const;
 export type PaymentMethod = (typeof PAYMENT_METHODS)[number];
 
-export const PAYMENT_ENTITY_TYPES = ["bill_request", "payment_order", "clearance", "fine"] as const;
+export const PAYMENT_ENTITY_TYPES = ["bill_request", "payment_order", "clearance", "fine", "subcontractor_certificate"] as const;
 export type PaymentEntityType = (typeof PAYMENT_ENTITY_TYPES)[number];
+
+// مستخلصات مقاولي الباطن: raised on the project side, approved by a project manager,
+// then paid through a payment order
+export const SUB_CERT_STATUSES = ["draft", "submitted", "approved", "rejected", "paid", "cancelled"] as const;
+export type SubCertStatus = (typeof SUB_CERT_STATUSES)[number];
+
+export const SUB_CERT_LABELS: Record<SubCertStatus, string> = {
+  draft: "مسودة (Draft)",
+  submitted: "بانتظار الاعتماد (Submitted)",
+  approved: "معتمد (Approved)",
+  rejected: "مرفوض (Rejected)",
+  paid: "مدفوع (Paid)",
+  cancelled: "ملغي (Cancelled)",
+};
+
+// The amount actually payable on a subcontractor certificate. One definition, used by the
+// server when it saves and by the form's live preview, so the two can never disagree:
+//   net = gross work value - retention - advance recovery - other deductions + VAT on gross
+export function computeSubCert(input: {
+  grossAmount: number;
+  retentionPercent: number;
+  advanceRecovery: number;
+  otherDeductions: number;
+  vatPercent: number;
+}) {
+  const round = (v: number) => Math.round(v * 100) / 100;
+  const retentionAmount = round((input.grossAmount * input.retentionPercent) / 100);
+  const vatAmount = round((input.grossAmount * input.vatPercent) / 100);
+  const netPayable = round(input.grossAmount - retentionAmount - input.advanceRecovery - input.otherDeductions + vatAmount);
+  return { retentionAmount, vatAmount, netPayable };
+}
 
 export const BILL_REQUEST_LABELS: Record<BillRequestStatus, string> = {
   requested: "مطلوب (Requested)",
@@ -103,6 +134,33 @@ export interface PaymentsProjectSummary {
   openFinesCount: number;
 }
 
+// Where a purchase order stands against what has been invoiced and paid on it.
+//   invoiced  invoices listed on live bill requests that point at the PO
+//   ordered   payment orders raised against the PO (advances included), not counting cancelled/rejected ones
+//   paid      the part of `ordered` that has actually been paid
+// An advance is later recovered inside an invoice's payment, so the two are not added together:
+// the money committed is whichever of invoiced / ordered is larger.
+export interface PoSummary {
+  id: string;
+  projectId: string;
+  projectName: string;
+  poNumber: string;
+  title: string;
+  supplierName: string | null;
+  value: number;
+  invoiced: number;
+  ordered: number;
+  paid: number;
+  advances: number;
+  committed: number;
+  remaining: number; // negative when over
+  over: boolean;
+}
+
+export const poCommitted = (invoiced: number, ordered: number) => Math.max(invoiced, ordered);
+// A cent of rounding is not an overrun
+export const isPoOver =(committed: number, value: number) => value > 0 && committed > value + 0.005;
+
 export interface PaymentsReport {
   generatedAt: string;
   totals: {
@@ -117,11 +175,19 @@ export interface PaymentsReport {
     clearancesAttention: number;
     openFinesCount: number;
     openFinesAmount: number;
+    subCertsPendingCount: number; // submitted, waiting for a project manager
+    subCertsPendingAmount: number; // net payable of those
+    subCertsApprovedUnpaidAmount: number; // approved, not yet paid
+    subRetentionHeld: number; // retention withheld on approved and paid certificates
+    poOverCount: number; // purchase orders whose invoices/payments exceed their value
     paidFinesAmount: number;
   };
   byProject: PaymentsProjectSummary[];
   monthlyPaid: { month: string; amount: number }[];
   billRequestAging: { projectName: string; requestNo: string; payeeName: string; status: string; ageDays: number; dueDate: string | null; overdue: boolean }[];
+  purchaseOrders: PoSummary[];
+  // One row per subcontractor: where its contract stands
+  subcontractors: { projectName: string; subcontractorName: string; contractValue: number; certifiedGross: number; retentionHeld: number; paidNet: number; payableNet: number; certificates: number }[];
   clearancesAttention: { projectName: string; title: string; authority: string | null; status: string; expiryDate: string | null; dueDate: string | null; reason: "expired" | "expiring" | "overdue" }[];
   openFines: { projectName: string; title: string; authority: string | null; liableParty: string; status: string; amount: number; dueDate: string | null }[];
 }

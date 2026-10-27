@@ -115,7 +115,7 @@ export function ClearancesTab({ ctx, projectId, rows, orders, onRequestPayment }
 
   return (
     <div className="space-y-4">
-      <Toolbar search={search} setSearch={setSearch} status={status} setStatus={setStatus} labels={CLEARANCE_LABELS} onNew={() => setEditing("new")} newLabel="مخالصة / تصريح جديد" />
+      <Toolbar search={search} setSearch={setSearch} status={status} setStatus={setStatus} labels={CLEARANCE_LABELS} onNew={() => setEditing("new")} newLabel="رخصة / تصريح جديد" />
       <Card className="rounded-2xl">
         <CardContent className="p-0 overflow-x-auto">
           <Table>
@@ -208,12 +208,12 @@ function ClearanceDialog({ ctx, defaultProjectId, row, orders, onClose, onReques
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{row ? row.title : "مخالصة / تصريح جديد"}</DialogTitle>
-          <DialogDescription>{row ? row.projectName : "تتبّع المخالصات والتصاريح ورسومها مع المشروع والمالية."}</DialogDescription>
+          <DialogTitle>{row ? row.title : "رخصة / تصريح جديد"}</DialogTitle>
+          <DialogDescription>{row ? row.projectName : "تتبّع الرخص ورسومها مع المشروع والمالية."}</DialogDescription>
         </DialogHeader>
         <div className="grid sm:grid-cols-2 gap-3">
           <div className="sm:col-span-2"><ProjectSelect ctx={ctx} value={projectId} onChange={setProjectId} disabled={!!row} /></div>
-          <div className="space-y-1.5 sm:col-span-2"><Label>البند</Label><Input value={form.title} onChange={(e) => set("title")(e.target.value)} placeholder="مثال: مخالصة الدفاع المدني، شهادة إتمام البناء…" /></div>
+          <div className="space-y-1.5 sm:col-span-2"><Label>البند</Label><Input value={form.title} onChange={(e) => set("title")(e.target.value)} placeholder="مثال: رخصة الدفاع المدني، شهادة إتمام البناء…" /></div>
           <div className="space-y-1.5"><Label>الجهة</Label><Input value={form.authority} onChange={(e) => set("authority")(e.target.value)} /></div>
           <div className="space-y-1.5"><Label>رقم المرجع</Label><Input value={form.referenceNo} onChange={(e) => set("referenceNo")(e.target.value)} /></div>
           <div className="space-y-1.5">
@@ -237,7 +237,7 @@ function ClearanceDialog({ ctx, defaultProjectId, row, orders, onClose, onReques
 
         {row && (
           <>
-            <AttachmentsPanel entityType="clearance" entityId={row.id} projectId={row.projectId} files={row.attachments} editable canRemove={(f) => f.uploadedBy === user?.id || ctx.perms.isAccounting} hint="أرفق صورة المخالصة أو التصريح أو إيصال الرسوم." />
+            <AttachmentsPanel entityType="clearance" entityId={row.id} projectId={row.projectId} files={row.attachments} editable canRemove={(f) => f.uploadedBy === user?.id || ctx.perms.isAccounting} hint="أرفق صورة الرخصة أو إيصال الرسوم." />
             <ActivityTimeline entityType="clearance" entityId={row.id} labels={CLEARANCE_LABELS} />
           </>
         )}

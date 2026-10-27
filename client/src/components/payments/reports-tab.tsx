@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { Printer, FileSpreadsheet, FileText, Banknote, ShieldAlert, Gavel, Hourglass } from "lucide-react";
+import { Printer, FileSpreadsheet, FileText, Banknote, ShieldAlert, Gavel, Hourglass, HardHat, ShoppingCart, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -53,8 +53,8 @@ export function ReportsTab({ projectId, projectName }: { projectId: string; proj
       "أوامر بانتظار الاعتماد": p.pendingOrdersAmount,
       "معتمدة غير مصروفة": p.approvedUnpaidAmount,
       "المصروف": p.paidAmount,
-      "مخالصات مفتوحة": p.openClearances,
-      "مخالصات تحتاج انتباه": p.clearancesAttention,
+      "رخص مفتوحة": p.openClearances,
+      "رخص تحتاج انتباه": p.clearancesAttention,
       "غرامات مفتوحة": p.openFinesCount,
       "قيمة الغرامات المفتوحة": p.openFinesAmount,
     })));
@@ -63,7 +63,7 @@ export function ReportsTab({ projectId, projectName }: { projectId: string; proj
       الحالة: BILL_REQUEST_LABELS[b.status as keyof typeof BILL_REQUEST_LABELS] ?? b.status,
       "الأيام منذ الطلب": b.ageDays, الاستحقاق: b.dueDate ?? "", متأخر: b.overdue ? "نعم" : "",
     })));
-    add("مخالصات تحتاج انتباه", data.clearancesAttention.map((c) => ({
+    add("رخص تحتاج انتباه", data.clearancesAttention.map((c) => ({
       المشروع: c.projectName, البند: c.title, الجهة: c.authority ?? "",
       الحالة: CLEARANCE_LABELS[c.status as keyof typeof CLEARANCE_LABELS] ?? c.status,
       الانتهاء: c.expiryDate ?? "", الاستحقاق: c.dueDate ?? "", السبب: REASON_LABEL[c.reason],
@@ -72,6 +72,16 @@ export function ReportsTab({ projectId, projectName }: { projectId: string; proj
       المشروع: f.projectName, الغرامة: f.title, الجهة: f.authority ?? "",
       المتحمّل: LIABLE_PARTY_LABELS[f.liableParty as keyof typeof LIABLE_PARTY_LABELS] ?? f.liableParty,
       الحالة: FINE_LABELS[f.status as keyof typeof FINE_LABELS] ?? f.status, المتبقي: f.amount, الاستحقاق: f.dueDate ?? "",
+    })));
+    add("مستخلصات الباطن", data.subcontractors.map((s) => ({
+      المشروع: s.projectName, "مقاول الباطن": s.subcontractorName, "قيمة العقد": s.contractValue,
+      "المعتمد (قيمة الأعمال)": s.certifiedGross, "نسبة الإنجاز المعتمد %": s.contractValue > 0 ? Math.round((s.certifiedGross / s.contractValue) * 1000) / 10 : "",
+      "الضمان المحتجز": s.retentionHeld, "المصروف": s.paidNet, "معتمد غير مصروف": s.payableNet, "عدد المستخلصات": s.certificates,
+    })));
+    add("أوامر الشراء", data.purchaseOrders.map((p) => ({
+      المشروع: p.projectName, "أمر الشراء": p.poNumber, المورد: p.supplierName ?? "", "قيمة الأمر": p.value,
+      المفوتر: p.invoiced, "أوامر الدفع": p.ordered, المدفوع: p.paid, "منها دفعات مقدمة": p.advances,
+      المتبقي: p.remaining, الحالة: p.over ? "تجاوز القيمة" : "ضمن القيمة",
     })));
     add("المصروف شهرياً", data.monthlyPaid.map((m) => ({ الشهر: m.month, المبلغ: m.amount })));
     XLSX.writeFile(wb, `payments-report-${new Date().toISOString().split("T")[0]}.xlsx`);
@@ -94,9 +104,13 @@ export function ReportsTab({ projectId, projectName }: { projectId: string; proj
         <Kpi icon={Hourglass} label="بانتظار الاعتماد" value={money(t.ordersPendingApprovalAmount)} sub={`${t.ordersPendingApproval} أمر دفع`} />
         <Kpi icon={Banknote} label="معتمد وبانتظار الصرف" value={money(t.ordersApprovedUnpaidAmount)} />
         <Kpi icon={Banknote} label="المصروف هذا الشهر" value={money(t.paidThisMonthAmount)} sub={`الإجمالي ${money(t.paidTotalAmount)}`} tone="ok" />
-        <Kpi icon={ShieldAlert} label="مخالصات مفتوحة" value={t.openClearances} sub={t.clearancesAttention ? `${t.clearancesAttention} تحتاج انتباه` : "لا تنبيهات"} tone={t.clearancesAttention ? "warn" : undefined} />
+        <Kpi icon={ShieldAlert} label="رخص مفتوحة" value={t.openClearances} sub={t.clearancesAttention ? `${t.clearancesAttention} تحتاج انتباه` : "لا تنبيهات"} tone={t.clearancesAttention ? "warn" : undefined} />
         <Kpi icon={Gavel} label="غرامات مفتوحة" value={t.openFinesCount} sub={money(t.openFinesAmount)} tone={t.openFinesCount ? "warn" : undefined} />
         <Kpi icon={Gavel} label="غرامات تم سدادها" value={money(t.paidFinesAmount)} tone="ok" />
+        <Kpi icon={HardHat} label="مستخلصات باطن بانتظار الاعتماد" value={money(t.subCertsPendingAmount)} sub={`${t.subCertsPendingCount} مستخلص`} />
+        <Kpi icon={HardHat} label="مستخلصات باطن معتمدة غير مصروفة" value={money(t.subCertsApprovedUnpaidAmount)} />
+        <Kpi icon={HardHat} label="ضمان حسن التنفيذ المحتجز" value={money(t.subRetentionHeld)} sub="على مستخلصات الباطن" />
+        <Kpi icon={ShoppingCart} label="أوامر شراء تجاوزت قيمتها" value={t.poOverCount} sub={data.purchaseOrders.length ? `من ${data.purchaseOrders.length} أمر شراء` : "لا توجد أوامر شراء مرتبطة"} tone={t.poOverCount ? "warn" : undefined} />
       </div>
 
       <Card className="rounded-2xl">
@@ -110,7 +124,7 @@ export function ReportsTab({ projectId, projectName }: { projectId: string; proj
                 <TableHead className="text-end">بانتظار الاعتماد</TableHead>
                 <TableHead className="text-end">معتمد غير مصروف</TableHead>
                 <TableHead className="text-end">المصروف</TableHead>
-                <TableHead className="text-end">مخالصات مفتوحة</TableHead>
+                <TableHead className="text-end">رخص مفتوحة</TableHead>
                 <TableHead className="text-end">غرامات مفتوحة</TableHead>
               </TableRow>
             </TableHeader>
@@ -125,6 +139,81 @@ export function ReportsTab({ projectId, projectName }: { projectId: string; proj
                   <TableCell className="text-end tabular-nums">{money(p.paidAmount)}</TableCell>
                   <TableCell className={cn("text-end tabular-nums", p.clearancesAttention > 0 && "text-destructive font-semibold")}>{p.openClearances}{p.clearancesAttention > 0 && ` (${p.clearancesAttention} !)`}</TableCell>
                   <TableCell className="text-end tabular-nums">{p.openFinesCount ? `${p.openFinesCount} · ${money(p.openFinesAmount)}` : "—"}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+
+      <Card className="rounded-2xl">
+        <CardHeader className="pb-2"><CardTitle className="text-base">مستخلصات مقاولي الباطن</CardTitle></CardHeader>
+        <CardContent className="p-0 overflow-x-auto">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>مقاول الباطن</TableHead>
+                <TableHead>المشروع</TableHead>
+                <TableHead className="text-end">قيمة العقد</TableHead>
+                <TableHead className="text-end">المعتمد</TableHead>
+                <TableHead className="text-end">الإنجاز</TableHead>
+                <TableHead className="text-end">الضمان المحتجز</TableHead>
+                <TableHead className="text-end">المصروف</TableHead>
+                <TableHead className="text-end">معتمد غير مصروف</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {data.subcontractors.length === 0 && <TableRow><TableCell colSpan={8} className="text-center text-muted-foreground py-6">لا توجد مستخلصات باطن</TableCell></TableRow>}
+              {data.subcontractors.map((s, i) => {
+                const pct = s.contractValue > 0 ? (s.certifiedGross / s.contractValue) * 100 : null;
+                return (
+                  <TableRow key={i}>
+                    <TableCell className="font-semibold">{s.subcontractorName}</TableCell>
+                    <TableCell>{s.projectName}</TableCell>
+                    <TableCell className="text-end tabular-nums">{s.contractValue ? money(s.contractValue) : "—"}</TableCell>
+                    <TableCell className="text-end tabular-nums">{money(s.certifiedGross)}</TableCell>
+                    <TableCell className={cn("text-end tabular-nums", pct !== null && pct > 100 && "text-destructive font-semibold")}>{pct === null ? "—" : `${pct.toFixed(1)}%`}</TableCell>
+                    <TableCell className="text-end tabular-nums">{money(s.retentionHeld)}</TableCell>
+                    <TableCell className="text-end tabular-nums">{money(s.paidNet)}</TableCell>
+                    <TableCell className="text-end tabular-nums">{money(s.payableNet)}</TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+
+      <Card className="rounded-2xl">
+        <CardHeader className="pb-2"><CardTitle className="text-base">أوامر الشراء: المفوتر والمدفوع مقابل القيمة</CardTitle></CardHeader>
+        <CardContent className="p-0 overflow-x-auto">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>أمر الشراء</TableHead>
+                <TableHead>المشروع</TableHead>
+                <TableHead>المورد</TableHead>
+                <TableHead className="text-end">القيمة</TableHead>
+                <TableHead className="text-end">المفوتر</TableHead>
+                <TableHead className="text-end">أوامر الدفع</TableHead>
+                <TableHead className="text-end">المدفوع</TableHead>
+                <TableHead className="text-end">المتبقي</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {data.purchaseOrders.length === 0 && <TableRow><TableCell colSpan={8} className="text-center text-muted-foreground py-6">لا توجد أوامر شراء مرتبطة بطلبات أو دفعات</TableCell></TableRow>}
+              {data.purchaseOrders.map((p) => (
+                <TableRow key={p.id}>
+                  <TableCell className="font-mono text-xs">{p.poNumber}</TableCell>
+                  <TableCell>{p.projectName}</TableCell>
+                  <TableCell>{p.supplierName ?? "—"}</TableCell>
+                  <TableCell className="text-end tabular-nums">{money(p.value)}</TableCell>
+                  <TableCell className="text-end tabular-nums">{money(p.invoiced)}</TableCell>
+                  <TableCell className="text-end tabular-nums">{money(p.ordered)}{p.advances > 0 && <div className="text-xs text-muted-foreground">منها مقدمة {money(p.advances)}</div>}</TableCell>
+                  <TableCell className="text-end tabular-nums">{money(p.paid)}</TableCell>
+                  <TableCell className={cn("text-end tabular-nums", p.over && "text-destructive font-semibold")}>
+                    {p.over && <AlertTriangle className="w-3.5 h-3.5 inline mr-1" />}{money(p.remaining)}
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>
@@ -170,7 +259,7 @@ export function ReportsTab({ projectId, projectName }: { projectId: string; proj
         </Card>
 
         <Card className="rounded-2xl">
-          <CardHeader className="pb-2"><CardTitle className="text-base">مخالصات تحتاج انتباه</CardTitle></CardHeader>
+          <CardHeader className="pb-2"><CardTitle className="text-base">رخص تحتاج انتباه</CardTitle></CardHeader>
           <CardContent className="p-0 overflow-x-auto">
             <Table>
               <TableHeader><TableRow><TableHead>البند</TableHead><TableHead>المشروع</TableHead><TableHead>الانتهاء / الاستحقاق</TableHead><TableHead>السبب</TableHead></TableRow></TableHeader>

@@ -131,7 +131,7 @@ export default function ProjectDetail() {
     },
     {
       title: "المدفوعات (Payments)",
-      description: "طلب أصول الفواتير، أوامر الدفع، المخالصات والغرامات لهذا المشروع.",
+      description: "طلب أصول الفواتير، أوامر الدفع، الرخص والغرامات لهذا المشروع.",
       icon: Wallet,
       count: "—",
       link: `/payments?project=${projectId}`,

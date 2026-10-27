@@ -1,12 +1,12 @@
 import { useRef, useState, type ReactNode } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Paperclip, Trash2, Loader2, FileText, Upload } from "lucide-react";
+import { Paperclip, Trash2, Loader2, FileText, Upload, AlertTriangle, ShoppingCart } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { cn } from "@/lib/utils";
-import type { PaymentEntityType } from "@shared/payments";
+import type { PaymentEntityType, PoSummary } from "@shared/payments";
 
 export interface PaymentFile {
   id: string;
@@ -217,6 +217,9 @@ interface ActivityRow {
 
 const ACTION_LABELS: Record<string, string> = {
   created: "تم الإنشاء",
+  originals_requested: "طلب أصل الفاتورة",
+  invoice_added: "إضافة فاتورة",
+  invoice_removed: "حذف فاتورة",
   waiver_request: "طلب إعفاء",
   waiver_withdraw: "سحب طلب الإعفاء",
   waiver_approve: "اعتماد الإعفاء",
@@ -279,6 +282,43 @@ export interface PaymentsContext {
 export interface PaymentsOverview {
   billRequests: any[];
   orders: any[];
+  subcontractorCertificates: any[];
   clearances: any[];
   fines: any[];
+  purchaseOrders: PoSummary[];
+}
+
+export const poLabel = (po?: { poNumber: string; supplierName: string | null } | null) =>
+  po ? `${po.poNumber}${po.supplierName ? ` · ${po.supplierName}` : ""}` : "";
+
+// A visible alert, never a block: the PO's invoices/payments exceed its value
+export function PoOverAlert({ po, projected }: { po: { poNumber: string; value: number }; projected: number }) {
+  return (
+    <div className="flex items-start gap-2 rounded-xl border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">
+      <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
+      <span>
+        <b>تنبيه:</b> إجمالي المفوتر والمدفوع على أمر الشراء {po.poNumber} ({money(projected)}) يتجاوز قيمته ({money(po.value)}) بمقدار {money(projected - po.value)}. يمكنك المتابعة، لكن راجع أمر الشراء أو ملاحقه.
+      </span>
+    </div>
+  );
+}
+
+// Where a purchase order stands: its value, what is invoiced, ordered and paid, and what is left
+export function PoCard({ po }: { po: PoSummary }) {
+  const stat = (label: string, value: number, cls = "") => (
+    <div><div className="text-xs text-muted-foreground">{label}</div><div className={cn("font-semibold tabular-nums", cls)}>{money(value)}</div></div>
+  );
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center gap-2 text-sm font-bold"><ShoppingCart className="w-4 h-4" /> أمر الشراء <span className="font-mono">{po.poNumber}</span>{po.supplierName && <span className="font-normal text-muted-foreground">· {po.supplierName}</span>}</div>
+      <div className="rounded-2xl border bg-muted/30 p-3 grid grid-cols-2 sm:grid-cols-5 gap-3 text-sm">
+        {stat("قيمة الأمر", po.value)}
+        {stat("المفوتر", po.invoiced)}
+        {stat("أوامر الدفع", po.ordered)}
+        {stat("المدفوع", po.paid, "text-emerald-700 dark:text-emerald-300")}
+        {stat("المتبقي", po.remaining, po.over ? "text-destructive" : "")}
+      </div>
+      {po.over && <PoOverAlert po={po} projected={po.committed} />}
+    </div>
+  );
 }

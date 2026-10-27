@@ -1,6 +1,6 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus, Search, Paperclip, AlertTriangle, CheckCircle2, Undo2, Send, Ban, Banknote } from "lucide-react";
+import { Plus, Search, Paperclip, AlertTriangle, CheckCircle2, Undo2, Send, Ban, Banknote, Receipt, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -12,11 +12,13 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/lib/auth";
 import { apiRequest } from "@/lib/queryClient";
-import { BILL_REQUEST_LABELS, OPEN_BILL_REQUEST, OPEN_PAYMENT_ORDER } from "@shared/payments";
+import { BILL_REQUEST_LABELS, OPEN_BILL_REQUEST, OPEN_PAYMENT_ORDER, PAYMENT_ORDER_LABELS, type PoSummary } from "@shared/payments";
+import { cn } from "@/lib/utils";
 import {
   ActivityTimeline,
   AttachmentsPanel,
   Field,
+  PoCard,
   StatusBadge,
   errorMessage,
   fmtDate,
@@ -32,16 +34,27 @@ interface Props {
   projectId: string; // "all" or a project id
   rows: any[];
   orders: any[];
+  purchaseOrders: PoSummary[];
+  // Open this request's dialog (set when jumping here from a payment order)
+  focusId?: string | null;
+  onFocusHandled?: () => void;
   onCreateOrder: (billRequestId: string) => void;
 }
 
 const todayIso = () => new Date().toISOString().slice(0, 10);
 
-export function BillRequestsTab({ ctx, projectId, rows, orders, onCreateOrder }: Props) {
+export function BillRequestsTab({ ctx, projectId, rows, orders, purchaseOrders, focusId, onFocusHandled, onCreateOrder }: Props) {
   const [status, setStatus] = useState("all");
   const [search, setSearch] = useState("");
   const [creating, setCreating] = useState(false);
   const [openId, setOpenId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!focusId) return;
+    setOpenId(focusId);
+    onFocusHandled?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusId]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -100,7 +113,13 @@ export function BillRequestsTab({ ctx, projectId, rows, orders, onCreateOrder }:
                   <TableRow key={r.id} className="cursor-pointer" onClick={() => setOpenId(r.id)}>
                     <TableCell className="font-mono text-xs">{r.requestNo}</TableCell>
                     {projectId === "all" && <TableCell>{r.projectName}</TableCell>}
-                    <TableCell className="font-semibold">{r.payeeName}</TableCell>
+                    <TableCell className="font-semibold">
+                      {r.payeeName}
+                      {r.purchaseOrderId && (() => {
+                        const p = purchaseOrders.find((x) => x.id === r.purchaseOrderId);
+                        return p ? <div className={cn("text-xs font-normal flex items-center gap-1", p.over ? "text-destructive" : "text-muted-foreground")}>{p.over && <AlertTriangle className="w-3 h-3" />}{p.poNumber}</div> : null;
+                      })()}
+                    </TableCell>
                     <TableCell className="max-w-[280px] truncate">{r.description}</TableCell>
                     <TableCell className="text-end tabular-nums">{money(r.amount)}</TableCell>
                     <TableCell className={overdue ? "text-destructive font-semibold" : ""}>
@@ -125,6 +144,7 @@ export function BillRequestsTab({ ctx, projectId, rows, orders, onCreateOrder }:
           ctx={ctx}
           row={selected}
           orders={orders}
+          po={purchaseOrders.find((p) => p.id === selected.purchaseOrderId) ?? null}
           onClose={() => setOpenId(null)}
           onCreateOrder={(id) => { setOpenId(null); onCreateOrder(id); }}
         />
@@ -251,7 +271,64 @@ function CreateBillRequestDialog({ ctx, defaultProjectId, open, onClose }: { ctx
   );
 }
 
-function BillRequestDialog({ ctx, row, orders, onClose, onCreateOrder }: { ctx: PaymentsContext; row: any; orders: any[]; onClose: () => void; onCreateOrder: (id: string) => void }) {
+// The invoices this request covers. A payment order raised from the request pays them.
+function InvoicesPanel({ row, editable, canRemove }: { row: any; editable: boolean; canRemove: (i: any) => boolean }) {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [form, setForm] = useState({ invoiceNo: "", invoiceDate: "", amount: "" });
+
+  const add = useMutation({
+    mutationFn: async () => apiRequest("POST", `/api/payments/bill-requests/${row.id}/invoices`, {
+      invoiceNo: form.invoiceNo,
+      invoiceDate: form.invoiceDate || null,
+      amount: form.amount,
+    }),
+    onSuccess: () => { invalidatePayments(queryClient); setForm({ invoiceNo: "", invoiceDate: "", amount: "" }); },
+    onError: (e) => toast({ title: "تعذّر إضافة الفاتورة", description: errorMessage(e), variant: "destructive" }),
+  });
+  const remove = useMutation({
+    mutationFn: async (id: string) => apiRequest("DELETE", `/api/payments/invoices/${id}`),
+    onSuccess: () => invalidatePayments(queryClient),
+    onError: (e) => toast({ title: "تعذّر حذف الفاتورة", description: errorMessage(e), variant: "destructive" }),
+  });
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between text-sm font-bold">
+        <span className="flex items-center gap-2"><Receipt className="w-4 h-4" /> الفواتير <span className="text-muted-foreground font-normal">({row.invoices.length})</span></span>
+        {row.invoices.length > 0 && <span className="tabular-nums">الإجمالي {money(row.invoiceTotal)}</span>}
+      </div>
+      {row.invoices.length === 0 ? (
+        <p className="text-sm text-muted-foreground border border-dashed rounded-xl p-4 text-center">لم تُسجَّل فواتير بعد</p>
+      ) : (
+        <ul className="space-y-1.5">
+          {row.invoices.map((i: any) => (
+            <li key={i.id} className="flex items-center gap-3 rounded-xl border px-3 py-2 text-sm">
+              <span className="font-mono">{i.invoiceNo}</span>
+              <span className="text-muted-foreground">{fmtDate(i.invoiceDate)}</span>
+              <span className="ms-auto tabular-nums font-semibold">{money(i.amount)}</span>
+              {editable && canRemove(i) && (
+                <Button type="button" size="icon" variant="ghost" className="h-7 w-7 text-destructive" disabled={remove.isPending} onClick={() => remove.mutate(i.id)}>
+                  <Trash2 className="w-4 h-4" />
+                </Button>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+      {editable && (
+        <div className="grid grid-cols-[1.2fr_1fr_1fr_auto] gap-2 items-end">
+          <div className="space-y-1"><Label className="text-xs">رقم الفاتورة</Label><Input value={form.invoiceNo} onChange={(e) => setForm((f) => ({ ...f, invoiceNo: e.target.value }))} /></div>
+          <div className="space-y-1"><Label className="text-xs">التاريخ</Label><Input type="date" value={form.invoiceDate} onChange={(e) => setForm((f) => ({ ...f, invoiceDate: e.target.value }))} /></div>
+          <div className="space-y-1"><Label className="text-xs">المبلغ (شامل الضريبة)</Label><Input type="number" min="0" step="0.01" value={form.amount} onChange={(e) => setForm((f) => ({ ...f, amount: e.target.value }))} /></div>
+          <Button type="button" size="sm" disabled={add.isPending || !form.invoiceNo.trim() || !(Number(form.amount) > 0)} onClick={() => add.mutate()}><Plus className="w-4 h-4" /></Button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function BillRequestDialog({ ctx, row, orders, po, onClose, onCreateOrder }: { ctx: PaymentsContext; row: any; orders: any[]; po: PoSummary | null; onClose: () => void; onCreateOrder: (id: string) => void }) {
   const { toast } = useToast();
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -271,6 +348,8 @@ function BillRequestDialog({ ctx, row, orders, onClose, onCreateOrder }: { ctx: 
   });
 
   const { isAccounting } = ctx.perms;
+  const forOrder = row.paymentOrderId ? orders.find((o) => o.id === row.paymentOrderId) ?? null : null;
+  const linkedOrders = orders.filter((o) => o.billRequestId === row.id && o.status !== "cancelled");
   const hasLiveOrder = orders.some((o) => o.billRequestId === row.id && ([...OPEN_PAYMENT_ORDER, "paid"] as string[]).includes(o.status));
   const filesEditable = ["requested", "returned", "submitted"].includes(row.status);
 
@@ -293,8 +372,39 @@ function BillRequestDialog({ ctx, row, orders, onClose, onCreateOrder }: { ctx: 
           {row.notes && <div className="sm:col-span-3"><Field label="ملاحظات">{row.notes}</Field></div>}
           <Field label="طلبه">{row.requestedByName ?? "—"}</Field>
           <Field label="تاريخ الطلب">{fmtDate(row.createdAt)}</Field>
+          {forOrder && (
+            <div className="sm:col-span-3 rounded-xl border bg-muted/30 p-3 text-sm flex flex-wrap items-center gap-2">
+              <span>طلب لاحق لدفعة تمت: أمر الدفع <span className="font-mono font-semibold">{forOrder.orderNo}</span></span>
+              <StatusBadge status={forOrder.status} labels={PAYMENT_ORDER_LABELS} />
+              <span className="ms-auto tabular-nums">{money(forOrder.amount)}</span>
+              <span className="w-full text-xs text-muted-foreground">الدفع تم بالفعل، فالمطلوب هنا أصل الفاتورة والمستندات المؤيدة فقط، ولا يُصدر أمر دفع جديد.</span>
+            </div>
+          )}
           {row.receivedAt && <Field label="تاريخ الاستلام">{fmtDate(row.receivedAt)}</Field>}
         </div>
+
+        {po && <PoCard po={po} />}
+
+        <InvoicesPanel
+          row={row}
+          editable={["requested", "returned"].includes(row.status) || (row.status === "submitted" && isAccounting)}
+          canRemove={(i) => i.createdBy === user?.id || isAccounting}
+        />
+
+        {linkedOrders.length > 0 && (
+          <div className="space-y-2">
+            <div className="text-sm font-bold">أوامر الدفع المرتبطة</div>
+            <ul className="space-y-1.5">
+              {linkedOrders.map((o) => (
+                <li key={o.id} className="flex items-center gap-3 rounded-xl border px-3 py-2 text-sm">
+                  <span className="font-mono">{o.orderNo}</span>
+                  <StatusBadge status={o.status} labels={PAYMENT_ORDER_LABELS} />
+                  <span className="ms-auto tabular-nums">{money(o.amount)}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
 
         <AttachmentsPanel
           entityType="bill_request"
@@ -302,7 +412,7 @@ function BillRequestDialog({ ctx, row, orders, onClose, onCreateOrder }: { ctx: 
           projectId={row.projectId}
           files={row.attachments}
           editable={filesEditable}
-          hint={["requested", "returned"].includes(row.status) ? "أرفق الفواتير الأصلية ثم اضغط «إرسال للمحاسبة»." : undefined}
+          hint={["requested", "returned"].includes(row.status) ? "سجّل الفواتير أعلاه وأرفق نسخها الأصلية، ثم اضغط «إرسال للمحاسبة»." : undefined}
           canRemove={(f) => f.uploadedBy === user?.id || isAccounting}
         />
 
@@ -321,7 +431,7 @@ function BillRequestDialog({ ctx, row, orders, onClose, onCreateOrder }: { ctx: 
 
         <DialogFooter className="gap-2 sm:gap-2 flex-wrap">
           {["requested", "returned"].includes(row.status) && (
-            <Button disabled={act.isPending || row.attachments.length === 0} onClick={() => act.mutate({ action: "submit" })}>
+            <Button disabled={act.isPending || row.attachments.length === 0 || row.invoices.length === 0} onClick={() => act.mutate({ action: "submit" })}>
               <Send className="w-4 h-4 mr-1" /> إرسال للمحاسبة
             </Button>
           )}
@@ -335,7 +445,7 @@ function BillRequestDialog({ ctx, row, orders, onClose, onCreateOrder }: { ctx: 
               </Button>
             </>
           )}
-          {isAccounting && row.status === "received" && !hasLiveOrder && (
+          {isAccounting && row.status === "received" && !hasLiveOrder && !row.paymentOrderId && (
             <Button onClick={() => onCreateOrder(row.id)}>
               <Banknote className="w-4 h-4 mr-1" /> إصدار أمر دفع
             </Button>

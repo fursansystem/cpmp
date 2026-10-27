@@ -32,9 +32,28 @@ async function main() {
       updated_at TIMESTAMP NOT NULL DEFAULT NOW()
     );
   `);
+  // For databases that already ran an earlier version of this script
+  await db.execute(sql`ALTER TABLE payment_bill_requests ADD COLUMN IF NOT EXISTS payment_order_id VARCHAR;`);
   await db.execute(sql`CREATE UNIQUE INDEX IF NOT EXISTS payment_bill_requests_seq_uq ON payment_bill_requests (project_id, seq);`);
   await db.execute(sql`CREATE INDEX IF NOT EXISTS payment_bill_requests_project_idx ON payment_bill_requests (project_id);`);
   console.log("Table 'payment_bill_requests' ready.");
+
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS payment_invoices (
+      id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+      project_id VARCHAR NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+      bill_request_id VARCHAR NOT NULL REFERENCES payment_bill_requests(id) ON DELETE CASCADE,
+      invoice_no TEXT NOT NULL,
+      invoice_date DATE,
+      amount DECIMAL(14,2) NOT NULL DEFAULT 0,
+      notes TEXT,
+      created_by VARCHAR REFERENCES users(id) ON DELETE SET NULL,
+      created_at TIMESTAMP NOT NULL DEFAULT NOW()
+    );
+  `);
+  await db.execute(sql`CREATE INDEX IF NOT EXISTS payment_invoices_request_idx ON payment_invoices (bill_request_id);`);
+  await db.execute(sql`CREATE UNIQUE INDEX IF NOT EXISTS payment_invoices_no_uq ON payment_invoices (bill_request_id, invoice_no);`);
+  console.log("Table 'payment_invoices' ready.");
 
   await db.execute(sql`
     CREATE TABLE IF NOT EXISTS payment_orders (
@@ -71,6 +90,42 @@ async function main() {
   await db.execute(sql`CREATE UNIQUE INDEX IF NOT EXISTS payment_orders_seq_uq ON payment_orders (project_id, seq);`);
   await db.execute(sql`CREATE INDEX IF NOT EXISTS payment_orders_project_idx ON payment_orders (project_id);`);
   console.log("Table 'payment_orders' ready.");
+
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS payment_subcontractor_certificates (
+      id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+      project_id VARCHAR NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+      seq INTEGER NOT NULL,
+      cert_no TEXT NOT NULL,
+      subcontractor_name TEXT NOT NULL,
+      scope TEXT,
+      contract_value DECIMAL(14,2) NOT NULL DEFAULT 0,
+      period_from DATE,
+      period_to DATE,
+      gross_amount DECIMAL(14,2) NOT NULL DEFAULT 0,
+      retention_percent DECIMAL(5,2) NOT NULL DEFAULT 0,
+      retention_amount DECIMAL(14,2) NOT NULL DEFAULT 0,
+      advance_recovery DECIMAL(14,2) NOT NULL DEFAULT 0,
+      other_deductions DECIMAL(14,2) NOT NULL DEFAULT 0,
+      deductions_note TEXT,
+      vat_percent DECIMAL(5,2) NOT NULL DEFAULT 0,
+      vat_amount DECIMAL(14,2) NOT NULL DEFAULT 0,
+      net_payable DECIMAL(14,2) NOT NULL DEFAULT 0,
+      status TEXT NOT NULL DEFAULT 'draft',
+      reject_reason TEXT,
+      notes TEXT,
+      created_by VARCHAR REFERENCES users(id) ON DELETE SET NULL,
+      submitted_at TIMESTAMP,
+      approved_by VARCHAR REFERENCES users(id) ON DELETE SET NULL,
+      approved_at TIMESTAMP,
+      created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+    );
+  `);
+  await db.execute(sql`CREATE UNIQUE INDEX IF NOT EXISTS payment_sub_certs_seq_uq ON payment_subcontractor_certificates (project_id, seq);`);
+  await db.execute(sql`CREATE INDEX IF NOT EXISTS payment_sub_certs_project_idx ON payment_subcontractor_certificates (project_id);`);
+  await db.execute(sql`ALTER TABLE payment_orders ADD COLUMN IF NOT EXISTS subcontractor_certificate_id VARCHAR;`);
+  console.log("Table 'payment_subcontractor_certificates' ready.");
 
   await db.execute(sql`
     CREATE TABLE IF NOT EXISTS payment_clearances (
