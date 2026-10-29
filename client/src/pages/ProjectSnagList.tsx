@@ -1,3 +1,4 @@
+import { DeductionButton } from "@/components/payments/payment-actions";
 import { useState, useEffect, useRef, useMemo } from "react";
 import { useParams, useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
@@ -907,6 +908,17 @@ export default function ProjectSnagList() {
                       <CardTitle className="text-base font-bold">Snag Details</CardTitle>
                     </div>
                     <div className="flex items-center gap-2">
+                      {/* A defect can lead to a deduction: the form opens with the reason and the subcontractor party chosen */}
+                      <DeductionButton
+                        projectId={projectId || ""}
+                        prefill={{
+                          title: `ملاحظة موقع: ${viewItem.title}`,
+                          reason: viewItem.description || viewItem.title,
+                          liableParty: "subcontractor",
+                          sourceType: "snag",
+                          sourceId: viewItem.id,
+                        }}
+                      />
                       {viewItem.purpose && (
                         <Badge variant="secondary" className="text-xs font-bold gap-1 py-1 px-3 bg-muted/60 text-muted-foreground border">
                           @ {viewItem.purpose.code || "PURP"} - {viewItem.purpose.nameEnglish || viewItem.purpose.nameArabic}

@@ -1,3 +1,4 @@
+import { PaymentActionDialog, usePaymentRoles } from "@/components/payments/payment-actions";
 import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useParams, useLocation } from "wouter";
@@ -58,7 +59,8 @@ import {
   Clock,
   CheckCircle2,
   XCircle,
-  Lock
+  Lock,
+  Banknote
 } from "lucide-react";
 import { 
   Tooltip, 
@@ -125,6 +127,9 @@ export default function ProjectDeliveries({
   const [editingDelivery, setEditingDelivery] = useState<EnrichedDelivery | null>(null);
   const [previewAttachment, setPreviewAttachment] = useState<Document | null>(null);
   const [deliveryToDelete, setDeliveryToDelete] = useState<string | null>(null);
+  // Payments: accounting asks for the invoice of this delivery; everyone else on the project asks for a transfer
+  const paymentRoles = usePaymentRoles(projectId ?? "");
+  const [paymentDelivery, setPaymentDelivery] = useState<any | null>(null);
   const [dependencyError, setDependencyError] = useState<{ title: string, details: string } | null>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -391,6 +396,18 @@ export default function ProjectDeliveries({
                               setPreviewAttachment(delivery.attachment!);
                             }} className="font-bold rounded-lg m-1 py-2 text-xs">
                               <Paperclip className="w-4 h-4 mr-2.5 text-primary" /> Preview Document
+                            </DropdownMenuItem>
+                          )}
+                          {paymentRoles.mode && (
+                            <DropdownMenuItem
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setPaymentDelivery(delivery);
+                              }}
+                              className="font-bold rounded-lg m-1 py-2 text-xs"
+                            >
+                              <Banknote className="w-4 h-4 mr-2.5 text-primary" />
+                              {paymentRoles.mode === "accounting" ? "Request invoice for this delivery" : "Request a transfer"}
                             </DropdownMenuItem>
                           )}
                           <DropdownMenuSeparator />
@@ -768,6 +785,22 @@ export default function ProjectDeliveries({
           </div>
         </AlertDialogContent>
       </AlertDialog>
+
+      {paymentDelivery && paymentRoles.mode && (
+        <PaymentActionDialog
+          mode={paymentRoles.mode === "accounting" ? "bill" : "request"}
+          onClose={() => setPaymentDelivery(null)}
+          context={{
+            projectId: projectId ?? "",
+            purchaseOrderId: paymentDelivery.purchaseOrderId ?? undefined,
+            supplierId: paymentDelivery.supplierId ?? undefined,
+            payeeName: paymentDelivery.supplier,
+            description: `فاتورة التوريد ${paymentDelivery.shipmentNumber}${paymentDelivery.deliveryInvoiceNumber ? ` (${paymentDelivery.deliveryInvoiceNumber})` : ""}`,
+            sourceType: "delivery",
+            sourceId: paymentDelivery.id,
+          }}
+        />
+      )}
     </div>
   );
 }

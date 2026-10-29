@@ -64,11 +64,13 @@ export const STATUS_TONE: Record<string, string> = {
   // bill requests
   requested: "amber", submitted: "blue", received: "emerald", returned: "red",
   // payment orders
-  draft: "muted", pending_approval: "amber", approved: "blue", paid: "emerald", rejected: "red", cancelled: "muted",
+  draft: "muted", pending_approval: "amber", approved: "blue", paid: "emerald", rejected: "red", cancelled: "muted", request_approved: "violet",
   // clearances
   pending: "muted", in_progress: "blue", obtained: "emerald", expired: "red",
   // fines
   open: "amber", under_appeal: "violet", payment_requested: "blue", waiver_requested: "violet", waived: "muted",
+  // invoice charge-backs
+  proposed: "amber", applied: "emerald", converted: "violet",
 };
 
 export function StatusBadge({ status, labels }: { status: string; labels: Record<string, string> }) {
@@ -221,7 +223,18 @@ const ACTION_LABELS: Record<string, string> = {
   originals_requested: "طلب أصل الفاتورة",
   invoice_added: "إضافة فاتورة",
   invoice_removed: "حذف فاتورة",
+  chargeback_created: "تحميل جزء من فاتورة على مقاول",
+  applied: "خُصم في مستخلص",
+  released: "أُعيد للانتظار",
+  convert: "حُوّل إلى خصم",
+  withdraw: "سحب",
+  chargebacks_changed: "تغيير خصومات الفواتير",
   waiver_request: "طلب إعفاء",
+  requested: "طلب تحويل",
+  approve_request: "موافقة مدير المشروع على الطلب",
+  decline_request: "رفض الطلب",
+  accept_request: "قبول المحاسبة للطلب",
+  withdraw_request: "سحب الطلب",
   waiver_withdraw: "سحب طلب الإعفاء",
   waiver_approve: "اعتماد الإعفاء",
   waiver_reject: "رفض الإعفاء",
@@ -277,13 +290,15 @@ export function ActivityTimeline({ entityType, entityId, labels }: { entityType:
 
 export interface PaymentsContext {
   perms: { isAccounting: boolean; canApprove: boolean };
-  projects: { id: string; name: string }[];
+  projects: { id: string; name: string; canRequest: boolean }[];
 }
 
 export interface PaymentsOverview {
   billRequests: any[];
   orders: any[];
   subcontractorCertificates: any[];
+  chargebacks: any[];
+  subcontractors: any[];
   clearances: any[];
   fines: any[];
   purchaseOrders: PoSummary[];

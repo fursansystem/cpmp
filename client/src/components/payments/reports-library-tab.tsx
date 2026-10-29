@@ -8,6 +8,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 import {
+  CHARGEBACK_LABELS,
   CLEARANCE_LABELS,
   LIABLE_PARTY_LABELS,
   OPEN_FINE,
@@ -158,12 +159,10 @@ function AgingReport({ data, projectName }: { data: PaymentsOverview; projectNam
 
 function SubcontractorStatement({ data, projectName }: { data: PaymentsOverview; projectName: string }) {
   const subs = useMemo(() => {
-    const map = new Map<string, { key: string; projectId: string; projectName: string; name: string }>();
-    for (const c of data.subcontractorCertificates) {
-      const key = `${c.projectId}|${c.subcontractorName.trim().toLowerCase()}`;
-      if (!map.has(key)) map.set(key, { key, projectId: c.projectId, projectName: c.projectName, name: c.subcontractorName });
-    }
-    return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
+    // Every subcontractor in the register, with or without certificates: a deduction alone is worth a statement
+    return (data.subcontractors ?? [])
+      .map((s: any) => ({ key: s.id as string, id: s.id as string, projectId: s.projectId as string, projectName: s.projectName as string, name: s.name as string }))
+      .sort((a, b) => a.name.localeCompare(b.name));
   }, [data]);
 
   const [pick, setPick] = useState("");
@@ -172,12 +171,20 @@ function SubcontractorStatement({ data, projectName }: { data: PaymentsOverview;
   const view = useMemo(() => {
     if (!sel) return null;
     const certs = data.subcontractorCertificates
-      .filter((c) => c.projectId === sel.projectId && same(c.subcontractorName, sel.name) && c.status !== "cancelled")
+      .filter((c) => c.subcontractorId === sel.id && c.status !== "cancelled")
       .sort((a, b) => a.certNo.localeCompare(b.certNo));
     const counted = certs.filter((c) => ["approved", "paid"].includes(c.status));
     const contractValue = Math.max(0, ...certs.map((c) => num(c.contractValue)));
     const certified = sum(counted, (c) => num(c.grossAmount));
     const recovered = sum(counted, (c) => num(c.advanceRecovery));
+    // Invoice amounts charged to this subcontractor: deducted on certificates, or still waiting for one
+    const charges = (data.chargebacks ?? []).filter((c) => c.subcontractorId === sel.id);
+    // Deductions recorded against this subcontractor (including those a charge-back was converted to)
+    const deductions = (data.fines ?? []).filter((f) => f.subcontractorId === sel.id && !["cancelled", "waived"].includes(f.status));
+    const deductionsOpen = sum(deductions.filter((f) => ["open", "under_appeal", "waiver_requested", "payment_requested"].includes(f.status)), (f) => Math.max(0, num(f.amount) - num(f.paidAmount)));
+    const chargedApplied = sum(charges.filter((c) => c.status === "applied"), (c) => num(c.amount));
+    const chargedWaiting = sum(charges.filter((c) => ["proposed", "approved"].includes(c.status)), (c) => num(c.amount));
+    const chargedConverted = sum(charges.filter((c) => c.status === "converted"), (c) => num(c.amount));
     // Advance payments made to this subcontractor, matched by payee name
     const advances = data.orders.filter((o) => o.projectId === sel.projectId && o.purpose === "advance" && o.status === "paid" && same(o.payeeName, sel.name));
     const advancesPaid = sum(advances, (o) => num(o.amount));
@@ -195,6 +202,12 @@ function SubcontractorStatement({ data, projectName }: { data: PaymentsOverview;
       retention: sum(counted, (c) => num(c.retentionAmount)),
       recovered,
       advancesPaid,
+      charges,
+      deductions,
+      deductionsOpen,
+      chargedApplied,
+      chargedWaiting,
+      chargedConverted,
       advanceRemaining: Math.max(0, advancesPaid - recovered),
       paid: sum(certs.filter((c) => c.status === "paid"), (c) => num(c.netPayable)),
       payable: sum(certs.filter((c) => c.status === "approved"), (c) => num(c.netPayable)),
@@ -209,9 +222,13 @@ function SubcontractorStatement({ data, projectName }: { data: PaymentsOverview;
     name: "كشف مقاول",
     rows: view.lines.map(({ c, cumulative }) => ({
       المستخلص: c.certNo, من: c.periodFrom ?? "", إلى: c.periodTo ?? "", "قيمة الأعمال": num(c.grossAmount), التراكمي: cumulative ?? "",
-      الاستقطاع: num(c.retentionAmount), "استرداد الدفعة المقدمة": num(c.advanceRecovery), "خصومات أخرى": num(c.otherDeductions),
+      الاستقطاع: num(c.retentionAmount), "استرداد الدفعة المقدمة": num(c.advanceRecovery), "خصومات أخرى": num(c.otherDeductions), "خصومات فواتير": num(c.chargebackDeductions),
       الضريبة: num(c.vatAmount), الصافي: num(c.netPayable), الحالة: SUB_CERT_LABELS[c.status as keyof typeof SUB_CERT_LABELS] ?? c.status,
     })),
+  };
+  const chargeSheet: Sheet = {
+    name: "فواتير محمَّلة",
+    rows: view.charges.map((c: any) => ({ الرقم: c.chargeNo, الفاتورة: c.invoiceNo, الطلب: c.requestNo, المبلغ: num(c.amount), السبب: c.reason, الحالة: CHARGEBACK_LABELS[c.status as keyof typeof CHARGEBACK_LABELS] ?? c.status })),
   };
 
   return (
@@ -222,7 +239,7 @@ function SubcontractorStatement({ data, projectName }: { data: PaymentsOverview;
           <SelectContent>{subs.map((s) => <SelectItem key={s.key} value={s.key}>{s.name} — {s.projectName}</SelectItem>)}</SelectContent>
         </Select>
       </div>
-      <ReportShell title={`كشف مقاول باطن: ${sel.name}`} subtitle={sel.projectName} sheets={[sheet]}>
+      <ReportShell title={`كشف مقاول باطن: ${sel.name}`} subtitle={sel.projectName} sheets={view.charges.length ? [sheet, chargeSheet] : [sheet]}>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <Mini label="قيمة العقد" value={view.contractValue ? money(view.contractValue) : "—"} />
           <Mini label="المعتمد (قيمة الأعمال)" value={money(view.certified)} />
@@ -232,11 +249,19 @@ function SubcontractorStatement({ data, projectName }: { data: PaymentsOverview;
           <Mini label="المستردّ منها" value={money(view.recovered)} />
           <Mini label="المتبقي من الدفعة المقدمة" value={money(view.advanceRemaining)} tone={view.advanceRemaining > 0 ? "warn" : undefined} />
           <Mini label="المصروف / المعتمد غير المصروف" value={`${money(view.paid)} / ${money(view.payable)}`} />
+          {view.deductions.length > 0 && <Mini label="خصومات مسجّلة عليه (مفتوحة)" value={money(view.deductionsOpen)} tone={view.deductionsOpen > 0 ? "warn" : undefined} />}
+          {view.charges.length > 0 && (
+            <>
+              <Mini label="فواتير محمَّلة ومخصومة" value={money(view.chargedApplied)} />
+              <Mini label="فواتير محمَّلة بانتظار الخصم" value={money(view.chargedWaiting)} tone={view.chargedWaiting > 0 ? "warn" : undefined} />
+              <Mini label="حُوّلت إلى خصم" value={money(view.chargedConverted)} />
+            </>
+          )}
         </div>
         <Table>
           <TableHeader><TableRow>
             <TableHead>المستخلص</TableHead><TableHead>الفترة</TableHead><TableHead className="text-end">قيمة الأعمال</TableHead><TableHead className="text-end">التراكمي</TableHead>
-            <TableHead className="text-end">الاستقطاع</TableHead><TableHead className="text-end">دفعة مقدمة</TableHead><TableHead className="text-end">خصومات</TableHead>
+            <TableHead className="text-end">الاستقطاع</TableHead><TableHead className="text-end">دفعة مقدمة</TableHead><TableHead className="text-end">خصومات</TableHead><TableHead className="text-end">خصومات فواتير</TableHead>
             <TableHead className="text-end">الضريبة</TableHead><TableHead className="text-end">الصافي</TableHead><TableHead>الحالة</TableHead>
           </TableRow></TableHeader>
           <TableBody>
@@ -249,6 +274,7 @@ function SubcontractorStatement({ data, projectName }: { data: PaymentsOverview;
                 <TableCell className="text-end tabular-nums">{money(c.retentionAmount)}</TableCell>
                 <TableCell className="text-end tabular-nums">{money(c.advanceRecovery)}</TableCell>
                 <TableCell className="text-end tabular-nums">{money(c.otherDeductions)}</TableCell>
+                <TableCell className="text-end tabular-nums">{money(c.chargebackDeductions)}</TableCell>
                 <TableCell className="text-end tabular-nums">{money(c.vatAmount)}</TableCell>
                 <TableCell className="text-end tabular-nums font-semibold">{money(c.netPayable)}</TableCell>
                 <TableCell>{SUB_CERT_LABELS[c.status as keyof typeof SUB_CERT_LABELS] ?? c.status}</TableCell>

@@ -4,7 +4,7 @@
 export const BILL_REQUEST_STATUSES = ["requested", "submitted", "received", "returned", "cancelled"] as const;
 export type BillRequestStatus = (typeof BILL_REQUEST_STATUSES)[number];
 
-export const PAYMENT_ORDER_STATUSES = ["draft", "pending_approval", "approved", "paid", "rejected", "cancelled"] as const;
+export const PAYMENT_ORDER_STATUSES = ["requested", "request_approved", "draft", "pending_approval", "approved", "paid", "rejected", "cancelled"] as const;
 export type PaymentOrderStatus = (typeof PAYMENT_ORDER_STATUSES)[number];
 
 export const CLEARANCE_STATUSES = ["pending", "in_progress", "obtained", "rejected", "expired"] as const;
@@ -13,13 +13,13 @@ export type ClearanceStatus = (typeof CLEARANCE_STATUSES)[number];
 export const FINE_STATUSES = ["open", "under_appeal", "waiver_requested", "payment_requested", "paid", "waived", "cancelled"] as const;
 export type FineStatus = (typeof FINE_STATUSES)[number];
 
-export const LIABLE_PARTIES = ["contractor", "owner", "consultant", "supplier", "other"] as const;
+export const LIABLE_PARTIES = ["contractor", "subcontractor", "owner", "consultant", "supplier", "other"] as const;
 export type LiableParty = (typeof LIABLE_PARTIES)[number];
 
 export const PAYMENT_METHODS = ["bank_transfer", "cheque", "cash"] as const;
 export type PaymentMethod = (typeof PAYMENT_METHODS)[number];
 
-export const PAYMENT_ENTITY_TYPES = ["bill_request", "payment_order", "clearance", "fine", "subcontractor_certificate"] as const;
+export const PAYMENT_ENTITY_TYPES = ["bill_request", "payment_order", "clearance", "fine", "subcontractor_certificate", "chargeback"] as const;
 export type PaymentEntityType = (typeof PAYMENT_ENTITY_TYPES)[number];
 
 // مستخلصات مقاولي الباطن: raised on the project side, approved by a project manager,
@@ -36,6 +36,19 @@ export const SUB_CERT_LABELS: Record<SubCertStatus, string> = {
   cancelled: "ملغي (Cancelled)",
 };
 
+// تحميل فاتورة على مقاول باطن: part or all of a paid supplier invoice charged to a subcontractor. The invoice's own
+// history is never touched; the charge is a separate record that ends up as a deduction on a certificate (or a deduction record).
+export const CHARGEBACK_STATUSES = ["proposed", "approved", "applied", "converted", "cancelled"] as const;
+export type ChargebackStatus = (typeof CHARGEBACK_STATUSES)[number];
+
+export const CHARGEBACK_LABELS: Record<ChargebackStatus, string> = {
+  proposed: "بانتظار مدير المشروع (Proposed)",
+  approved: "معتمد، لم يُطبَّق (Approved)",
+  applied: "مطبَّق في مستخلص (Applied)",
+  converted: "حُوّل إلى خصم (Converted)",
+  cancelled: "ملغي (Cancelled)",
+};
+
 // The amount actually payable on a subcontractor certificate. One definition, used by the
 // server when it saves and by the form's live preview, so the two can never disagree:
 //   net = gross work value - retention - advance recovery - other deductions + VAT on gross
@@ -45,13 +58,19 @@ export function computeSubCert(input: {
   advanceRecovery: number;
   otherDeductions: number;
   vatPercent: number;
+  // invoice charge-backs applied to the certificate
+  chargebackDeductions?: number;
 }) {
   const round = (v: number) => Math.round(v * 100) / 100;
   const retentionAmount = round((input.grossAmount * input.retentionPercent) / 100);
   const vatAmount = round((input.grossAmount * input.vatPercent) / 100);
-  const netPayable = round(input.grossAmount - retentionAmount - input.advanceRecovery - input.otherDeductions + vatAmount);
+  const netPayable = round(input.grossAmount - retentionAmount - input.advanceRecovery - input.otherDeductions - (input.chargebackDeductions ?? 0) + vatAmount);
   return { retentionAmount, vatAmount, netPayable };
 }
+
+// The page a request, order or deduction was started from, so that page can list what came of it
+export const SOURCE_TYPES = ["purchase_order", "delivery", "snag", "ncr", "project", "invoice"] as const;
+export type SourceType = (typeof SOURCE_TYPES)[number];
 
 export const BILL_REQUEST_LABELS: Record<BillRequestStatus, string> = {
   requested: "مطلوب (Requested)",
@@ -62,6 +81,8 @@ export const BILL_REQUEST_LABELS: Record<BillRequestStatus, string> = {
 };
 
 export const PAYMENT_ORDER_LABELS: Record<PaymentOrderStatus, string> = {
+  requested: "طلب بانتظار مدير المشروع (Requested)",
+  request_approved: "طلب بانتظار المحاسبة (Request approved)",
   draft: "مسودة (Draft)",
   pending_approval: "بانتظار الاعتماد (Pending approval)",
   approved: "معتمد (Approved)",
@@ -89,7 +110,8 @@ export const FINE_LABELS: Record<FineStatus, string> = {
 };
 
 export const LIABLE_PARTY_LABELS: Record<LiableParty, string> = {
-  contractor: "المقاول (Contractor)",
+  contractor: "المقاول الرئيسي (Main contractor)",
+  subcontractor: "مقاول الباطن (Subcontractor)",
   owner: "المالك (Owner)",
   consultant: "الاستشاري (Consultant)",
   supplier: "المورد (Supplier)",
@@ -203,11 +225,12 @@ export interface PaymentsMonitoring {
   delayedDecisions: {
     thresholdDays: number;
     orders: number;
+    requests: number; // transfer requests waiting on a project manager or accounting
     certificates: number;
     waivers: number;
     total: number;
     oldestDays: number;
-    rows: { projectName: string; kind: "order" | "certificate" | "waiver"; ref: string; title: string; amount: number; ageDays: number }[];
+    rows: { projectName: string; kind: "order" | "certificate" | "waiver" | "request"; ref: string; title: string; amount: number; ageDays: number }[];
   };
   // Invoices whose originals are in but which are not paid yet: what the company owes
   unpaidInvoices: {
@@ -222,6 +245,8 @@ export interface PaymentsMonitoring {
     amount: number;
     rows: { projectName: string; poNumber: string; supplierName: string | null; received: number; invoiced: number; amount: number }[];
   };
+  // Invoice amounts charged to subcontractors that have not yet become a deduction on a certificate
+  unappliedChargebacks: { count: number; amount: number; oldestDays: number };
   // Purchase orders (not draft) with no bill request, invoice or payment against them at all
   poNoActivity: { count: number; value: number };
   cycleTimes: {

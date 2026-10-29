@@ -1,3 +1,4 @@
+import { DeductionButton } from "@/components/payments/payment-actions";
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useParams, useLocation } from "wouter";
 import imageCompression from "browser-image-compression";
@@ -2950,6 +2951,19 @@ export default function RequestDetail() {
                         <Save className="w-3.5 h-3.5 md:w-4 md:h-4" />
                         <span>{closeMutation.isPending ? "..." : "Close"}</span>
                       </Button>
+                    )}
+                    {/* A non-conformance can lead to a deduction against the contractor */}
+                    {(isNCR || isRNCR) && request?.projectId && (
+                      <DeductionButton
+                        projectId={request.projectId}
+                        prefill={{
+                          title: `خصم على ${request.requestNumber}`,
+                          reason: ((request as any).title || (request as any).description || request.requestNumber || "").toString(),
+                          liableParty: "subcontractor",
+                          sourceType: "ncr",
+                          sourceId: request.id,
+                        }}
+                      />
                     )}
                     {isNCR && getProgressPercentage() === 100 && rncrType && !existingRncr && (!request?.contractorId || user?.organizationId === request?.contractorId) && (
                       <Button

@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { Printer, FileSpreadsheet, FileText, Banknote, ShieldAlert, Gavel, Hourglass, HardHat, ShoppingCart, AlertTriangle, FileWarning, Clock, Receipt, Timer } from "lucide-react";
+import { Printer, FileSpreadsheet, FileText, Banknote, ShieldAlert, Gavel, Hourglass, HardHat, ShoppingCart, AlertTriangle, FileWarning, Clock, Receipt, Timer, Split } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -9,7 +9,7 @@ import { BILL_REQUEST_LABELS, CLEARANCE_LABELS, FINE_LABELS, LIABLE_PARTY_LABELS
 import { fmtDate, fmtDateTime, getJson, money, paymentsQuery } from "./payments-common";
 
 const PURPOSE_LABEL: Record<string, string> = { advance: "دفعة مقدمة", other: "أخرى", subcontractor: "مستخلص باطن" };
-const DECISION_KIND = { order: "أمر دفع", certificate: "مستخلص باطن", waiver: "طلب إعفاء" } as const;
+const DECISION_KIND = { order: "أمر دفع", certificate: "مستخلص باطن", waiver: "طلب إعفاء", request: "طلب تحويل" } as const;
 const REASON_LABEL ={ expired: "منتهي", expiring: "ينتهي قريباً", overdue: "متأخر" } as const;
 
 function Kpi({ icon: Icon, label, value, sub, tone }: { icon: any; label: string; value: string | number; sub?: string; tone?: "warn" | "ok" }) {
@@ -124,7 +124,7 @@ export function ReportsTab({ projectId, projectName }: { projectId: string; proj
           icon={Clock}
           label="أوامر دفع متأخرة"
           value={m.delayedDecisions.total}
-          sub={m.delayedDecisions.total ? `${m.delayedDecisions.orders} أمر · ${m.delayedDecisions.certificates} مستخلص · ${m.delayedDecisions.waivers} إعفاء · أقدمها ${m.delayedDecisions.oldestDays} يوماً` : `لا قرارات تجاوزت ${m.delayedDecisions.thresholdDays} أيام`}
+          sub={m.delayedDecisions.total ? `${m.delayedDecisions.requests} طلب تحويل · ${m.delayedDecisions.orders} أمر · ${m.delayedDecisions.certificates} مستخلص · ${m.delayedDecisions.waivers} إعفاء · أقدمها ${m.delayedDecisions.oldestDays} يوماً` : `لا قرارات تجاوزت ${m.delayedDecisions.thresholdDays} أيام`}
           tone={m.delayedDecisions.total ? "warn" : "ok"}
         />
         <Kpi
@@ -132,6 +132,13 @@ export function ReportsTab({ projectId, projectName }: { projectId: string; proj
           label="فواتير غير مسددة"
           value={money(m.unpaidInvoices.amount)}
           sub={`${m.unpaidInvoices.withoutOrder.requests} بلا أمر دفع (${money(m.unpaidInvoices.withoutOrder.amount)}) · ${m.unpaidInvoices.inPayment.requests} قيد الصرف (${money(m.unpaidInvoices.inPayment.amount)})`}
+        />
+        <Kpi
+          icon={Split}
+          label="خصومات فواتير غير مطبّقة"
+          value={money(m.unappliedChargebacks.amount)}
+          sub={m.unappliedChargebacks.count ? `${m.unappliedChargebacks.count} تحميل على مقاولي الباطن · أقدمها ${m.unappliedChargebacks.oldestDays} يوم` : "لا توجد تحميلات معلّقة"}
+          tone={m.unappliedChargebacks.oldestDays > 30 ? "warn" : undefined}
         />
         <Kpi
           icon={Timer}

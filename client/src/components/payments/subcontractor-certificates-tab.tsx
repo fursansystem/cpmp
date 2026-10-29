@@ -13,6 +13,8 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/lib/auth";
 import { apiRequest } from "@/lib/queryClient";
 import { OPEN_PAYMENT_ORDER, SUB_CERT_LABELS, computeSubCert } from "@shared/payments";
+import { ChargebacksPanel } from "./chargebacks";
+import { SubcontractorSelect, SubcontractorsPanel, type SubcontractorRow } from "./subcontractor-select";
 import {
   ActivityTimeline,
   AttachmentsPanel,
@@ -28,6 +30,8 @@ interface Props {
   ctx: PaymentsContext;
   projectId: string; // "all" or a project id
   rows: any[];
+  chargebacks: any[];
+  subcontractors: SubcontractorRow[];
   orders: any[];
   onRequestOrder: (certId: string) => void;
 }
@@ -36,7 +40,7 @@ const num = (v: unknown) => Number(v ?? 0) || 0;
 // Saudi VAT, the starting value for a new certificate; it can be changed per certificate
 const DEFAULT_VAT = "15";
 
-export function SubcontractorCertificatesTab({ ctx, projectId, rows, orders, onRequestOrder }: Props) {
+export function SubcontractorCertificatesTab({ ctx, projectId, rows, chargebacks, subcontractors, orders, onRequestOrder }: Props) {
   const [status, setStatus] = useState("all");
   const [search, setSearch] = useState("");
   const [editing, setEditing] = useState<any | "new" | null>(null);
@@ -99,11 +103,16 @@ export function SubcontractorCertificatesTab({ ctx, projectId, rows, orders, onR
         </CardContent>
       </Card>
 
+      <SubcontractorsPanel ctx={ctx} projectId={projectId} rows={subcontractors} certificates={rows} />
+
+      <ChargebacksPanel ctx={ctx} projectId={projectId} rows={chargebacks} />
+
       {editing && (
         <SubCertDialog
           ctx={ctx}
           defaultProjectId={projectId}
           row={current}
+          chargebacks={chargebacks}
           allRows={rows}
           orders={orders}
           onClose={() => setEditing(null)}
@@ -115,12 +124,12 @@ export function SubcontractorCertificatesTab({ ctx, projectId, rows, orders, onR
 }
 
 const emptyForm = (vat = DEFAULT_VAT) => ({
-  subcontractorName: "", scope: "", contractValue: "", periodFrom: "", periodTo: "",
+  subcontractorId: "", scope: "", contractValue: "", periodFrom: "", periodTo: "",
   grossAmount: "", retentionPercent: "10", advanceRecovery: "", otherDeductions: "", deductionsNote: "", vatPercent: vat, notes: "",
 });
 
-function SubCertDialog({ ctx, defaultProjectId, row, allRows, orders, onClose, onRequestOrder }: {
-  ctx: PaymentsContext; defaultProjectId: string; row: any | null; allRows: any[]; orders: any[]; onClose: () => void; onRequestOrder: (id: string) => void;
+function SubCertDialog({ ctx, defaultProjectId, row, chargebacks, allRows, orders, onClose, onRequestOrder }: {
+  ctx: PaymentsContext; defaultProjectId: string; row: any | null; chargebacks: any[]; allRows: any[]; orders: any[]; onClose: () => void; onRequestOrder: (id: string) => void;
 }) {
   const { toast } = useToast();
   const { user } = useAuth();
@@ -131,7 +140,7 @@ function SubCertDialog({ ctx, defaultProjectId, row, allRows, orders, onClose, o
   const [form, setForm] = useState(
     row
       ? {
-          subcontractorName: row.subcontractorName, scope: row.scope ?? "", contractValue: String(num(row.contractValue) || ""),
+          subcontractorId: row.subcontractorId ?? "", scope: row.scope ?? "", contractValue: String(num(row.contractValue) || ""),
           periodFrom: row.periodFrom ?? "", periodTo: row.periodTo ?? "", grossAmount: String(num(row.grossAmount) || ""),
           retentionPercent: String(num(row.retentionPercent)), advanceRecovery: String(num(row.advanceRecovery) || ""),
           otherDeductions: String(num(row.otherDeductions) || ""), deductionsNote: row.deductionsNote ?? "",
@@ -140,22 +149,26 @@ function SubCertDialog({ ctx, defaultProjectId, row, allRows, orders, onClose, o
       : emptyForm(),
   );
   const set = (k: keyof typeof form) => (v: string) => setForm((f) => ({ ...f, [k]: v }));
+  // Approved invoice charge-backs this certificate can deduct: the subcontractor's own, not taken by another certificate
+  const available = useMemo(() => chargebacks.filter((c) =>
+    row && c.projectId === row.projectId
+    && c.subcontractorId === form.subcontractorId
+    && (c.status === "approved" || (c.status === "applied" && c.certificateId === row.id))), [chargebacks, row, form.subcontractorId]);
+  const [picked, setPicked] = useState<Set<string>>(() => new Set(row ? chargebacks.filter((c) => c.status === "applied" && c.certificateId === row.id).map((c) => c.id) : []));
+  const pickedTotal = available.filter((c) => picked.has(c.id)).reduce((s, c) => s + num(c.amount), 0);
+  const chargebackTotal = row && !["draft", "rejected"].includes(row.status) ? num(row.chargebackDeductions) : pickedTotal;
 
   const isOwner = !row || row.createdBy === user?.id || ctx.perms.isAccounting;
   const editable = isOwner && (!row || ["draft", "rejected"].includes(row.status));
 
-  // Subcontractors already certified in this project, so a repeat certificate starts from the same contract
-  const known = useMemo(() => {
-    const map = new Map<string, any>();
-    for (const r of allRows) if (r.projectId === projectId && !map.has(r.subcontractorName.toLowerCase())) map.set(r.subcontractorName.toLowerCase(), r);
-    return Array.from(map.values());
-  }, [allRows, projectId]);
-
-  const onNameChange = (v: string) => {
-    const match = known.find((k) => k.subcontractorName.toLowerCase() === v.trim().toLowerCase());
+  // A repeat certificate for the same subcontractor starts from the contract of its latest one
+  const onSubChange = (id: string, sub?: SubcontractorRow) => {
+    const match = allRows.find((r) => r.projectId === projectId && r.subcontractorId === id);
+    setPicked(new Set());
     setForm((f) => ({
       ...f,
-      subcontractorName: v,
+      subcontractorId: id,
+      ...(!row && sub && !match ? { scope: f.scope || (sub.scope ?? "") } : {}),
       ...(match && !row ? { scope: f.scope || (match.scope ?? ""), contractValue: f.contractValue || String(num(match.contractValue) || ""), retentionPercent: String(num(match.retentionPercent)), vatPercent: String(num(match.vatPercent)) } : {}),
     }));
   };
@@ -165,12 +178,13 @@ function SubCertDialog({ ctx, defaultProjectId, row, allRows, orders, onClose, o
     retentionPercent: num(form.retentionPercent),
     advanceRecovery: num(form.advanceRecovery),
     otherDeductions: num(form.otherDeductions),
+    chargebackDeductions: chargebackTotal,
     vatPercent: num(form.vatPercent),
   });
 
   // What this subcontractor has already been certified for, against its contract value
   const previousGross = allRows
-    .filter((r) => r.projectId === projectId && r.id !== row?.id && r.subcontractorName.trim().toLowerCase() === form.subcontractorName.trim().toLowerCase() && ["approved", "paid"].includes(r.status))
+    .filter((r) => r.projectId === projectId && r.id !== row?.id && r.subcontractorId === form.subcontractorId && ["approved", "paid"].includes(r.status))
     .reduce((s, r) => s + num(r.grossAmount), 0);
   const cumulative = previousGross + num(form.grossAmount);
   const overContract = num(form.contractValue) > 0 && cumulative > num(form.contractValue) + 0.005;
@@ -188,10 +202,17 @@ function SubCertDialog({ ctx, defaultProjectId, row, allRows, orders, onClose, o
     otherDeductions: form.otherDeductions || 0,
   });
 
+  // The chosen charge-backs are applied first so the saved net already includes them
+  const syncChargebacks = async () => {
+    if (row && editable) await apiRequest("POST", `/api/payments/subcontractor-certificates/${row.id}/chargebacks`, { ids: available.filter((c) => picked.has(c.id)).map((c) => c.id) });
+  };
+
   const save = useMutation({
-    mutationFn: async () => row
-      ? apiRequest("PATCH", `/api/payments/subcontractor-certificates/${row.id}`, body())
-      : apiRequest("POST", "/api/payments/subcontractor-certificates", { projectId, ...body() }),
+    mutationFn: async () => {
+      if (!row) return apiRequest("POST", "/api/payments/subcontractor-certificates", { projectId, ...body() });
+      await syncChargebacks();
+      return apiRequest("PATCH", `/api/payments/subcontractor-certificates/${row.id}`, body());
+    },
     onSuccess: () => { invalidatePayments(queryClient); toast({ title: row ? "تم الحفظ" : "تم إنشاء المستخلص كمسودة" }); onClose(); },
     onError: (e) => toast({ title: "تعذّر الحفظ", description: errorMessage(e), variant: "destructive" }),
   });
@@ -210,6 +231,7 @@ function SubCertDialog({ ctx, defaultProjectId, row, allRows, orders, onClose, o
   // Submitting sends what is on screen, so save it first
   const saveAndSubmit = useMutation({
     mutationFn: async () => {
+      await syncChargebacks();
       await apiRequest("PATCH", `/api/payments/subcontractor-certificates/${row.id}`, body());
       await apiRequest("POST", `/api/payments/subcontractor-certificates/${row.id}/transition`, { action: "submit" });
     },
@@ -244,8 +266,7 @@ function SubCertDialog({ ctx, defaultProjectId, row, allRows, orders, onClose, o
           ), "sm:col-span-2")}
           {L("مقاول الباطن", (
             <>
-              <Input list="sub-names" value={form.subcontractorName} disabled={!editable} onChange={(e) => onNameChange(e.target.value)} />
-              <datalist id="sub-names">{known.map((k) => <option key={k.id} value={k.subcontractorName} />)}</datalist>
+              <SubcontractorSelect projectId={projectId} value={form.subcontractorId} disabled={!editable} onChange={onSubChange} />
             </>
           ))}
           {L("نطاق العمل", <Input value={form.scope} disabled={!editable} onChange={(e) => set("scope")(e.target.value)} placeholder="مثال: أعمال الكهرباء، التشطيبات…" />)}
@@ -264,13 +285,13 @@ function SubCertDialog({ ctx, defaultProjectId, row, allRows, orders, onClose, o
         <div className="rounded-2xl border bg-muted/30 p-4 grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
           <div><div className="text-xs text-muted-foreground">قيمة الأعمال</div><div className="font-semibold tabular-nums">{money(num(form.grossAmount))}</div></div>
           <div><div className="text-xs text-muted-foreground">الاستقطاع</div><div className="font-semibold tabular-nums">− {money(figures.retentionAmount)}</div></div>
-          <div><div className="text-xs text-muted-foreground">الدفعة المقدمة والخصومات</div><div className="font-semibold tabular-nums">− {money(num(form.advanceRecovery) + num(form.otherDeductions))}</div></div>
+          <div><div className="text-xs text-muted-foreground">الدفعة المقدمة والخصومات</div><div className="font-semibold tabular-nums">− {money(num(form.advanceRecovery) + num(form.otherDeductions) + chargebackTotal)}</div></div>
           <div><div className="text-xs text-muted-foreground">ضريبة القيمة المضافة</div><div className="font-semibold tabular-nums">+ {money(figures.vatAmount)}</div></div>
           <div className="col-span-2 sm:col-span-4 border-t pt-2 flex items-center justify-between">
             <span className="font-bold">الصافي المستحق</span>
             <span className={`text-lg font-bold tabular-nums ${figures.netPayable < 0 ? "text-destructive" : ""}`}>{money(figures.netPayable)}</span>
           </div>
-          {form.subcontractorName.trim() && (
+          {form.subcontractorId && (
             <div className={`col-span-2 sm:col-span-4 text-xs flex items-center gap-1 ${overContract ? "text-destructive font-semibold" : "text-muted-foreground"}`}>
               {overContract && <AlertTriangle className="w-3.5 h-3.5" />}
               المعتمد سابقاً {money(previousGross)} + هذا المستخلص = {money(cumulative)}
@@ -279,6 +300,38 @@ function SubCertDialog({ ctx, defaultProjectId, row, allRows, orders, onClose, o
             </div>
           )}
         </div>
+
+        {!row && (
+          <p className="text-xs text-muted-foreground">لخصم فواتير محمَّلة على المقاول، احفظ المستخلص كمسودة ثم افتحه واختر الخصومات.</p>
+        )}
+        {row && (available.length > 0 || chargebackTotal > 0) && (
+          <div className="space-y-2 rounded-xl border p-3">
+            <div className="text-sm font-bold">خصومات فواتير محمَّلة على المقاول</div>
+            {editable ? (
+              <ul className="space-y-1.5">
+                {available.map((c) => (
+                  <li key={c.id} className="flex items-center gap-3 text-sm">
+                    <input type="checkbox" className="h-4 w-4" checked={picked.has(c.id)} onChange={(e) => setPicked((s) => { const next = new Set(s); if (e.target.checked) next.add(c.id); else next.delete(c.id); return next; })} />
+                    <span className="font-mono text-xs">{c.chargeNo}</span>
+                    <span>فاتورة <span className="font-mono">{c.invoiceNo}</span> <span className="text-xs text-muted-foreground">({c.payeeName})</span></span>
+                    <span className="ms-auto tabular-nums font-semibold">{money(c.amount)}</span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <ul className="space-y-1.5">
+                {chargebacks.filter((c) => c.certificateId === row.id && c.status === "applied").map((c) => (
+                  <li key={c.id} className="flex items-center gap-3 text-sm">
+                    <span className="font-mono text-xs">{c.chargeNo}</span>
+                    <span>فاتورة <span className="font-mono">{c.invoiceNo}</span></span>
+                    <span className="ms-auto tabular-nums font-semibold">{money(c.amount)}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <div className="flex justify-between text-sm border-t pt-2"><span>المجموع المخصوم</span><span className="tabular-nums font-bold">{money(chargebackTotal)}</span></div>
+          </div>
+        )}
 
         {row && (
           <>
@@ -324,7 +377,7 @@ function SubCertDialog({ ctx, defaultProjectId, row, allRows, orders, onClose, o
           )}
           <Button variant="outline" onClick={onClose}>إغلاق</Button>
           {editable && (
-            <Button disabled={save.isPending || !projectId || !form.subcontractorName.trim()} onClick={() => save.mutate()}><Save className="w-4 h-4 mr-1" /> حفظ</Button>
+            <Button disabled={save.isPending || !projectId || !form.subcontractorId} onClick={() => save.mutate()}><Save className="w-4 h-4 mr-1" /> حفظ</Button>
           )}
         </DialogFooter>
       </DialogContent>

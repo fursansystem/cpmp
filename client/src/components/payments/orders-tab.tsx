@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus, Search, Paperclip, Printer, Send, CheckCircle2, XCircle, Banknote, Ban, AlertTriangle, FileSearch, FileCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -44,6 +44,18 @@ export interface OrderDraft {
   fineId?: string;
   clearanceId?: string;
   subcontractorCertificateId?: string;
+  // A page that starts a standalone payment (an advance on a purchase order, say) hands over what it knows
+  prefill?: {
+    kind: "advance" | "other";
+    projectId: string;
+    purchaseOrderId?: string;
+    supplierId?: string;
+    payeeName?: string;
+    amount?: number | string;
+    reason?: string;
+    sourceType?: string;
+    sourceId?: string;
+  };
 }
 
 interface Props {
@@ -54,11 +66,13 @@ interface Props {
   onDraftClose: () => void;
   onStartDraft: () => void;
   onOpenBillRequest: (billRequestId: string) => void;
+  // For people who may ask for a transfer but not issue an order: their button sits where accounting's "new order" does
+  requesterAction?: ReactNode;
 }
 
 const LIVE = [...OPEN_PAYMENT_ORDER, "paid"] as string[];
 
-export function OrdersTab({ ctx, projectId, data, draft, onDraftClose, onStartDraft, onOpenBillRequest }: Props) {
+export function OrdersTab({ ctx, projectId, data, draft, onDraftClose, onStartDraft, onOpenBillRequest, requesterAction }: Props) {
   const [status, setStatus] = useState("all");
   const [search, setSearch] = useState("");
   const [openId, setOpenId] = useState<string | null>(null);
@@ -88,10 +102,12 @@ export function OrdersTab({ ctx, projectId, data, draft, onDraftClose, onStartDr
             {Object.entries(PAYMENT_ORDER_LABELS).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}
           </SelectContent>
         </Select>
-        {ctx.perms.isAccounting && (
+        {ctx.perms.isAccounting ? (
           <Button className="ms-auto" onClick={onStartDraft}>
             <Plus className="w-4 h-4 mr-1" /> أمر دفع جديد
           </Button>
+        ) : (
+          <div className="ms-auto flex gap-2">{requesterAction}</div>
         )}
       </div>
 
@@ -165,7 +181,7 @@ const isSourced = (k: SourceKind): k is "bill" | "fine" | "clearance" | "subcont
   k === "bill" || k === "fine" || k === "clearance" || k === "subcontractor";
 const ADVANCE_REASON = "دفعة مقدمة";
 
-function CreateOrderDialog({ ctx, defaultProjectId, data, draft, onClose }: { ctx: PaymentsContext; defaultProjectId: string; data: PaymentsOverview; draft: OrderDraft; onClose: () => void }) {
+export function CreateOrderDialog({ ctx, defaultProjectId, data, draft, onClose }: { ctx: PaymentsContext; defaultProjectId: string; data: PaymentsOverview; draft: OrderDraft; onClose: () => void }) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -175,16 +191,17 @@ function CreateOrderDialog({ ctx, defaultProjectId, data, draft, onClose }: { ct
     data.clearances.find((c) => c.id === draft.clearanceId)?.projectId ??
     data.subcontractorCertificates.find((c) => c.id === draft.subcontractorCertificateId)?.projectId;
 
-  const [projectId, setProjectId] = useState(draftProject ?? (defaultProjectId === "all" ? "" : defaultProjectId));
+  const pre = draft.prefill;
+  const [projectId, setProjectId] = useState(draftProject ?? pre?.projectId ?? (defaultProjectId === "all" ? "" : defaultProjectId));
   const [kind, setKind] = useState<SourceKind>(
-    draft.billRequestId ? "bill" : draft.fineId ? "fine" : draft.clearanceId ? "clearance" : draft.subcontractorCertificateId ? "subcontractor" : "bill",
+    pre?.kind ?? (draft.billRequestId ? "bill" : draft.fineId ? "fine" : draft.clearanceId ? "clearance" : draft.subcontractorCertificateId ? "subcontractor" : "bill"),
   );
   const [sourceId, setSourceId] = useState(draft.billRequestId ?? draft.fineId ?? draft.clearanceId ?? draft.subcontractorCertificateId ?? "");
-  const [payeeName, setPayeeName] = useState("");
-  const [amount, setAmount] = useState("");
-  const [reason, setReason] = useState("");
-  const [advancePoId, setAdvancePoId] = useState("");
-  const [supplierId, setSupplierId] = useState("");
+  const [payeeName, setPayeeName] = useState(pre?.payeeName ?? "");
+  const [amount, setAmount] = useState(pre?.amount !== undefined ? String(pre.amount) : "");
+  const [reason, setReason] = useState(pre?.reason ?? (pre?.kind === "advance" ? ADVANCE_REASON : ""));
+  const [advancePoId, setAdvancePoId] = useState(pre?.purchaseOrderId ?? "");
+  const [supplierId, setSupplierId] = useState(pre?.supplierId ?? "");
 
   const { data: sources } = useQuery<{ purchaseOrders: any[]; suppliers: { id: string; name: string }[] }>({
     queryKey: ["payments", "sources", projectId],
@@ -241,6 +258,8 @@ function CreateOrderDialog({ ctx, defaultProjectId, data, draft, onClose }: { ct
         subcontractorCertificateId: kind === "subcontractor" ? sourceId || null : null,
         // a bill request brings its own supplier and PO; anything else can name them
         supplierId: kind === "bill" ? null : supplierId || null,
+        sourceType: pre?.sourceType ?? null,
+        sourceId: pre?.sourceId ?? null,
         purchaseOrderId: kind === "bill" ? data.billRequests.find((b) => b.id === sourceId)?.purchaseOrderId ?? null : advancePoId || null,
         certificateId: kind === "bill" ? data.billRequests.find((b) => b.id === sourceId)?.certificateId ?? null : null,
         purpose: kind === "advance" || kind === "other" ? kind : undefined,
@@ -427,7 +446,7 @@ function OriginalsControl({ ctx, order, data, compact, onOpen }: { ctx: Payments
   );
 }
 
-type Panel = null | "reject" | "pay";
+type Panel = null | "reject" | "pay" | "decline";
 
 function OrderDialog({ ctx, row, data, onClose, onOpenBillRequest }: { ctx: PaymentsContext; row: any; data: PaymentsOverview; onClose: () => void; onOpenBillRequest: (id: string) => void }) {
   const { toast } = useToast();
@@ -444,7 +463,7 @@ function OrderDialog({ ctx, row, data, onClose, onOpenBillRequest }: { ctx: Paym
     mutationFn: async (v: Record<string, unknown>) => apiRequest("POST", `/api/payments/orders/${row.id}/transition`, v),
     onSuccess: (_d, v) => {
       invalidatePayments(queryClient);
-      const msg: Record<string, string> = { submit: "أُرسل للاعتماد", approve: "تم الاعتماد", reject: "تم الرفض", pay: "تم تسجيل الصرف", cancel: "تم الإلغاء" };
+      const msg: Record<string, string> = { submit: "أُرسل للاعتماد", approve: "تم الاعتماد", reject: "تم الرفض", pay: "تم تسجيل الصرف", cancel: "تم الإلغاء", approve_request: "وافق مدير المشروع على الطلب", decline_request: "تم رفض الطلب", accept_request: "قُبل الطلب وأصبح مسودة أمر دفع", withdraw_request: "تم سحب الطلب" };
       toast({ title: msg[String(v.action)] });
       setPanel(null);
       setNote("");
@@ -520,6 +539,16 @@ function OrderDialog({ ctx, row, data, onClose, onOpenBillRequest }: { ctx: Paym
             </div>
           </div>
         )}
+        {panel === "decline" && (
+          <div className="space-y-2 rounded-xl border p-3">
+            <Label>سبب رفض الطلب</Label>
+            <Textarea rows={2} value={note} onChange={(e) => setNote(e.target.value)} />
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" size="sm" onClick={() => setPanel(null)}>تراجع</Button>
+              <Button size="sm" variant="destructive" disabled={!note.trim() || act.isPending} onClick={() => act.mutate({ action: "decline_request", note })}>رفض الطلب</Button>
+            </div>
+          </div>
+        )}
         {panel === "pay" && (
           <div className="space-y-3 rounded-xl border p-3">
             <div className="grid sm:grid-cols-3 gap-3">
@@ -558,6 +587,27 @@ function OrderDialog({ ctx, row, data, onClose, onOpenBillRequest }: { ctx: Paym
           {isAccounting && ["draft", "rejected"].includes(row.status) && (
             <Button disabled={act.isPending} onClick={() => act.mutate({ action: "submit" })}>
               <Send className="w-4 h-4 mr-1" /> إرسال للاعتماد
+            </Button>
+          )}
+          {/* A transfer request: the project manager first, then accounting */}
+          {row.status === "requested" && canApprove && (
+            <Button disabled={act.isPending || ownOrder} title={ownOrder ? "لا يمكنك الموافقة على طلب قدّمته" : undefined} onClick={() => act.mutate({ action: "approve_request" })}>
+              <CheckCircle2 className="w-4 h-4 mr-1" /> موافقة مدير المشروع
+            </Button>
+          )}
+          {row.status === "request_approved" && isAccounting && (
+            <Button disabled={act.isPending} onClick={() => act.mutate({ action: "accept_request" })}>
+              <CheckCircle2 className="w-4 h-4 mr-1" /> قبول وتحويله إلى مسودة أمر دفع
+            </Button>
+          )}
+          {((row.status === "requested" && canApprove) || (row.status === "request_approved" && isAccounting)) && (
+            <Button variant="outline" disabled={act.isPending} onClick={() => setPanel("decline")}>
+              <XCircle className="w-4 h-4 mr-1" /> رفض الطلب
+            </Button>
+          )}
+          {["requested", "request_approved"].includes(row.status) && (row.createdBy === user?.id || isAccounting) && (
+            <Button variant="ghost" className="text-destructive" disabled={act.isPending} onClick={() => act.mutate({ action: "withdraw_request" })}>
+              <Ban className="w-4 h-4 mr-1" /> سحب الطلب
             </Button>
           )}
           {canApprove && row.status === "pending_approval" && (

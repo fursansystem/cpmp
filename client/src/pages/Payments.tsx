@@ -12,6 +12,7 @@ import { ClearancesTab, FinesTab, clearanceAttention } from "@/components/paymen
 import { SubcontractorCertificatesTab } from "@/components/payments/subcontractor-certificates-tab";
 import { ReportsTab } from "@/components/payments/reports-tab";
 import type { ReportId } from "@/components/payments/reports-library-tab";
+import { PaymentActionButtons } from "@/components/payments/payment-actions";
 import { getJson, paymentsQuery, type PaymentsContext, type PaymentsOverview } from "@/components/payments/payments-common";
 
 const query = (key: string) => {
@@ -77,7 +78,7 @@ export default function Payments() {
     );
   }
 
-  const overview: PaymentsOverview = data ?? { billRequests: [], orders: [], subcontractorCertificates: [], clearances: [], fines: [], purchaseOrders: [], suppliers: [] };
+  const overview: PaymentsOverview = data ?? { billRequests: [], orders: [], subcontractorCertificates: [], subcontractors: [], chargebacks: [], clearances: [], fines: [], purchaseOrders: [], suppliers: [] };
   const projectName = projectId === "all" ? "كل المشاريع" : ctx.projects.find((p) => p.id === projectId)?.name ?? "";
 
   // What is waiting on somebody, shown on the tabs
@@ -87,7 +88,8 @@ export default function Payments() {
       (ctx.perms.canApprove && c.status === "submitted") || (ctx.perms.isAccounting && c.status === "approved")).length,
     bills: overview.billRequests.filter((b) => ["requested", "returned"].includes(b.status) || (ctx.perms.isAccounting && b.status === "submitted")).length,
     orders: overview.orders.filter((o) =>
-      (ctx.perms.canApprove && o.status === "pending_approval") || (ctx.perms.isAccounting && o.status === "approved")).length,
+      (ctx.perms.canApprove && (o.status === "pending_approval" || o.status === "requested")) ||
+      (ctx.perms.isAccounting && (o.status === "approved" || o.status === "request_approved"))).length,
     clearances: overview.clearances.filter((c) => clearanceAttention(c)).length,
     fines: overview.fines.filter((f) => ["open", "under_appeal"].includes(f.status) || (ctx.perms.canApprove && f.status === "waiver_requested")).length,
   };
@@ -138,13 +140,13 @@ export default function Payments() {
           ) : (
             <>
               <TabsContent value="bills">
-                <BillRequestsTab ctx={ctx} projectId={projectId} rows={overview.billRequests} orders={overview.orders} purchaseOrders={overview.purchaseOrders} focusId={focusBillId} onFocusHandled={() => setFocusBillId(null)} onCreateOrder={(id) => startOrder({ billRequestId: id })} />
+                <BillRequestsTab ctx={ctx} projectId={projectId} rows={overview.billRequests} orders={overview.orders} purchaseOrders={overview.purchaseOrders} chargebacks={overview.chargebacks ?? []} focusId={focusBillId} onFocusHandled={() => setFocusBillId(null)} onCreateOrder={(id) => startOrder({ billRequestId: id })} />
               </TabsContent>
               <TabsContent value="orders">
-                <OrdersTab ctx={ctx} projectId={projectId} data={overview} draft={draft} onDraftClose={() => setDraft(null)} onStartDraft={() => setDraft({})} onOpenBillRequest={(id) => { setFocusBillId(id); setTab("bills"); }} />
+                <OrdersTab ctx={ctx} projectId={projectId} data={overview} draft={draft} onDraftClose={() => setDraft(null)} onStartDraft={() => setDraft({})} onOpenBillRequest={(id) => { setFocusBillId(id); setTab("bills"); }} requesterAction={<PaymentActionButtons context={{ projectId: projectId === "all" ? "" : projectId }} size="default" />} />
               </TabsContent>
               <TabsContent value="subcontractors">
-                <SubcontractorCertificatesTab ctx={ctx} projectId={projectId} rows={overview.subcontractorCertificates} orders={overview.orders} onRequestOrder={(id) => startOrder({ subcontractorCertificateId: id })} />
+                <SubcontractorCertificatesTab ctx={ctx} projectId={projectId} rows={overview.subcontractorCertificates} chargebacks={overview.chargebacks ?? []} subcontractors={overview.subcontractors ?? []} orders={overview.orders} onRequestOrder={(id) => startOrder({ subcontractorCertificateId: id })} />
               </TabsContent>
               <TabsContent value="clearances">
                 <ClearancesTab ctx={ctx} projectId={projectId} rows={overview.clearances} orders={overview.orders} onRequestPayment={(id) => startOrder({ clearanceId: id })} />

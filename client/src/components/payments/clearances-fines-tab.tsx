@@ -31,6 +31,7 @@ import {
   money,
   type PaymentsContext,
 } from "./payments-common";
+import { SubcontractorSelect } from "./subcontractor-select";
 
 const todayIso = () => new Date().toISOString().slice(0, 10);
 
@@ -257,7 +258,7 @@ function ClearanceDialog({ ctx, defaultProjectId, row, orders, onClose, onReques
 
 // --------------------------------------------------------------------- Fines
 
-const emptyFine = { title: "", authority: "", referenceNo: "", reason: "", liableParty: "contractor", amount: "", issueDate: "", dueDate: "", status: "open", notes: "" };
+const emptyFine = { title: "", authority: "", referenceNo: "", reason: "", liableParty: "contractor", subcontractorId: "", amount: "", issueDate: "", dueDate: "", status: "open", notes: "" };
 
 export function FinesTab({ ctx, projectId, rows, orders, onRequestPayment }: TabProps) {
   const [status, setStatus] = useState("all");
@@ -300,7 +301,7 @@ export function FinesTab({ ctx, projectId, rows, orders, onRequestPayment }: Tab
                     <TableCell className="font-semibold">{r.title}{r.referenceNo && <div className="text-xs font-normal text-muted-foreground">{r.referenceNo}</div>}</TableCell>
                     {projectId === "all" && <TableCell>{r.projectName}</TableCell>}
                     <TableCell>{r.authority ?? "—"}</TableCell>
-                    <TableCell>{LIABLE_PARTY_LABELS[r.liableParty as keyof typeof LIABLE_PARTY_LABELS] ?? r.liableParty}</TableCell>
+                    <TableCell>{LIABLE_PARTY_LABELS[r.liableParty as keyof typeof LIABLE_PARTY_LABELS] ?? r.liableParty}{r.subcontractorName && <div className="text-xs text-muted-foreground">{r.subcontractorName}</div>}</TableCell>
                     <TableCell className="text-end tabular-nums">{money(r.amount)}</TableCell>
                     <TableCell className="text-end tabular-nums">{money(r.paidAmount)}</TableCell>
                     <TableCell className={overdue ? "text-destructive font-semibold" : ""}>{overdue && <AlertTriangle className="w-3.5 h-3.5 inline mr-1" />}{fmtDate(r.dueDate)}</TableCell>
@@ -318,15 +319,36 @@ export function FinesTab({ ctx, projectId, rows, orders, onRequestPayment }: Tab
   );
 }
 
-function FineDialog({ ctx, defaultProjectId, row, orders, onClose, onRequestPayment }: { ctx: PaymentsContext; defaultProjectId: string; row: any | null; orders: any[]; onClose: () => void; onRequestPayment: (id: string) => void }) {
+// What a page (a snag item, an NCR) hands over when it starts a deduction, and where it came from
+export interface DeductionPrefill {
+  title?: string;
+  reason?: string;
+  authority?: string;
+  liableParty?: string;
+  subcontractorId?: string;
+  amount?: number | string;
+  sourceType?: string;
+  sourceId?: string;
+}
+
+export function FineDialog({ ctx, defaultProjectId, row, orders, onClose, onRequestPayment, prefill }: {
+  prefill?: DeductionPrefill; ctx: PaymentsContext; defaultProjectId: string; row: any | null; orders: any[]; onClose: () => void; onRequestPayment: (id: string) => void }) {
   const { toast } = useToast();
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [projectId, setProjectId] = useState(row?.projectId ?? (defaultProjectId === "all" ? "" : defaultProjectId));
   const [form, setForm] = useState(
     row
-      ? { title: row.title, authority: row.authority ?? "", referenceNo: row.referenceNo ?? "", reason: row.reason ?? "", liableParty: row.liableParty, amount: String(Number(row.amount) || ""), issueDate: row.issueDate ?? "", dueDate: row.dueDate ?? "", status: row.status, notes: row.notes ?? "" }
-      : emptyFine,
+      ? { title: row.title, authority: row.authority ?? "", referenceNo: row.referenceNo ?? "", reason: row.reason ?? "", liableParty: row.liableParty, subcontractorId: row.subcontractorId ?? "", amount: String(Number(row.amount) || ""), issueDate: row.issueDate ?? "", dueDate: row.dueDate ?? "", status: row.status, notes: row.notes ?? "" }
+      : {
+          ...emptyFine,
+          title: prefill?.title ?? "",
+          reason: prefill?.reason ?? "",
+          authority: prefill?.authority ?? "",
+          liableParty: prefill?.liableParty ?? emptyFine.liableParty,
+          subcontractorId: prefill?.subcontractorId ?? "",
+          amount: prefill?.amount !== undefined ? String(prefill.amount) : "",
+        },
   );
   const set = (k: keyof typeof form) => (v: string) => setForm((f) => ({ ...f, [k]: v }));
   // With payment under way or complete the fine is owned by the payment flow
@@ -336,8 +358,8 @@ function FineDialog({ ctx, defaultProjectId, row, orders, onClose, onRequestPaym
 
   const save = useMutation({
     mutationFn: async () => {
-      const body = { ...form, authority: form.authority || null, referenceNo: form.referenceNo || null, reason: form.reason || null, issueDate: form.issueDate || null, dueDate: form.dueDate || null, amount: form.amount || 0, notes: form.notes || null };
-      return row ? apiRequest("PATCH", `/api/payments/fines/${row.id}`, body) : apiRequest("POST", "/api/payments/fines", { projectId, ...body });
+      const body = { ...form, subcontractorId: form.liableParty === "subcontractor" ? form.subcontractorId || null : null, authority: form.authority || null, referenceNo: form.referenceNo || null, reason: form.reason || null, issueDate: form.issueDate || null, dueDate: form.dueDate || null, amount: form.amount || 0, notes: form.notes || null };
+      return row ? apiRequest("PATCH", `/api/payments/fines/${row.id}`, body) : apiRequest("POST", "/api/payments/fines", { projectId, ...body, sourceType: prefill?.sourceType ?? null, sourceId: prefill?.sourceId ?? null });
     },
     onSuccess: () => { invalidatePayments(queryClient); toast({ title: row ? "تم الحفظ" : "تمت الإضافة" }); onClose(); },
     onError: (e) => toast({ title: "تعذّر الحفظ", description: errorMessage(e), variant: "destructive" }),
@@ -385,6 +407,9 @@ function FineDialog({ ctx, defaultProjectId, row, orders, onClose, onRequestPaym
               <SelectContent>{Object.entries(LIABLE_PARTY_LABELS).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}</SelectContent>
             </Select>
           </div>
+          {form.liableParty === "subcontractor" && (
+            <div className="space-y-1.5 sm:col-span-2"><Label>مقاول الباطن</Label><SubcontractorSelect projectId={projectId} value={form.subcontractorId} disabled={locked} onChange={(id) => set("subcontractorId")(id)} /></div>
+          )}
           <div className="space-y-1.5"><Label>المبلغ</Label><Input type="number" min="0" step="0.01" value={form.amount} disabled={locked} onChange={(e) => set("amount")(e.target.value)} /></div>
           <div className="space-y-1.5"><Label>تاريخ الإصدار</Label><Input type="date" value={form.issueDate} disabled={locked} onChange={(e) => set("issueDate")(e.target.value)} /></div>
           <div className="space-y-1.5"><Label>آخر موعد للسداد</Label><Input type="date" value={form.dueDate} disabled={locked} onChange={(e) => set("dueDate")(e.target.value)} /></div>

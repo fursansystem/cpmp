@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus, Search, Paperclip, AlertTriangle, CheckCircle2, Undo2, Send, Ban, Banknote, Receipt, Trash2 } from "lucide-react";
+import { Plus, Search, Paperclip, AlertTriangle, CheckCircle2, Undo2, Send, Ban, Banknote, Receipt, Trash2, Split } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -14,6 +14,8 @@ import { useAuth } from "@/lib/auth";
 import { apiRequest } from "@/lib/queryClient";
 import { BILL_REQUEST_LABELS, OPEN_BILL_REQUEST, OPEN_PAYMENT_ORDER, PAYMENT_ORDER_LABELS, type PoSummary } from "@shared/payments";
 import { cn } from "@/lib/utils";
+import { CHARGEBACK_LABELS } from "@shared/payments";
+import { ChargeInvoiceDialog, chargedOf } from "./chargebacks";
 import {
   ActivityTimeline,
   AttachmentsPanel,
@@ -35,6 +37,7 @@ interface Props {
   rows: any[];
   orders: any[];
   purchaseOrders: PoSummary[];
+  chargebacks: any[];
   // Open this request's dialog (set when jumping here from a payment order)
   focusId?: string | null;
   onFocusHandled?: () => void;
@@ -42,8 +45,9 @@ interface Props {
 }
 
 const todayIso = () => new Date().toISOString().slice(0, 10);
+const num = (v: unknown) => Number(v ?? 0) || 0;
 
-export function BillRequestsTab({ ctx, projectId, rows, orders, purchaseOrders, focusId, onFocusHandled, onCreateOrder }: Props) {
+export function BillRequestsTab({ ctx, projectId, rows, orders, purchaseOrders, chargebacks, focusId, onFocusHandled, onCreateOrder }: Props) {
   const [status, setStatus] = useState("all");
   const [search, setSearch] = useState("");
   const [creating, setCreating] = useState(false);
@@ -145,6 +149,7 @@ export function BillRequestsTab({ ctx, projectId, rows, orders, purchaseOrders, 
           row={selected}
           orders={orders}
           po={purchaseOrders.find((p) => p.id === selected.purchaseOrderId) ?? null}
+          chargebacks={chargebacks.filter((c) => c.billRequestId === selected.id)}
           onClose={() => setOpenId(null)}
           onCreateOrder={(id) => { setOpenId(null); onCreateOrder(id); }}
         />
@@ -153,11 +158,31 @@ export function BillRequestsTab({ ctx, projectId, rows, orders, purchaseOrders, 
   );
 }
 
-function CreateBillRequestDialog({ ctx, defaultProjectId, open, onClose }: { ctx: PaymentsContext; defaultProjectId: string; open: boolean; onClose: () => void }) {
+// Values a page can hand to the form, and where the request was started from
+export interface BillRequestPrefill {
+  supplierId?: string;
+  purchaseOrderId?: string;
+  payeeName?: string;
+  amount?: number | string;
+  description?: string;
+  sourceType?: string;
+  sourceId?: string;
+}
+
+export function CreateBillRequestDialog({ ctx, defaultProjectId, open, onClose, prefill }: { ctx: PaymentsContext; defaultProjectId: string; open: boolean; onClose: () => void; prefill?: BillRequestPrefill }) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [projectId, setProjectId] = useState(defaultProjectId === "all" ? "" : defaultProjectId);
-  const [form, setForm] = useState({ payeeName: "", description: "", amount: "", dueDate: "", supplierId: "", purchaseOrderId: "", certificateId: "", notes: "" });
+  const [form, setForm] = useState({
+    payeeName: prefill?.payeeName ?? "",
+    description: prefill?.description ?? "",
+    amount: prefill?.amount !== undefined ? String(prefill.amount) : "",
+    dueDate: "",
+    supplierId: prefill?.supplierId ?? "",
+    purchaseOrderId: prefill?.purchaseOrderId ?? "",
+    certificateId: "",
+    notes: "",
+  });
   const set = (k: keyof typeof form) => (v: string) => setForm((f) => ({ ...f, [k]: v }));
 
   const { data: sources } = useQuery<{ purchaseOrders: any[]; certificates: any[]; suppliers: { id: string; name: string; taxNumber: string | null }[] }>({
@@ -176,6 +201,8 @@ function CreateBillRequestDialog({ ctx, defaultProjectId, open, onClose }: { ctx
         amount: form.amount || 0,
         dueDate: form.dueDate || null,
         supplierId: form.supplierId || null,
+        sourceType: prefill?.sourceType ?? null,
+        sourceId: prefill?.sourceId ?? null,
         purchaseOrderId: form.purchaseOrderId || null,
         certificateId: form.certificateId || null,
         notes: form.notes || null,
@@ -292,8 +319,9 @@ function CreateBillRequestDialog({ ctx, defaultProjectId, open, onClose }: { ctx
 }
 
 // The invoices this request covers. A payment order raised from the request pays them.
-function InvoicesPanel({ row, editable, canRemove }: { row: any; editable: boolean; canRemove: (i: any) => boolean }) {
+function InvoicesPanel({ ctx, row, editable, canRemove, chargebacks }: { ctx: PaymentsContext; row: any; editable: boolean; canRemove: (i: any) => boolean; chargebacks: any[] }) {
   const { toast } = useToast();
+  const [charging, setCharging] = useState<any | null>(null);
   const queryClient = useQueryClient();
   const [form, setForm] = useState({ invoiceNo: "", invoiceDate: "", amount: "" });
 
@@ -326,7 +354,17 @@ function InvoicesPanel({ row, editable, canRemove }: { row: any; editable: boole
             <li key={i.id} className="flex items-center gap-3 rounded-xl border px-3 py-2 text-sm">
               <span className="font-mono">{i.invoiceNo}</span>
               <span className="text-muted-foreground">{fmtDate(i.invoiceDate)}</span>
+              {chargedOf(chargebacks, i.id) > 0 && (
+                <span className="text-xs rounded-full bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300 px-2 py-0.5 whitespace-nowrap" title={chargebacks.filter((c) => c.invoiceId === i.id && c.status !== "cancelled").map((c) => `${c.chargeNo} → ${c.subcontractorName} (${CHARGEBACK_LABELS[c.status as keyof typeof CHARGEBACK_LABELS] ?? c.status})`).join("\n")}>
+                  محمَّل {money(chargedOf(chargebacks, i.id))} من {money(i.amount)}
+                </span>
+              )}
               <span className="ms-auto tabular-nums font-semibold">{money(i.amount)}</span>
+              {row.status !== "cancelled" && chargedOf(chargebacks, i.id) < num(i.amount) - 0.005 && (
+                <Button type="button" size="icon" variant="ghost" className="h-7 w-7" title="تحميل على مقاول باطن" onClick={() => setCharging(i)}>
+                  <Split className="w-4 h-4" />
+                </Button>
+              )}
               {editable && canRemove(i) && (
                 <Button type="button" size="icon" variant="ghost" className="h-7 w-7 text-destructive" disabled={remove.isPending} onClick={() => remove.mutate(i.id)}>
                   <Trash2 className="w-4 h-4" />
@@ -344,11 +382,12 @@ function InvoicesPanel({ row, editable, canRemove }: { row: any; editable: boole
           <Button type="button" size="sm" disabled={add.isPending || !form.invoiceNo.trim() || !(Number(form.amount) > 0)} onClick={() => add.mutate()}><Plus className="w-4 h-4" /></Button>
         </div>
       )}
+      {charging && <ChargeInvoiceDialog ctx={ctx} bill={row} invoice={charging} chargebacks={chargebacks} onClose={() => setCharging(null)} />}
     </div>
   );
 }
 
-function BillRequestDialog({ ctx, row, orders, po, onClose, onCreateOrder }: { ctx: PaymentsContext; row: any; orders: any[]; po: PoSummary | null; onClose: () => void; onCreateOrder: (id: string) => void }) {
+function BillRequestDialog({ ctx, row, orders, po, chargebacks, onClose, onCreateOrder }: { ctx: PaymentsContext; row: any; orders: any[]; po: PoSummary | null; chargebacks: any[]; onClose: () => void; onCreateOrder: (id: string) => void }) {
   const { toast } = useToast();
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -406,6 +445,8 @@ function BillRequestDialog({ ctx, row, orders, po, onClose, onCreateOrder }: { c
         {po && <PoCard po={po} />}
 
         <InvoicesPanel
+          ctx={ctx}
+          chargebacks={chargebacks}
           row={row}
           editable={["requested", "returned"].includes(row.status) || (row.status === "submitted" && isAccounting)}
           canRemove={(i) => i.createdBy === user?.id || isAccounting}
