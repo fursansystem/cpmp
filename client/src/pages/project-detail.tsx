@@ -1,3 +1,4 @@
+import { PaymentActionButtons } from "@/components/payments/payment-actions";
 import { useQuery } from "@tanstack/react-query";
 import { useParams, useLocation } from "wouter";
 import {
@@ -26,7 +27,8 @@ import {
   Warehouse,
   Boxes,
   Grid3X3,
-  Receipt
+  Receipt,
+  Wallet
 } from "lucide-react";
 import { format, differenceInDays, startOfDay } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -61,6 +63,21 @@ export default function ProjectDetail() {
   const { data: matrixSummary } = useQuery<{ projectProgress: number; nodeCount: number; certificateCount: number }>({
     queryKey: ["/api/projects", projectId, "progress-matrix", "summary"],
     enabled: !!projectId,
+  });
+
+  // Live figures for the Payments card: what is open, and what is late
+  const { data: paymentsReport } = useQuery<{
+    totals: { openBillRequests: number; ordersPendingApproval: number; subCertsPendingCount: number };
+    monitoring: {
+      delayedDecisions: { total: number };
+      paymentsWithoutOriginals: { notRequested: { count: number }; requestedPending: { count: number } };
+      unpaidInvoices: { amount: number };
+    };
+  }>({
+    queryKey: ["payments", "project-card", projectId],
+    queryFn: async () => (await fetch(`/api/payments/reports?projectId=${projectId}`, { credentials: "include" })).json(),
+    enabled: !!projectId,
+    meta: { persist: false },
   });
 
   if (isLoading) {
@@ -126,6 +143,22 @@ export default function ProjectDetail() {
       link: `/projects/${projectId}/progress-matrix?tab=certificates`,
       color: "text-emerald-600",
       bg: "bg-emerald-50 dark:bg-emerald-900/10",
+      active: true
+    },
+    {
+      title: "المدفوعات (Payments)",
+      description: paymentsReport
+        ? `${paymentsReport.totals.openBillRequests} أصول مطلوبة · ${paymentsReport.totals.ordersPendingApproval} أوامر بانتظار الاعتماد · ${paymentsReport.monitoring.delayedDecisions.total} قرارات متأخرة`
+        : "طلب أصول الفواتير، أوامر الدفع، الرخص والخصومات لهذا المشروع.",
+      icon: Wallet,
+      // open items that need somebody: requests to answer, orders and certificates to decide, payments missing originals
+      count: paymentsReport
+        ? paymentsReport.totals.openBillRequests + paymentsReport.totals.ordersPendingApproval + paymentsReport.totals.subCertsPendingCount +
+          paymentsReport.monitoring.paymentsWithoutOriginals.notRequested.count + paymentsReport.monitoring.paymentsWithoutOriginals.requestedPending.count
+        : "—",
+      link: `/payments?project=${projectId}`,
+      color: "text-teal-600",
+      bg: "bg-teal-50 dark:bg-teal-900/10",
       active: true
     },
     {
@@ -367,6 +400,10 @@ export default function ProjectDetail() {
         <div className="flex items-center gap-3">
           <div className="w-8 h-1 bg-primary rounded-full" />
           <h2 className="text-xl font-black tracking-tight text-foreground/80 uppercase">Project Sections</h2>
+          {/* Payments shortcuts for this project, by role: request the invoices / raise an order, or ask for a transfer */}
+          <div className="ms-auto flex flex-wrap gap-2">
+            <PaymentActionButtons context={{ projectId: projectId || "", sourceType: "project", sourceId: projectId || undefined }} />
+          </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">

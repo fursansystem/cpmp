@@ -1,3 +1,4 @@
+import { PoPaymentsPanel } from "@/components/payments/payment-actions";
 import { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useParams, useLocation } from "wouter";
@@ -521,6 +522,8 @@ export default function ProjectPurchaseOrderDetail() {
           )}
         </CardContent>
       </Card>
+
+      <PoPaymentsPanel projectId={projectId || ""} poId={po.id} poNumber={po.poNumber} supplierId={po.supplierId} supplierName={po.supplierName} />
 
       <PoDetailsPrintDialog
         open={printOpen}

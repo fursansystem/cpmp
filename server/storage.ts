@@ -69,7 +69,7 @@ import {
   type PurchaseOrder, type InsertPurchaseOrder, type UpdatePurchaseOrder,
   type PoItem, type InsertPoItem, type UpdatePoItem,
   warehouses, stockMovements, stockTransfers, stockTransferItems,
-  materialIssues, materialIssueItems, inventoryApproverPositions,
+  materialIssues, materialIssueItems, inventoryApproverPositions, projectSubcontractors,
   STOCK_IN_TYPES, stockDirection, normalizeUnit,
   type Warehouse, type InsertWarehouse, type UpdateWarehouse,
   type StockMovement, type InsertStockMovement,
@@ -5802,6 +5802,17 @@ export class DatabaseStorage implements IStorage {
         throw new Error("المستودع لا ينتمي لهذا المشروع");
       }
 
+      // A subcontractor recipient is one of this project's registered subcontractors; its name is what the voucher shows
+      let issuedTo = input.issuedTo;
+      let subcontractorId: string | null = null;
+      if (input.subcontractorId) {
+        if (input.recipientType !== "subcontractor") throw new Error("مقاول الباطن يُحدَّد فقط عندما تكون صفة المستلم مقاول باطن");
+        const [sub] = await tx.select().from(projectSubcontractors).where(eq(projectSubcontractors.id, input.subcontractorId));
+        if (!sub || sub.projectId !== input.projectId) throw new Error("مقاول الباطن لا ينتمي لهذا المشروع");
+        issuedTo = sub.name;
+        subcontractorId = sub.id;
+      }
+
       // Validate every line and work out whether the voucher needs approval before
       // writing anything.
       const prepared = [];
@@ -5836,8 +5847,9 @@ export class DatabaseStorage implements IStorage {
           warehouseId: input.warehouseId,
           issueNumber,
           issueDate: input.issueDate,
-          issuedTo: input.issuedTo,
+          issuedTo,
           recipientType: input.recipientType,
+          subcontractorId,
           workLocationId: input.workLocationId ?? null,
           purpose: input.purpose ?? null,
           // Stock only moves when the voucher reaches 'issued'.

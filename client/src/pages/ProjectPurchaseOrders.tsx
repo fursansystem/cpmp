@@ -1,3 +1,4 @@
+import { PaymentActionButtons } from "@/components/payments/payment-actions";
 import { useState, useMemo, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useParams, useLocation } from "wouter";
@@ -841,6 +842,23 @@ export default function ProjectPurchaseOrders() {
                       <span>تاريخ الطلب: {po.orderDate}</span>
                       {po.expectedDeliveryDate && <span>التسليم: {po.expectedDeliveryDate}</span>}
                     </div>
+
+                    {/* Payments: accounting asks for the invoices or raises an order; everyone else asks for a transfer */}
+                    {po.status !== "draft" && po.status !== "cancelled" && (
+                      <div className="flex flex-wrap gap-2 pt-1">
+                        <PaymentActionButtons
+                          context={{
+                            projectId: projectId || "",
+                            purchaseOrderId: po.id,
+                            supplierId: po.supplierId ?? undefined,
+                            payeeName: po.supplierName ?? undefined,
+                            description: `أصل فاتورة أمر الشراء ${po.poNumber}`,
+                            sourceType: "purchase_order",
+                            sourceId: po.id,
+                          }}
+                        />
+                      </div>
+                    )}
                   </CardContent>
 
                   <div className="p-3 border-t bg-muted/10 flex items-center justify-between gap-2">

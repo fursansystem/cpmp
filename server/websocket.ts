@@ -133,6 +133,21 @@ class NotificationWebSocketServer {
     });
   }
 
+  // Payments (bill requests, payment orders, clearances, fines) changed for a project (except the sender)
+  broadcastPaymentsUpdate(projectId: string, excludeUserId?: string) {
+    const message = JSON.stringify({
+      type: "payments_updated",
+      data: { projectId },
+    });
+
+    this.wss?.clients.forEach((ws: WebSocketClient) => {
+      if (ws.userId && excludeUserId && ws.userId === excludeUserId) return;
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.send(message);
+      }
+    });
+  }
+
   // Progress matrix / payment certificates changed for a project (except the sender)
   broadcastProgressMatrixUpdate(projectId: string, excludeUserId?: string) {
     const message = JSON.stringify({

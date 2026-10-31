@@ -20,6 +20,7 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { cn } from "@/lib/utils";
 import type { StockBalance } from "@shared/schema";
+import { SubcontractorSelect } from "@/components/payments/subcontractor-select";
 
 interface MaterialIssueDialogProps {
   open: boolean;
@@ -42,6 +43,7 @@ export function MaterialIssueDialog({ open, onOpenChange, projectId, warehouses 
   const [warehouseId, setWarehouseId] = useState("");
   const [issueDate, setIssueDate] = useState(today());
   const [issuedTo, setIssuedTo] = useState("");
+  const [subcontractorId, setSubcontractorId] = useState("");
   const [recipientType, setRecipientType] = useState("subcontractor");
   const [workLocationId, setWorkLocationId] = useState("");
   const [purpose, setPurpose] = useState("");
@@ -72,6 +74,7 @@ export function MaterialIssueDialog({ open, onOpenChange, projectId, warehouses 
     setWorkLocationId("");
     setIssueDate(today());
     setRecipientType("subcontractor");
+    setSubcontractorId("");
   }, [open]);
 
   useEffect(() => {
@@ -120,6 +123,7 @@ export function MaterialIssueDialog({ open, onOpenChange, projectId, warehouses 
         warehouseId,
         issueDate,
         issuedTo: issuedTo.trim(),
+        subcontractorId: recipientType === "subcontractor" && subcontractorId ? subcontractorId : null,
         recipientType,
         workLocationId: workLocationId || null,
         purpose: purpose || null,
@@ -198,12 +202,20 @@ export function MaterialIssueDialog({ open, onOpenChange, projectId, warehouses 
               <Label className="text-xs font-bold">
                 المستلم <span className="text-destructive">*</span>
               </Label>
-              <Input value={issuedTo} onChange={(e) => setIssuedTo(e.target.value)} placeholder="اسم المستلم" className="h-10 rounded-xl" />
+              {recipientType === "subcontractor" ? (
+                <SubcontractorSelect
+                  projectId={projectId}
+                  value={subcontractorId}
+                  onChange={(id, sub) => { setSubcontractorId(id); setIssuedTo(sub?.name ?? ""); }}
+                />
+              ) : (
+                <Input value={issuedTo} onChange={(e) => setIssuedTo(e.target.value)} placeholder="اسم المستلم" className="h-10 rounded-xl" />
+              )}
             </div>
 
             <div className="space-y-1.5">
               <Label className="text-xs font-bold">صفة المستلم</Label>
-              <Select value={recipientType} onValueChange={setRecipientType}>
+              <Select value={recipientType} onValueChange={(v) => { setRecipientType(v); setIssuedTo(""); setSubcontractorId(""); }}>
                 <SelectTrigger className="h-10 rounded-xl">
                   <SelectValue />
                 </SelectTrigger>
