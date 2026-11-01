@@ -2,7 +2,9 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { Mail, MoreVertical, Pencil, Trash2, CheckSquare, Briefcase, Building2, User } from "lucide-react";
+import { Mail, MoreVertical, Pencil, Trash2, CheckSquare, Building2, User } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { avatarColor, getInitials } from "@/lib/member-avatar";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -13,14 +15,13 @@ import {
 interface TeamMemberCardProps {
   id: string;
   name: string;
-  nameArabic?: string | null;
   email: string;
   position?: string | null;
   organizationName?: string | null;
   activeTasksCount?: number;
   canEdit?: boolean;
   canDelete?: boolean;
-  username?: string | null;
+  usernames?: string[];
   onViewDetails?: () => void;
   onEdit?: () => void;
   onRemove?: () => void;
@@ -29,49 +30,53 @@ interface TeamMemberCardProps {
 export function TeamMemberCard({
   id,
   name,
-  nameArabic,
   email,
   position,
   organizationName,
   activeTasksCount = 0,
   canEdit = true,
   canDelete = false,
-  username,
+  usernames = [],
   onViewDetails,
   onEdit,
   onRemove,
 }: TeamMemberCardProps) {
-  const initials = name
-    .split(" ")
-    .map((n) => n[0])
-    .join("")
-    .toUpperCase()
-    .slice(0, 2);
+  const initials = getInitials(name);
 
   return (
-    <Card 
-      className="hover-elevate cursor-pointer" 
+    <Card
+      className="hover-elevate cursor-pointer h-full flex flex-col"
       data-testid={`card-member-${id}`}
       onClick={onViewDetails}
     >
-      <CardHeader>
+      <CardHeader className="pb-3">
         <div className="flex items-start justify-between gap-2">
-          <div className="flex items-center gap-4">
-            <Avatar className="w-16 h-16">
-              <AvatarFallback className="bg-primary text-primary-foreground font-medium text-lg">
+          <div className="flex items-center gap-3 min-w-0">
+            <Avatar className="w-14 h-14 shrink-0">
+              <AvatarFallback
+                className={cn(
+                  "font-semibold text-base ring-2",
+                  avatarColor(id || name),
+                )}
+              >
                 {initials}
               </AvatarFallback>
             </Avatar>
             <div className="flex-1 min-w-0">
-              <h3 className="font-medium font-display truncate">{name}</h3>
-              {nameArabic && (
-                <p className="text-sm text-muted-foreground truncate" dir="rtl">{nameArabic}</p>
-              )}
-              {organizationName && (
-                <Badge variant="secondary" className="mt-1" data-testid="badge-organization">
-                  <Building2 className="w-3 h-3 mr-1" />
-                  {organizationName}
-                </Badge>
+              <h3 className="font-semibold font-display text-base leading-tight truncate">
+                {name}
+              </h3>
+              {position ? (
+                <p
+                  className="text-sm font-medium text-primary truncate mt-0.5"
+                  data-testid="text-position"
+                >
+                  {position}
+                </p>
+              ) : (
+                <p className="text-sm text-muted-foreground/60 truncate mt-0.5">
+                  No position set
+                </p>
               )}
             </div>
           </div>
@@ -89,8 +94,8 @@ export function TeamMemberCard({
                     Edit
                   </DropdownMenuItem>
                   {canDelete && (
-                    <DropdownMenuItem 
-                      onClick={onRemove} 
+                    <DropdownMenuItem
+                      onClick={onRemove}
                       className="text-destructive focus:text-destructive"
                       data-testid={`menu-delete-${id}`}
                     >
@@ -104,36 +109,61 @@ export function TeamMemberCard({
           )}
         </div>
       </CardHeader>
-      <CardContent className="space-y-3">
-        <div className="space-y-2 text-sm">
-          {username && (
-            <div className="flex items-center gap-2 text-muted-foreground">
-              <User className="w-4 h-4 flex-shrink-0" />
-              <span className="truncate">{username}</span>
+
+      <CardContent className="flex flex-col flex-1 gap-3">
+        <div className="space-y-1.5 text-xs text-muted-foreground">
+          {email && (
+            <div className="flex items-center gap-2">
+              <Mail className="w-3.5 h-3.5 flex-shrink-0 opacity-70" />
+              <span className="truncate">{email}</span>
             </div>
           )}
-          <div className="flex items-center gap-2 text-muted-foreground">
-            <Mail className="w-4 h-4 flex-shrink-0" />
-            <span className="truncate">{email}</span>
-          </div>
-          {position && (
-            <div className="flex items-center gap-2 text-muted-foreground">
-              <Briefcase className="w-4 h-4 flex-shrink-0" />
-              <span className="truncate">{position}</span>
+          {usernames.length > 0 && (
+            <div className="flex items-start gap-2" data-testid="member-usernames">
+              <User className="w-3.5 h-3.5 flex-shrink-0 opacity-70 mt-0.5" />
+              <div className="flex flex-wrap gap-1 min-w-0">
+                {usernames.map((u) => (
+                  <span
+                    key={u}
+                    className="px-1.5 py-0.5 rounded bg-muted text-foreground/80 font-medium truncate max-w-full"
+                  >
+                    {u}
+                  </span>
+                ))}
+              </div>
             </div>
           )}
         </div>
-        {activeTasksCount > 0 && (
-          <div className="pt-2 border-t">
-            <div className="flex items-center gap-2 text-sm">
-              <CheckSquare className="w-4 h-4 text-muted-foreground" />
-              <span className="font-medium">{activeTasksCount}</span>
-              <span className="text-muted-foreground">
-                {activeTasksCount === 1 ? 'Active Task' : 'Active Tasks'}
-              </span>
-            </div>
-          </div>
+
+        {organizationName && (
+          <Badge
+            variant="secondary"
+            className="w-fit max-w-full"
+            data-testid="badge-organization"
+          >
+            <Building2 className="w-3 h-3 mr-1 flex-shrink-0" />
+            <span className="truncate">{organizationName}</span>
+          </Badge>
         )}
+
+        <div className="mt-auto pt-3 border-t flex items-center gap-2 text-sm">
+          <CheckSquare
+            className={cn(
+              "w-4 h-4 flex-shrink-0",
+              activeTasksCount > 0 ? "text-primary" : "text-muted-foreground/50",
+            )}
+          />
+          {activeTasksCount > 0 ? (
+            <>
+              <span className="font-semibold">{activeTasksCount}</span>
+              <span className="text-muted-foreground">
+                {activeTasksCount === 1 ? "Active Task" : "Active Tasks"}
+              </span>
+            </>
+          ) : (
+            <span className="text-muted-foreground/60">No active tasks</span>
+          )}
+        </div>
       </CardContent>
     </Card>
   );

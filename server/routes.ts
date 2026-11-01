@@ -1839,7 +1839,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const validatedData = insertTeamMemberSchema.parse(req.body);
-      const member = await storage.createTeamMember(validatedData);
+
+      // Only super_admin may place a member in any organization; everyone else
+      // creates members inside their own.
+      let memberData = validatedData;
+      if (currentUser.user.role !== "super_admin") {
+        if (!currentUser.orgId) {
+          return res.status(403).json({ error: "You are not assigned to an organization" });
+        }
+        memberData = { ...validatedData, organizationId: currentUser.orgId };
+      }
+
+      const member = await storage.createTeamMember(memberData);
       res.status(201).json(member);
     } catch (error) {
       handleError(res, error);
@@ -1871,6 +1882,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const validatedData = updateTeamMemberSchema.parse(req.body);
+
+      // Moving a member between organizations is a super_admin-only action.
+      if (currentUser.user.role !== "super_admin") {
+        delete validatedData.organizationId;
+      }
       const updatedMember = await storage.updateTeamMember(req.params.id, validatedData);
       res.json(updatedMember);
     } catch (error) {

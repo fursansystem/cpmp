@@ -4,6 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { cn } from "@/lib/utils";
+import { avatarColor, getInitials } from "@/lib/member-avatar";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useQuery, useMutation } from "@tanstack/react-query";
@@ -67,13 +69,14 @@ export function TeamMemberFormDialog({ member, trigger, onSubmit, open: controll
     },
   });
 
-  // Get current user's organization if they're developer_admin
+  // Only super_admin may choose the organization; everyone else is locked to their own.
+  const isSuperAdmin = currentUser?.role === "super_admin";
   const userOrganizationId = useMemo(() => {
-    if (currentUser?.role === "developer_admin" && currentUser.organizationId) {
+    if (!isSuperAdmin && currentUser?.organizationId) {
       return currentUser.organizationId;
     }
     return null;
-  }, [currentUser?.role, currentUser?.organizationId]);
+  }, [isSuperAdmin, currentUser?.organizationId]);
 
   const {
     register,
@@ -90,7 +93,7 @@ export function TeamMemberFormDialog({ member, trigger, onSubmit, open: controll
       nameArabic: member?.nameArabic || "",
       email: member?.email || "",
       position: member?.position || "",
-      organizationId: member?.organizationId || currentUser?.role === "developer_admin" ? userOrganizationId || "" : "",
+      organizationId: member?.organizationId || userOrganizationId || "",
     },
   });
 
@@ -109,13 +112,13 @@ export function TeamMemberFormDialog({ member, trigger, onSubmit, open: controll
         nameArabic: "",
         email: "",
         position: "",
-        organizationId: currentUser?.role === "developer_admin" ? userOrganizationId || "" : "",
+        organizationId: userOrganizationId || "",
       });
-      if (currentUser?.role === "developer_admin" && userOrganizationId && !member) {
+      if (userOrganizationId && !member) {
         setValue("organizationId", userOrganizationId);
       }
     }
-  }, [open, member, reset, currentUser?.role, userOrganizationId, setValue]);
+  }, [open, member, reset, userOrganizationId, setValue]);
 
   const onSubmitForm = async (data: InsertTeamMember) => {
     await onSubmit(data);
@@ -127,15 +130,22 @@ export function TeamMemberFormDialog({ member, trigger, onSubmit, open: controll
     <>
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>{trigger}</DialogTrigger>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="max-w-lg" hideCloseButton>
         <DialogHeader>
           <DialogTitle>{member ? "Edit Member" : "Add Member"}</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit(onSubmitForm)} className="space-y-4">
           <div className="flex justify-center mb-4">
             <Avatar className="w-24 h-24">
-              <AvatarFallback className="bg-primary text-primary-foreground text-xl">
-                {currentName?.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2) || "?"}
+              <AvatarFallback
+                className={cn(
+                  "font-semibold text-2xl ring-2",
+                  // New members have no id yet, so keep a neutral colour instead of
+                  // flickering through the palette while the name is typed.
+                  member ? avatarColor(member.id) : "bg-muted text-muted-foreground ring-border",
+                )}
+              >
+                {currentName ? getInitials(currentName) : "?"}
               </AvatarFallback>
             </Avatar>
           </div>
@@ -212,14 +222,7 @@ export function TeamMemberFormDialog({ member, trigger, onSubmit, open: controll
               />
             </div>
 
-            {currentUser?.role === "developer_admin" ? (
-              <div className="col-span-2 space-y-2">
-                <Label htmlFor="organization">Organization</Label>
-                <div className="flex items-center h-9 px-3 border rounded-md bg-muted text-muted-foreground">
-                  {organizations.find(o => o.id === userOrganizationId)?.name || "Your Organization"}
-                </div>
-              </div>
-            ) : (
+            {isSuperAdmin && (
               <div className="col-span-2 space-y-2">
                 <Label htmlFor="organization">Organization *</Label>
                 <Controller
