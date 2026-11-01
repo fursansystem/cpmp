@@ -530,9 +530,10 @@ export interface IStorage {
   findUnreadNotification(userId: string, requestId: string, type: string): Promise<Notification | undefined>;
   createNotification(data: InsertNotification): Promise<Notification>;
   updateNotification(id: string, data: Partial<InsertNotification>): Promise<Notification>;
-  markNotificationAsRead(id: string): Promise<Notification>;
+  markNotificationAsRead(id: string, userId: string): Promise<Notification | undefined>;
   markAllNotificationsAsRead(userId: string): Promise<void>;
-  deleteNotification(id: string): Promise<void>;
+  deleteNotification(id: string, userId: string): Promise<void>;
+  markRequestNotificationsAsRead(requestId: string, type: string): Promise<string[]>;
   deleteAllNotifications(userId: string): Promise<void>;
 
   // Snag Lists & Items
@@ -4681,12 +4682,26 @@ export class DatabaseStorage implements IStorage {
     return notification;
   }
 
-  async markNotificationAsRead(id: string): Promise<Notification> {
+  async markNotificationAsRead(id: string, userId: string): Promise<Notification | undefined> {
     const [notification] = await db.update(notifications)
       .set({ isRead: true })
-      .where(eq(notifications.id, id))
+      .where(and(eq(notifications.id, id), eq(notifications.userId, userId)))
       .returning();
     return notification;
+  }
+
+  // Marks every unread notification of this type about a request as read, for all users,
+  // and returns whose notifications changed so their screens can refresh
+  async markRequestNotificationsAsRead(requestId: string, type: string): Promise<string[]> {
+    const updated = await db.update(notifications)
+      .set({ isRead: true })
+      .where(and(
+        eq(notifications.requestId, requestId),
+        eq(notifications.type, type),
+        eq(notifications.isRead, false)
+      ))
+      .returning({ userId: notifications.userId });
+    return Array.from(new Set(updated.map(n => n.userId)));
   }
 
   async markAllNotificationsAsRead(userId: string): Promise<void> {
@@ -4695,8 +4710,8 @@ export class DatabaseStorage implements IStorage {
       .where(eq(notifications.userId, userId));
   }
 
-  async deleteNotification(id: string): Promise<void> {
-    await db.delete(notifications).where(eq(notifications.id, id));
+  async deleteNotification(id: string, userId: string): Promise<void> {
+    await db.delete(notifications).where(and(eq(notifications.id, id), eq(notifications.userId, userId)));
   }
 
   async deleteAllNotifications(userId: string): Promise<void> {

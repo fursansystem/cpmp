@@ -209,10 +209,11 @@ export function useNotifications() {
       }
     };
 
-    ws.onclose = () => {
+    ws.onclose = (event) => {
       setIsConnected(false);
-      // Only reconnect if this is still the active websocket
-      if (wsRef.current === ws) {
+      // Only reconnect if this is still the active websocket and the server
+      // did not reject it for having no valid session
+      if (wsRef.current === ws && event.code !== 4401) {
         reconnectTimeoutRef.current = setTimeout(() => {
           connectWebSocket();
         }, 5000);

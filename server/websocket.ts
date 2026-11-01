@@ -1,6 +1,30 @@
-import { Server } from "http";
+import { Server, IncomingMessage, ServerResponse } from "http";
+import type { Request, Response } from "express";
 import { WebSocket, WebSocketServer } from "ws";
 import type { Notification } from "@shared/schema";
+import { sessionMiddleware } from "./session";
+import { storage } from "./storage";
+
+// Runs the HTTP upgrade request through the same session middleware as the API and
+// returns the logged-in, active user's id, or null when there is no valid session.
+function getSessionUserId(req: IncomingMessage): Promise<string | null> {
+  return new Promise((resolve) => {
+    sessionMiddleware(
+      req as Request,
+      new ServerResponse(req) as unknown as Response,
+      async (err?: unknown) => {
+        const userId = (req as any).session?.passport?.user as string | undefined;
+        if (err || !userId) return resolve(null);
+        try {
+          const user = await storage.getUser(userId);
+          resolve(user && user.isActive ? user.id : null);
+        } catch {
+          resolve(null);
+        }
+      }
+    );
+  });
+}
 
 interface WebSocketClient extends WebSocket {
   userId?: string;
@@ -15,22 +39,31 @@ class NotificationWebSocketServer {
   initialize(server: Server) {
     this.wss = new WebSocketServer({ server, path: "/ws/notifications" });
 
-    this.wss.on("connection", (ws: WebSocketClient) => {
+    this.wss.on("connection", (ws: WebSocketClient, req: IncomingMessage) => {
       ws.isAlive = true;
+
+      // The user comes from the session cookie, never from what the browser claims,
+      // otherwise anyone could listen to another user's notifications.
+      const sessionUser = getSessionUserId(req);
 
       ws.on("pong", () => {
         ws.isAlive = true;
       });
 
-      ws.on("message", (message: string) => {
+      ws.on("message", async (message: string) => {
         try {
           const data = JSON.parse(message.toString());
-          if (data.type === "auth" && data.userId) {
-            ws.userId = data.userId;
-            if (!this.clients.has(data.userId)) {
-              this.clients.set(data.userId, new Set());
+          if (data.type === "auth") {
+            const userId = await sessionUser;
+            if (!userId) {
+              ws.close(4401, "Authentication required");
+              return;
             }
-            this.clients.get(data.userId)!.add(ws);
+            ws.userId = userId;
+            if (!this.clients.has(userId)) {
+              this.clients.set(userId, new Set());
+            }
+            this.clients.get(userId)!.add(ws);
             ws.send(JSON.stringify({ type: "auth_success" }));
           } else if (data.type === "subscribe_request" && data.requestId) {
             ws.viewingRequestId = data.requestId;

@@ -4,6 +4,7 @@ import { storage, type IStorage } from "./storage";
 import { passport } from "./app";
 import { notificationWss, broadcastActivityUpdate } from "./websocket";
 import { notificationService } from "./notification-service";
+import { getStepAuthorizedTeamMembers } from "./step-authorization";
 import { insertNotificationSchema } from "@shared/schema";
 import {
   insertProjectSchema, updateProjectSchema,
@@ -4760,73 +4761,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         currentStatus: "Submitted",
       });
 
-      // Send notifications to team members (matching purposes OR Project Managers)
-      const project = await storage.getProject(request.projectId);
-      const recipientUserIdSet = new Set<string>();
-
-      // Get all team members from relevant organizations
-      const orgIdArr = [request.contractorId, request.consultantId, project?.organizationId].filter(Boolean) as string[];
-      const orgIds = Array.from(new Set(orgIdArr));
-      let projectTeamMembers: any[] = [];
-      for (const orgId of orgIds) {
-        const orgMembers = await storage.getTeamMembersByOrganization(orgId);
-        projectTeamMembers.push(...orgMembers);
-      }
-
-      // 1. Identify positions matching the revision purposes
-      const purposeIds = previousPurposes.map(p => p.purposeId);
-      let matchingPositionTitles = new Set<string>();
-
-      if (purposeIds.length > 0) {
-        const allPositions = await storage.getAllPositions();
-        matchingPositionTitles = new Set(
-          allPositions
-            .filter(p => p.purposeId && purposeIds.includes(p.purposeId))
-            .map(p => p.titleEnglish)
-        );
-      }
-
-      // 2. Target titles for Project Manager
-      const managerTitles = ["project manager", "مدير مشروع"];
-
-      // 3. Filter members and collect User IDs
-      for (const tm of projectTeamMembers) {
-        let shouldNotify = false;
-        const position = tm.position ? tm.position.toLowerCase() : "";
-
-        // Check if matches purpose
-        // Note: matchingPositionTitles contains exact strings from the DB, so we rely on exact match or strict inclusion logic if needed. 
-        // The previous code used `matchingPositionTitles.has(tm.position)`. We keep that.
-        if (tm.position && matchingPositionTitles.has(tm.position)) {
-          shouldNotify = true;
-        }
-
-        // Check if Project Manager (explicit check for partial match)
-        if (managerTitles.some(title => position.includes(title))) {
-          shouldNotify = true;
-        }
-
-        if (shouldNotify) {
-          const tmUsers = await storage.getTeamMemberUsers(tm.id);
-          for (const tmUser of tmUsers) {
-            if (tmUser.userId !== currentUser.user.id) {
-              recipientUserIdSet.add(tmUser.userId);
-            }
-          }
-        }
-      }
-
-      const recipientUserIds = Array.from(recipientUserIdSet);
-      if (recipientUserIds.length > 0) {
-        const fullUser = await storage.getUser(currentUser.user.id);
-        await notificationService.notifyNewRevision(
-          requestId,
-          request.requestNumber || "",
-          request.projectId,
-          nextRevisionNo,
-          fullUser?.username || "مستخدم",
-          recipientUserIds
-        );
+      // The new revision starts at its first review step: tell only who acts on it
+      const startStep = currentStepId ? await storage.getWorkflowStep(currentStepId) : undefined;
+      if (startStep) {
+        await notificationService.notifyStepTurn({
+          request,
+          step: startStep,
+          revisionId: newRevision.id,
+          senderId: currentUser.user.id,
+        });
       }
 
       notificationWss.broadcastRequestUpdate(requestId, currentUser.user.id, "revision_created");
@@ -6338,16 +6281,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.json([]);
       }
 
-      // Get all positions to map position titles to purpose IDs
-      const allPositions = await storage.getAllPositions();
-      const positionByTitle = new Map(allPositions.map(p => [p.titleEnglish, p]));
-
-      // Get the request's purposes
-      const requestPurposes = await storage.getRequestPurposes(revision.id);
-      const requestPurposeIds = new Set(requestPurposes.map(rp => rp.purposeId));
-
-      // Get all team members and their linked users
-      const allTeamMembers = await storage.getAllTeamMembers();
+      // Get linked users for every team member
       const userTeamMembers = await storage.getAllUserTeamMembers(); // Need to implement this or use a query
       const allUsers = await storage.getAllUsers();
 
@@ -6371,63 +6305,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       });
 
-      // Filter team members based on step requirements
-      let authorizedMembers: any[] = [];
-
-      if (currentStep.stepName.includes('Contractor')) {
-        // Contractor steps: team members from contractor org whose position purpose matches request purposes
-        // Or PM/DC who can always act on contractor steps
-        const alwaysAllowedPositions = ['Project Manager'];
-        authorizedMembers = allTeamMembers.filter(tm => {
-          if (tm.organizationId !== request.contractorId) return false;
-
-          // PM always allowed
-          if (tm.position && alwaysAllowedPositions.includes(tm.position)) return true;
-
-          // Check if team member's position purpose matches request purposes
-          if (tm.position) {
-            const position = positionByTitle.get(tm.position);
-            if (position?.purposeId && requestPurposeIds.has(position.purposeId)) {
-              return true;
-            }
-          }
-
-          return false;
-        });
-      } else if (currentStep.stepName === 'Consultant PM Approval' || currentStep.stepName.includes('Consultant') ||
-        currentStep.stepName === 'Engineer Review' || currentStep.stepName === 'Site Inspection' ||
-        currentStep.stepName === 'Final Approval') {
-        // Consultant steps: team members from consultant org whose position purpose matches request purposes
-        // Or any consultant team member if they have PM role
-        const alwaysAllowedPositions = ['Project Manager'];
-        authorizedMembers = allTeamMembers.filter(tm => {
-          if (tm.organizationId !== request.consultantId) return false;
-
-          // PM always allowed
-          if (tm.position && alwaysAllowedPositions.includes(tm.position)) return true;
-
-          // Check if team member's position purpose matches request purposes
-          if (tm.position) {
-            const position = positionByTitle.get(tm.position);
-            if (position?.purposeId && requestPurposeIds.has(position.purposeId)) {
-              return true;
-            }
-          }
-
-          return false;
-        });
-      } else {
-        // Other steps: team members with matching purpose
-        authorizedMembers = allTeamMembers.filter(tm => {
-          if (tm.position) {
-            const position = positionByTitle.get(tm.position);
-            if (position?.purposeId && requestPurposeIds.has(position.purposeId)) {
-              return true;
-            }
-          }
-          return false;
-        });
-      }
+      // Same rule the step notifications use, so the list shown matches who was notified
+      const authorizedMembers = await getStepAuthorizedTeamMembers(request, currentStep, revision.id);
 
       // Return team member info with organization
       const organizations = await storage.getAllOrganizations();
@@ -6531,6 +6410,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const approverUser = await storage.getUser(userId);
 
         if (request && validCode) {
+          // The manager has decided, so nobody is still waiting on this step
+          await notificationService.clearStepTurn(request.id);
           console.log(`[Approve] Final result notification triggered by ${stepName}: ${effectiveCode}`);
           await notifyRequestResult(
             request,
@@ -6611,17 +6492,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 }
               }
 
-              // Notify Consultant PM when request reaches step x06 or x07
-              if (targetStepId % 100 === 6 || targetStepId % 100 === 7) {
-                console.log(`[AutoAdvance] Step ${targetStepId} reached, triggering PM notification`);
-                await notifyConsultantPMs(request, targetStepId, userId);
-              }
-
-              // Notify relevant specialist team members when the request reaches Consultant Review step for RNCR (1003) via auto-advance
-              if (targetStepId === 1003) {
-                console.log(`[AutoAdvance] Step ${targetStepId} reached, triggering purpose-based notification`);
-                await notifyTeamByPurpose(request, revisionId, userId);
-              }
+              // Tell only the people who can act on the step the request just reached
+              await notificationService.notifyStepTurn({
+                request,
+                step: targetStep,
+                revisionId,
+                senderId: userId,
+              });
             } else {
               console.log(`Missing fromStep (${fromStep?.id}) or targetStep (${targetStepId})`);
             }
@@ -6638,60 +6515,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       handleError(res, error);
     }
   });
-
-  // Helper: Notify Consultant PMs when request reaches step x06 or x07
-  async function notifyConsultantPMs(
-    request: { id: string; requestNumber: string | null; projectId: string; consultantId: string | null },
-    stepId: number,
-    excludeUserId?: string
-  ) {
-    if (!request.consultantId) {
-      console.log(`[PMNotify] No consultantId on request ${request.id}, skipping`);
-      return;
-    }
-    const stepLabel = (stepId % 100 === 6) ? "Consultant PM Review" : "Consultant Manager Approval";
-    console.log(`[PMNotify] Step ${stepId} reached - Notifying Consultant PM for request ${request.id}, consultantId: ${request.consultantId}`);
-    try {
-      const consultantMembers = await storage.getTeamMembersByOrganization(request.consultantId);
-      console.log(`[PMNotify] Found ${consultantMembers.length} team members in consultant org`);
-
-      const pmUserIds = new Set<string>();
-      for (const tm of consultantMembers) {
-        const posLower = (tm.position || "").toLowerCase();
-        console.log(`[PMNotify] Checking member: ${tm.name}, position: "${tm.position}"`);
-        if (posLower.includes("project manager")) {
-          const tmUsers = await storage.getTeamMemberUsers(tm.id);
-          console.log(`[PMNotify] PM match! Found ${tmUsers.length} linked users`);
-          for (const tmUser of tmUsers) {
-            pmUserIds.add(tmUser.userId);
-          }
-        }
-      }
-
-      if (excludeUserId) {
-        pmUserIds.delete(excludeUserId);
-      }
-
-      console.log(`[PMNotify] Final PM user IDs to notify: [${Array.from(pmUserIds).join(', ')}]`);
-
-      if (pmUserIds.size > 0) {
-        await notificationService.notifyStatusChange(
-          request.id,
-          request.requestNumber || "",
-          request.projectId,
-          "Under Review",
-          stepLabel,
-          "System",
-          Array.from(pmUserIds)
-        );
-        console.log(`[PMNotify] Notification sent successfully to ${pmUserIds.size} users`);
-      } else {
-        console.log(`[PMNotify] No Consultant PM users found to notify`);
-      }
-    } catch (e) {
-      console.error("[PMNotify] Failed to notify:", e);
-    }
-  }
 
   // Helper: Notify Contractor, DC, and PM of the final inspection result
   async function notifyRequestResult(
@@ -6723,7 +6546,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const pos = (tm.position || "").toLowerCase();
 
           const isDMorPM = pos.includes("document controller") ||
-            pos.includes("project Manager");
+            pos.includes("project manager") ||
+            pos.includes("مدير مشروع");
 
           if (isDMorPM) {
             const tmUsers = await storage.getTeamMemberUsers(tm.id);
@@ -6771,31 +6595,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
     }
     return false;
-  }
-
-  // Helper: Targeted notification based on specialization/purpose
-  async function notifyTeamByPurpose(request: any, revisionId: string, senderId: string) {
-    try {
-      console.log(`[notifyTeamByPurpose] Starting for request=${request.id}, revision=${revisionId}`);
-
-      const recipientUserIds = await notificationService.getQualifiedRecipients(request.id, revisionId, senderId);
-
-      if (recipientUserIds.length > 0) {
-        const sender = await storage.getUser(senderId);
-        console.log(`[notifyTeamByPurpose] Notifying ${recipientUserIds.length} users`);
-        await notificationService.notifyNewRequest(
-          request.id,
-          request.requestNumber || "Request",
-          request.projectId,
-          sender ? (sender.username || sender.email || "User") : "User",
-          recipientUserIds
-        );
-      } else {
-        console.log(`[notifyTeamByPurpose] No recipients found`);
-      }
-    } catch (e) {
-      console.error("[notifyTeamByPurpose] Failed:", e);
-    }
   }
 
   // Workflow Engine API - Move request to new step
@@ -6936,17 +6735,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
-      // Notify Consultant PM when request reaches step x06 or x07 via move
-      if (toStepId % 100 === 6 || toStepId % 100 === 7) {
-        console.log(`[Move] Step ${toStepId} reached, triggering PM notification`);
-        await notifyConsultantPMs(request, toStepId, currentUser.user.id);
-      }
-
-      // Notify relevant specialist team members when the request is first submitted (Step x02)
-      // OR when a RNCR request reaches Consultant Review (Step 1003)
-      if (toStepId % 100 === 2 || toStepId === 1003) {
-        console.log(`[Move] Step ${toStepId} reached, triggering purpose-based notification`);
-        await notifyTeamByPurpose(request, currentRevisionId || "", currentUser.user.id);
+      // Tell only the people who can act on the step the request just reached
+      const toStep = steps.find(s => s.id === Number(toStepId));
+      if (toStep && currentRevisionId) {
+        await notificationService.notifyStepTurn({
+          request,
+          step: toStep,
+          revisionId: currentRevisionId,
+          senderId: currentUser.user.id,
+        });
       }
 
       res.json(updatedRequest);
@@ -7053,6 +6850,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Broadcast update to all users viewing this request
       notificationWss.broadcastRequestUpdate(request.id, currentUser.user.id, "request_closed");
+
+      // A closed request waits on nobody
+      await notificationService.clearStepTurn(request.id);
 
       // Closed WIR with A/B → progress matrix (idempotent: skips cells already applied by /approve)
       if (requestType.code === 'WIR' && ['A', 'B'].includes(approvalStatusCode)) {
@@ -7816,29 +7616,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/notifications", async (req, res) => {
-    try {
-      if (!req.isAuthenticated() || !req.user) {
-        return res.status(401).json({ error: "Authentication required" });
-      }
-      const validatedData = insertNotificationSchema.parse(req.body);
-      const notification = await storage.createNotification(validatedData);
-
-      // Send real-time notification via WebSocket
-      notificationWss.sendNotification(validatedData.userId, notification);
-
-      res.status(201).json(notification);
-    } catch (error) {
-      handleError(res, error);
-    }
-  });
+  // Notifications are created only by the server (notificationService); there is
+  // deliberately no POST route, so no user can push a notification to someone else.
 
   app.patch("/api/notifications/:id/read", async (req, res) => {
     try {
       if (!req.isAuthenticated() || !req.user) {
         return res.status(401).json({ error: "Authentication required" });
       }
-      const notification = await storage.markNotificationAsRead(req.params.id);
+      const user = req.user as User;
+      const notification = await storage.markNotificationAsRead(req.params.id, user.id);
+      if (!notification) {
+        return res.status(404).json({ error: "Notification not found" });
+      }
       res.json(notification);
     } catch (error) {
       handleError(res, error);
@@ -7867,7 +7657,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!req.isAuthenticated() || !req.user) {
         return res.status(401).json({ error: "Authentication required" });
       }
-      await storage.deleteNotification(req.params.id);
+      const user = req.user as User;
+      await storage.deleteNotification(req.params.id, user.id);
       res.status(204).send();
     } catch (error) {
       handleError(res, error);

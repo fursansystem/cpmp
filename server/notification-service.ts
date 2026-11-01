@@ -1,6 +1,34 @@
 import { storage } from "./storage";
 import { notificationWss } from "./websocket";
-import type { InsertNotification } from "@shared/schema";
+import type { InsertNotification, Request, WorkflowStep } from "@shared/schema";
+import { getStepAuthorizedUserIds } from "./step-authorization";
+
+// "Your turn" notifications are the assignment-type ones tied to a request
+const STEP_TURN_TYPE = "assignment";
+
+// Reaching these steps means the decision is made; the result notification already
+// tells the contractor, so nobody gets a "your turn" notification for them
+const STEPS_WITHOUT_TURN = new Set(["Final Approval"]);
+
+const stepLabelsArabic: Record<string, string> = {
+  "Draft": "المسودة",
+  "Contractor Preparation": "إعداد المقاول",
+  "Contractor Submission": "تقديم المقاول",
+  "Site Inspection": "المعاينة الميدانية",
+  "Final Approval": "الاعتماد النهائي",
+  "Consultant Preparation": "إعداد الاستشاري",
+  "Consultant Submission": "تقديم الاستشاري",
+  "Consultant Review": "مراجعة الاستشاري",
+  "Issued to Contractor": "صادر للمقاول",
+  "Contractor Team Approval": "اعتماد فريق المقاول",
+  "Contractor Manager Approval": "اعتماد مدير المقاول",
+  "Contractor PM Approval": "اعتماد مدير مشروع المقاول",
+  "Engineer Review": "مراجعة المهندس",
+  "Consultant Team Approval": "اعتماد فريق الاستشاري",
+  "Consultant PM Review": "مراجعة مدير مشروع الاستشاري",
+  "Consultant PM Approval": "اعتماد مدير مشروع الاستشاري",
+  "Consultant Manager Approval": "اعتماد مدير الاستشاري",
+};
 
 type NotificationType = "info" | "success" | "warning" | "error" | "assignment" | "status_change" | "approval" | "mention" | "document";
 
@@ -106,62 +134,52 @@ class NotificationService {
     });
   }
 
-  // Notify when a new WIR request is created
-  async notifyNewRequest(
-    requestId: string,
-    requestNumber: string,
-    projectId: string,
-    createdByName: string,
-    recipientUserIds: string[]
-  ) {
-    const isNCR = requestNumber.toUpperCase().startsWith("NCR");
-    const isRNCR = requestNumber.toUpperCase().startsWith("RNCR");
-    
-    const title = isNCR ? "New NCR Warning" : isRNCR ? "New RNCR" : "New Inspection Request";
-    const type = isNCR ? "warning" : "assignment";
+  // A request has reached a new workflow step: tell only the people who can act on it.
+  // Whatever "your turn" notifications the previous step left behind are marked read
+  // first, so colleagues who did not act are not left with a task that is already done.
+  async notifyStepTurn(params: {
+    request: Pick<Request, "id" | "requestNumber" | "projectId" | "contractorId" | "consultantId">;
+    step: WorkflowStep;
+    revisionId: string;
+    senderId?: string;
+  }) {
+    const { request, step, revisionId, senderId } = params;
+    try {
+      await this.clearStepTurn(request.id);
+      if (STEPS_WITHOUT_TURN.has(step.stepName)) return;
 
-    const promises = recipientUserIds.map(userId =>
-      this.createAndSend({
-        userId,
-        type,
-        title,
-        message: `Request ${requestNumber} created by ${createdByName}`,
-        projectId,
-        requestId,
-        link: `/requests/${requestId}`,
-      })
-    );
-    await Promise.all(promises);
+      const recipientUserIds = await getStepAuthorizedUserIds(request, step, revisionId, senderId);
+      if (recipientUserIds.length === 0) {
+        console.log(`[notifyStepTurn] No authorized users for step ${step.id} (${step.stepName}) of request ${request.id}`);
+        return;
+      }
+
+      const requestNumber = request.requestNumber || "";
+      const stepLabel = stepLabelsArabic[step.stepName] || step.stepName;
+
+      await Promise.all(recipientUserIds.map(userId =>
+        this.createAndSend({
+          userId,
+          type: STEP_TURN_TYPE,
+          title: "طلب بانتظار إجرائك",
+          message: `الطلب ${requestNumber} بانتظار إجرائك في خطوة: ${stepLabel}`,
+          projectId: request.projectId,
+          requestId: request.id,
+          link: `/requests/${request.id}`,
+        })
+      ));
+    } catch (error) {
+      // A failed notification must never undo the workflow move that already happened
+      console.error("[notifyStepTurn] Failed:", error);
+    }
   }
 
-  // Notify when request status changes
-  async notifyStatusChange(
-    requestId: string,
-    requestNumber: string,
-    projectId: string,
-    oldStatus: string,
-    newStatus: string,
-    changedByName: string,
-    recipientUserIds: string[]
-  ) {
-    const isNCR = requestNumber.toUpperCase().startsWith("NCR");
-    const isRNCR = requestNumber.toUpperCase().startsWith("RNCR");
-    
-    const title = isNCR ? "NCR Status Changed" : isRNCR ? "RNCR Status Changed" : "Request Status Changed";
-    const type = isNCR ? "warning" : "status_change";
-
-    const promises = recipientUserIds.map(userId =>
-      this.createAndSend({
-        userId,
-        type,
-        title,
-        message: `Request ${requestNumber} status changed from "${oldStatus}" to "${newStatus}" by ${changedByName}`,
-        projectId,
-        requestId,
-        link: `/requests/${requestId}`,
-      })
-    );
-    await Promise.all(promises);
+  // The step was acted on (or the request closed): earlier "your turn" notifications are stale
+  async clearStepTurn(requestId: string) {
+    const affectedUserIds = await storage.markRequestNotificationsAsRead(requestId, STEP_TURN_TYPE);
+    for (const userId of affectedUserIds) {
+      notificationWss.broadcastToUser(userId, { type: "all_read" });
+    }
   }
 
   // Notify when approval status is recorded (A/B/C/D/E)
@@ -316,27 +334,6 @@ class NotificationService {
     await Promise.all(promises);
   }
 
-  // Notify when a new revision is created
-  async notifyNewRevision(
-    requestId: string,
-    requestNumber: string,
-    projectId: string,
-    revisionNumber: number,
-    createdByName: string,
-    recipientUserIds: string[]
-  ) {
-    for (const userId of recipientUserIds) {
-      await this.createAndSend({
-        userId,
-        type: "info",
-        title: "New Revision",
-        message: `Revision ${revisionNumber} for request ${requestNumber} created by ${createdByName}`,
-        projectId,
-        requestId,
-        link: `/requests/${requestId}`,
-      });
-    }
-  }
   // Helper to determine who should receive notifications for a request/message
   // based on their specialization (purpose) and if they are Project Managers
   async getQualifiedRecipients(requestId: string, revisionId: string, senderId: string) {
