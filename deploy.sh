@@ -13,8 +13,18 @@ SCRIPT="/www/server/nodejs/vhost/scripts/${APP_NAME}.sh"
 
 cd "$APP_DIR"
 
+# Only one deploy at a time: two runs deleting and installing node_modules together
+# fail with ENOTEMPTY / EEXIST and leave the app stopped.
+LOCK_FILE="/tmp/${APP_NAME}-deploy.lock"
+exec 9>"$LOCK_FILE"
+if ! flock -n 9; then
+  echo "!! Another deploy is already running (lock: $LOCK_FILE). Wait for it to finish."
+  exit 1
+fi
+
 echo ">> Clearing cache..."
-bash clear-cache.sh
+# Dependencies are installed once below, after git pull, so skip clear-cache's own install
+SKIP_NODE_INSTALL=1 bash clear-cache.sh
 
 echo ">> Pulling latest changes..."
 git pull

@@ -12,10 +12,15 @@ echo "✔ Vite cache cleared."
 
 echo ""
 echo "🔥 2) Clearing Node.js cache..."
-npm cache clean --force
-rm -rf node_modules
-npm install
-echo "✔ Node cache cleared."
+if [ "$SKIP_NODE_INSTALL" = "1" ]; then
+  # deploy.sh reinstalls dependencies itself after pulling the new code
+  echo "↷ Skipped (deploy.sh installs dependencies)."
+else
+  npm cache clean --force
+  rm -rf node_modules
+  npm install
+  echo "✔ Node cache cleared."
+fi
 
 echo ""
 echo "🔥 3) Clearing PM2 cache & logs..."
