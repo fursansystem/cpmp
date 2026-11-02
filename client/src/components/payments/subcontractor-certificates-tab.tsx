@@ -31,6 +31,7 @@ interface Props {
   projectId: string; // "all" or a project id
   rows: any[];
   chargebacks: any[];
+  fines: any[];
   subcontractors: SubcontractorRow[];
   orders: any[];
   onRequestOrder: (certId: string) => void;
@@ -40,7 +41,7 @@ const num = (v: unknown) => Number(v ?? 0) || 0;
 // Saudi VAT, the starting value for a new certificate; it can be changed per certificate
 const DEFAULT_VAT = "15";
 
-export function SubcontractorCertificatesTab({ ctx, projectId, rows, chargebacks, subcontractors, orders, onRequestOrder }: Props) {
+export function SubcontractorCertificatesTab({ ctx, projectId, rows, chargebacks, fines, subcontractors, orders, onRequestOrder }: Props) {
   const [status, setStatus] = useState("all");
   const [search, setSearch] = useState("");
   const [editing, setEditing] = useState<any | "new" | null>(null);
@@ -105,7 +106,7 @@ export function SubcontractorCertificatesTab({ ctx, projectId, rows, chargebacks
 
       <SubcontractorsPanel ctx={ctx} projectId={projectId} rows={subcontractors} certificates={rows} />
 
-      <ChargebacksPanel ctx={ctx} projectId={projectId} rows={chargebacks} />
+      <ChargebacksPanel ctx={ctx} projectId={projectId} rows={chargebacks} fines={fines} />
 
       {editing && (
         <SubCertDialog
@@ -113,6 +114,7 @@ export function SubcontractorCertificatesTab({ ctx, projectId, rows, chargebacks
           defaultProjectId={projectId}
           row={current}
           chargebacks={chargebacks}
+          fines={fines}
           allRows={rows}
           orders={orders}
           onClose={() => setEditing(null)}
@@ -128,8 +130,8 @@ const emptyForm = (vat = DEFAULT_VAT) => ({
   grossAmount: "", retentionPercent: "10", advanceRecovery: "", otherDeductions: "", deductionsNote: "", vatPercent: vat, notes: "",
 });
 
-function SubCertDialog({ ctx, defaultProjectId, row, chargebacks, allRows, orders, onClose, onRequestOrder }: {
-  ctx: PaymentsContext; defaultProjectId: string; row: any | null; chargebacks: any[]; allRows: any[]; orders: any[]; onClose: () => void; onRequestOrder: (id: string) => void;
+function SubCertDialog({ ctx, defaultProjectId, row, chargebacks, fines, allRows, orders, onClose, onRequestOrder }: {
+  ctx: PaymentsContext; defaultProjectId: string; row: any | null; chargebacks: any[]; fines: any[]; allRows: any[]; orders: any[]; onClose: () => void; onRequestOrder: (id: string) => void;
 }) {
   const { toast } = useToast();
   const { user } = useAuth();
@@ -156,7 +158,14 @@ function SubCertDialog({ ctx, defaultProjectId, row, chargebacks, allRows, order
     && (c.status === "approved" || (c.status === "applied" && c.certificateId === row.id))), [chargebacks, row, form.subcontractorId]);
   const [picked, setPicked] = useState<Set<string>>(() => new Set(row ? chargebacks.filter((c) => c.status === "applied" && c.certificateId === row.id).map((c) => c.id) : []));
   const pickedTotal = available.filter((c) => picked.has(c.id)).reduce((s, c) => s + num(c.amount), 0);
-  const chargebackTotal = row && !["draft", "rejected"].includes(row.status) ? num(row.chargebackDeductions) : pickedTotal;
+  // Open deductions on the same subcontractor: taking one here reserves it, and approving the certificate recovers it
+  const availableFines = useMemo(() => fines.filter((f) =>
+    row && f.projectId === row.projectId && f.subcontractorId === form.subcontractorId && f.status === "open"
+    && (!f.deductedCertificateId || f.deductedCertificateId === row.id)), [fines, row, form.subcontractorId]);
+  const [pickedFines, setPickedFines] = useState<Set<string>>(() => new Set(row ? fines.filter((f) => f.deductedCertificateId === row.id && f.status === "open").map((f) => f.id) : []));
+  const fineAmount = (f: any) => Math.max(0, num(f.amount) - num(f.paidAmount));
+  const pickedFinesTotal = availableFines.filter((f) => pickedFines.has(f.id)).reduce((s, f) => s + fineAmount(f), 0);
+  const chargebackTotal = row && !["draft", "rejected"].includes(row.status) ? num(row.chargebackDeductions) : pickedTotal + pickedFinesTotal;
 
   const isOwner = !row || row.createdBy === user?.id || ctx.perms.isAccounting;
   const editable = isOwner && (!row || ["draft", "rejected"].includes(row.status));
@@ -165,6 +174,7 @@ function SubCertDialog({ ctx, defaultProjectId, row, chargebacks, allRows, order
   const onSubChange = (id: string, sub?: SubcontractorRow) => {
     const match = allRows.find((r) => r.projectId === projectId && r.subcontractorId === id);
     setPicked(new Set());
+    setPickedFines(new Set());
     setForm((f) => ({
       ...f,
       subcontractorId: id,
@@ -204,7 +214,7 @@ function SubCertDialog({ ctx, defaultProjectId, row, chargebacks, allRows, order
 
   // The chosen charge-backs are applied first so the saved net already includes them
   const syncChargebacks = async () => {
-    if (row && editable) await apiRequest("POST", `/api/payments/subcontractor-certificates/${row.id}/chargebacks`, { ids: available.filter((c) => picked.has(c.id)).map((c) => c.id) });
+    if (row && editable) await apiRequest("POST", `/api/payments/subcontractor-certificates/${row.id}/chargebacks`, { ids: available.filter((c) => picked.has(c.id)).map((c) => c.id), fineIds: availableFines.filter((f) => pickedFines.has(f.id)).map((f) => f.id) });
   };
 
   const save = useMutation({
@@ -304,9 +314,9 @@ function SubCertDialog({ ctx, defaultProjectId, row, chargebacks, allRows, order
         {!row && (
           <p className="text-xs text-muted-foreground">لخصم فواتير محمَّلة على المقاول، احفظ المستخلص كمسودة ثم افتحه واختر الخصومات.</p>
         )}
-        {row && (available.length > 0 || chargebackTotal > 0) && (
+        {row && (available.length > 0 || availableFines.length > 0 || chargebackTotal > 0) && (
           <div className="space-y-2 rounded-xl border p-3">
-            <div className="text-sm font-bold">خصومات فواتير محمَّلة على المقاول</div>
+            <div className="text-sm font-bold">خصومات على المقاول (فواتير محمَّلة وخصومات مسجَّلة)</div>
             {editable ? (
               <ul className="space-y-1.5">
                 {available.map((c) => (
@@ -326,6 +336,25 @@ function SubCertDialog({ ctx, defaultProjectId, row, chargebacks, allRows, order
                     <span>فاتورة <span className="font-mono">{c.invoiceNo}</span></span>
                     <span className="ms-auto tabular-nums font-semibold">{money(c.amount)}</span>
                   </li>
+                ))}
+              </ul>
+            )}
+            {editable && availableFines.length > 0 && (
+              <ul className="space-y-1.5">
+                {availableFines.map((f) => (
+                  <li key={f.id} className="flex items-center gap-3 text-sm">
+                    <input type="checkbox" className="h-4 w-4" checked={pickedFines.has(f.id)} onChange={(e) => setPickedFines((s) => { const next = new Set(s); if (e.target.checked) next.add(f.id); else next.delete(f.id); return next; })} />
+                    <span className="text-xs text-muted-foreground">خصم</span>
+                    <span>{f.title}</span>
+                    <span className="ms-auto tabular-nums font-semibold">{money(fineAmount(f))}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+            {!editable && fines.filter((f) => f.deductedCertificateId === row.id).length > 0 && (
+              <ul className="space-y-1.5">
+                {fines.filter((f) => f.deductedCertificateId === row.id).map((f) => (
+                  <li key={f.id} className="flex items-center gap-3 text-sm"><span className="text-xs text-muted-foreground">خصم</span><span>{f.title}</span><span className="ms-auto tabular-nums font-semibold">{money(fineAmount(f))}</span></li>
                 ))}
               </ul>
             )}

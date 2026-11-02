@@ -352,8 +352,8 @@ export function FineDialog({ ctx, defaultProjectId, row, orders, onClose, onRequ
   );
   const set = (k: keyof typeof form) => (v: string) => setForm((f) => ({ ...f, [k]: v }));
   // With payment under way or complete the fine is owned by the payment flow
-  const locked = !!row && ["payment_requested", "paid", "waiver_requested", "waived"].includes(row.status);
-  const [waiverPanel, setWaiverPanel] = useState<null | "request" | "reject">(null);
+  const locked = !!row && (["payment_requested", "paid", "waiver_requested", "waived", "recovered"].includes(row.status) || !!row.deductedCertificateId);
+  const [waiverPanel, setWaiverPanel] = useState<null | "request" | "reject" | "recover">(null);
   const [waiverNote, setWaiverNote] = useState("");
 
   const save = useMutation({
@@ -381,9 +381,17 @@ export function FineDialog({ ctx, defaultProjectId, row, orders, onClose, onRequ
     onError: (e) => toast({ title: "تعذّر تنفيذ الإجراء", description: errorMessage(e), variant: "destructive" }),
   });
 
+  const recover = useMutation({
+    mutationFn: async (note: string) => apiRequest("POST", `/api/payments/fines/${row.id}/recover`, { note }),
+    onSuccess: () => { invalidatePayments(queryClient); toast({ title: "سُجّل استرداد الخصم" }); onClose(); },
+    onError: (e) => toast({ title: "تعذّر تسجيل الاسترداد", description: errorMessage(e), variant: "destructive" }),
+  });
+
   const hasLiveOrder = row ? orders.some((o) => o.fineId === row.id && ([...OPEN_PAYMENT_ORDER, "paid"] as string[]).includes(o.status)) : false;
-  const canRequestPayment = ctx.perms.isAccounting && row && ["open", "under_appeal"].includes(row.status) && !hasLiveOrder;
-  const canRequestWaiver = !!row && ["open", "under_appeal"].includes(row.status) && !hasLiveOrder;
+  const canRequestPayment = ctx.perms.isAccounting && row && ["open", "under_appeal"].includes(row.status) && !hasLiveOrder && !row.deductedCertificateId;
+  const canRequestWaiver = !!row && ["open", "under_appeal"].includes(row.status) && !hasLiveOrder && !row.deductedCertificateId;
+  // A deduction charged to a subcontractor that was settled outside a certificate (recorded by accounting or a project manager)
+  const canRecover = !!row && (ctx.perms.isAccounting || ctx.perms.canApprove) && ["open", "under_appeal"].includes(row.status) && !!row.subcontractorId && !row.deductedCertificateId && !hasLiveOrder;
   const ownWaiverRequest = row?.waiverRequestedBy === user?.id && user?.role !== "super_admin";
   // "waived" is reached only through the waiver flow, never picked from the status list
   const editableStatuses = Array.from(new Set(["open", "under_appeal", "cancelled", row?.status ?? "open"]));
@@ -433,14 +441,24 @@ export function FineDialog({ ctx, defaultProjectId, row, orders, onClose, onRequ
             {row.waiverReason}
           </div>
         )}
+        {row?.status === "recovered" && (
+          <div className="rounded-xl border bg-emerald-50 dark:bg-emerald-900/10 p-3 text-sm">
+            <div className="font-bold mb-1">مُسترَد من المقاول{row.subcontractorName ? ` (${row.subcontractorName})` : ""}</div>
+            {row.recoveredNote}
+          </div>
+        )}
+        {row?.deductedCertificateId && row.status === "open" && (
+          <div className="rounded-xl border bg-violet-50 dark:bg-violet-900/10 p-3 text-sm">محجوز للخصم من مستخلص مقاول الباطن، ويُسجَّل مُستَرَدّاً عند اعتماد المستخلص.</div>
+        )}
+
         {waiverPanel && (
           <div className="space-y-2 rounded-xl border p-3">
-            <Label>{waiverPanel === "request" ? "لماذا يجب إعفاء هذا الخصم؟" : "سبب رفض الإعفاء"}</Label>
+            <Label>{waiverPanel === "request" ? "لماذا يجب إعفاء هذا الخصم؟" : waiverPanel === "recover" ? "كيف استُرد هذا الخصم من المقاول؟" : "سبب رفض الإعفاء"}</Label>
             <Textarea rows={2} value={waiverNote} onChange={(e) => setWaiverNote(e.target.value)} />
             <div className="flex justify-end gap-2">
               <Button variant="outline" size="sm" onClick={() => setWaiverPanel(null)}>تراجع</Button>
-              <Button size="sm" disabled={!waiverNote.trim() || waiver.isPending} onClick={() => waiver.mutate({ action: waiverPanel, note: waiverNote })}>
-                {waiverPanel === "request" ? "إرسال الطلب" : "رفض الطلب"}
+              <Button size="sm" disabled={!waiverNote.trim() || waiver.isPending || recover.isPending} onClick={() => (waiverPanel === "recover" ? recover.mutate(waiverNote) : waiver.mutate({ action: waiverPanel, note: waiverNote }))}>
+                {waiverPanel === "request" ? "إرسال الطلب" : waiverPanel === "recover" ? "تسجيل الاسترداد" : "رفض الطلب"}
               </Button>
             </div>
           </div>
@@ -458,6 +476,7 @@ export function FineDialog({ ctx, defaultProjectId, row, orders, onClose, onRequ
             <Button variant="ghost" className="text-destructive me-auto" disabled={remove.isPending} onClick={() => remove.mutate()}><Trash2 className="w-4 h-4 mr-1" /> حذف</Button>
           )}
           {canRequestPayment && <Button variant="outline" onClick={() => onRequestPayment(row.id)}><Banknote className="w-4 h-4 mr-1" /> أمر دفع للخصم</Button>}
+          {canRecover && <Button variant="outline" onClick={() => { setWaiverNote(""); setWaiverPanel("recover"); }}><CheckCircle2 className="w-4 h-4 mr-1" /> تسجيل الاسترداد</Button>}
           {canRequestWaiver && <Button variant="outline" onClick={() => { setWaiverNote(""); setWaiverPanel("request"); }}><HandHelping className="w-4 h-4 mr-1" /> طلب إعفاء</Button>}
           {row?.status === "waiver_requested" && ctx.perms.canApprove && (
             <>

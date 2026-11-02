@@ -56,6 +56,7 @@ import {
   type PaymentsReport,
 } from "@shared/payments";
 import { notificationWss } from "./websocket";
+import { notificationService } from "./notification-service";
 
 type CurrentUser = { user: PermissionUser; orgId: string | null; teamMemberIds: string[] };
 
@@ -215,7 +216,11 @@ const chargebackTransitionSchema = z.object({
   action: z.enum(["approve", "reject", "withdraw", "convert"]),
   note: optText(),
 });
-const chargebackApplySchema = z.object({ ids: z.array(z.string().min(1)).max(100) });
+const chargebackApplySchema = z.object({
+  ids: z.array(z.string().min(1)).max(100),
+  // open deductions on the subcontractor to take off the certificate; left out, the current choice stays
+  fineIds: z.array(z.string().min(1)).max(100).optional(),
+});
 
 const waiverSchema = z.object({
   action: z.enum(["request", "withdraw", "approve", "reject"]),
@@ -284,9 +289,11 @@ export function registerPaymentsRoutes(app: Express, deps: Deps) {
 
   const computePerms = async (cu: CurrentUser): Promise<PaymentsPermissions> => {
     const isAdmin = ["super_admin", "org_admin", "developer_admin"].includes(cu.user.role);
+    // An organization's admin approves but is not accounting: accounting is the Accountant job title (or a super/developer admin)
+    const isSystemAdmin = ["super_admin", "developer_admin"].includes(cu.user.role);
     let isAccountant = false;
     let isProjectManager = false;
-    if (!isAdmin) {
+    if (!isSystemAdmin) {
       for (const id of cu.teamMemberIds) {
         const member = await storage.getTeamMember(id);
         const title = member?.position?.trim().toLowerCase();
@@ -295,7 +302,7 @@ export function registerPaymentsRoutes(app: Express, deps: Deps) {
         if (PROJECT_MANAGER_TITLES.has(title)) isProjectManager = true;
       }
     }
-    return { isAccounting: isAdmin || isAccountant, canApprove: isAdmin || isProjectManager };
+    return { isAccounting: isSystemAdmin || isAccountant, canApprove: isAdmin || isProjectManager };
   };
 
   // Wraps a handler with auth, the caller's permissions and error mapping.
@@ -366,6 +373,53 @@ export function registerPaymentsRoutes(app: Express, deps: Deps) {
   }
 
   const pad = (prefix: string, seq: number) => `${prefix}-${String(seq).padStart(4, "0")}`;
+
+  // ---- Notifications ----
+  // Who needs to know that something is waiting for them. Project managers and accountants are found by the same
+  // job titles the permissions use, in the project's own organization and its contractor's.
+  const usersWithTitle = async (project: Project, titles: Set<string>): Promise<string[]> => {
+    const orgIds = Array.from(new Set([project.organizationId, project.contractorId].filter(Boolean) as string[]));
+    const found = new Set<string>();
+    for (const orgId of orgIds) {
+      for (const member of await storage.getTeamMembersByOrganization(orgId)) {
+        if (!titles.has((member.position ?? "").trim().toLowerCase())) continue;
+        for (const link of await storage.getTeamMemberUsers(member.id)) found.add(link.userId);
+      }
+    }
+    return Array.from(found);
+  };
+
+  // Fire and forget: a notification that cannot be sent must never fail the action that caused it.
+  const notify = (
+    ctx: Ctx,
+    projectId: string,
+    audience: "approvers" | "accounting" | (string | null | undefined)[],
+    title: string,
+    message: string,
+    tab: string,
+  ) => {
+    const project = ctx.projects.find((p) => p.id === projectId);
+    if (!project) return;
+    void (async () => {
+      try {
+        const userIds = Array.isArray(audience)
+          ? (audience.filter(Boolean) as string[])
+          : await usersWithTitle(project, audience === "approvers" ? PROJECT_MANAGER_TITLES : ACCOUNTANT_TITLES);
+        const targets = Array.from(new Set(userIds)).filter((id) => id !== ctx.cu.user.id);
+        if (targets.length === 0) return;
+        await notificationService.notifyPayments({
+          userIds: targets,
+          title,
+          message,
+          projectId,
+          link: `/payments?tab=${tab}&project=${projectId}`,
+        });
+      } catch (error) {
+        console.error("[Payments] notification failed:", error);
+      }
+    })();
+  };
+  const amountText = (v: unknown) => n(v).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
   // Attach files and the owning project's name to every row, in two queries rather than N.
   async function withAttachments<T extends { id: string }>(type: PaymentEntityType, rows: T[]) {
@@ -529,7 +583,7 @@ export function registerPaymentsRoutes(app: Express, deps: Deps) {
       .select({ id: suppliers.id, projectId: suppliers.projectId, name: suppliers.supplierName, taxNumber: suppliers.taxNumber })
       .from(suppliers)
       .where(inArray(suppliers.projectId, ids));
-    const [bills, orders, subCerts, clearances, fines, userRows, chargebackRows, subcontractorRows] = await Promise.all([
+    const [bills, allOrders, allSubCerts, clearances, fines, userRows, chargebackRows, subcontractorRows] = await Promise.all([
       db.select().from(paymentBillRequests).where(inArray(paymentBillRequests.projectId, ids)).orderBy(desc(paymentBillRequests.createdAt)),
       db.select().from(paymentOrders).where(inArray(paymentOrders.projectId, ids)).orderBy(desc(paymentOrders.createdAt)),
       db.select().from(paymentSubcontractorCertificates).where(inArray(paymentSubcontractorCertificates.projectId, ids)).orderBy(desc(paymentSubcontractorCertificates.createdAt)),
@@ -539,6 +593,11 @@ export function registerPaymentsRoutes(app: Express, deps: Deps) {
       db.select().from(paymentChargebacks).where(inArray(paymentChargebacks.projectId, ids)).orderBy(desc(paymentChargebacks.createdAt)),
       db.select().from(projectSubcontractors).where(inArray(projectSubcontractors.projectId, ids)).orderBy(projectSubcontractors.name),
     ]);
+    // A project manager decides on what has been sent to them. Drafts are still being prepared, so they stay with their
+    // authors (and accounting); a certificate the manager prepared themselves remains visible to them.
+    const approverOnly = ctx.perms.canApprove && !ctx.perms.isAccounting && !["super_admin", "org_admin", "developer_admin"].includes(ctx.cu.user.role);
+    const orders = approverOnly ? allOrders.filter((o) => o.status !== "draft") : allOrders;
+    const subCerts = approverOnly ? allSubCerts.filter((c) => c.status !== "draft" || c.createdBy === ctx.cu.user.id) : allSubCerts;
     const invoiceRows = bills.length
       ? await db.select().from(paymentInvoices).where(inArray(paymentInvoices.billRequestId, bills.map((b) => b.id))).orderBy(paymentInvoices.createdAt)
       : [];
@@ -771,6 +830,8 @@ export function registerPaymentsRoutes(app: Express, deps: Deps) {
     }
     await db.update(paymentBillRequests).set({ ...patch, updatedAt: now }).where(eq(paymentBillRequests.id, bill.id));
     await log(bill.projectId, "bill_request", bill.id, action, ctx.cu.user.id, { from, to: patch.status as string, note });
+    if (action === "submit") notify(ctx, bill.projectId, "accounting", "وصلت أصول فواتير للمراجعة", `${bill.requestNo} · ${bill.payeeName}`, "bills");
+    if (action === "return") notify(ctx, bill.projectId, [bill.requestedBy], "أُعيد طلب الأصول للتصحيح", `${bill.requestNo} · ${bill.payeeName}${note ? ` — ${note}` : ""}`, "bills");
     broadcast(bill.projectId, ctx);
     res.json({ ok: true, status: patch.status });
   }));
@@ -825,6 +886,7 @@ export function registerPaymentsRoutes(app: Express, deps: Deps) {
       const [fine] = await db.select().from(paymentFines).where(and(eq(paymentFines.id, data.fineId), eq(paymentFines.projectId, data.projectId)));
       if (!fine) return fail(400, "Fine not found in this project");
       if (!["open", "under_appeal"].includes(fine.status)) return fail(409, "This fine is not payable");
+      if (fine.deductedCertificateId) return fail(409, "This deduction is reserved on a subcontractor certificate");
       if (await hasLiveOrder("fineId", fine.id)) return fail(409, "This fine already has a payment order");
       if (data.amount > n(fine.amount) - n(fine.paidAmount) + 0.001) return fail(400, "Amount exceeds the fine's outstanding balance");
     }
@@ -928,6 +990,7 @@ export function registerPaymentsRoutes(app: Express, deps: Deps) {
       return row;
     });
     await log(data.projectId, "payment_order", created.id, "requested", ctx.cu.user.id, { to: status, note: data.reason });
+    notify(ctx, data.projectId, status === "requested" ? "approvers" : "accounting", status === "requested" ? "طلب تحويل بانتظار اعتمادك" : "طلب تحويل بانتظار المحاسبة", `${created.orderNo} · ${data.payeeName} · ${amountText(data.amount)}`, "orders");
     broadcast(data.projectId, ctx);
     res.status(201).json(created);
   }));
@@ -1060,6 +1123,25 @@ export function registerPaymentsRoutes(app: Express, deps: Deps) {
     });
 
     await log(order.projectId, "payment_order", order.id, input.action, ctx.cu.user.id, { from, to: patch.status as string, note: input.note });
+    const orderText = `${order.orderNo} · ${order.payeeName} · ${amountText(order.amount)}`;
+    switch (input.action) {
+      case "approve_request":
+        notify(ctx, order.projectId, "accounting", "طلب تحويل معتمد من مدير المشروع", orderText, "orders");
+        notify(ctx, order.projectId, [order.createdBy], "اعتمد مدير المشروع طلبك", orderText, "orders");
+        break;
+      case "decline_request":
+        notify(ctx, order.projectId, [order.createdBy], "رُفض طلب التحويل", `${orderText}${input.note ? ` — ${input.note}` : ""}`, "orders");
+        break;
+      case "submit":
+        notify(ctx, order.projectId, "approvers", "أمر دفع بانتظار الاعتماد", orderText, "orders");
+        break;
+      case "approve":
+        notify(ctx, order.projectId, [order.createdBy], "اعتُمد أمر الدفع", orderText, "orders");
+        break;
+      case "reject":
+        notify(ctx, order.projectId, [order.createdBy], "رُفض أمر الدفع", `${orderText}${input.note ? ` — ${input.note}` : ""}`, "orders");
+        break;
+    }
     broadcast(order.projectId, ctx);
     res.json({ ok: true, status: patch.status });
   }));
@@ -1196,6 +1278,14 @@ export function registerPaymentsRoutes(app: Express, deps: Deps) {
     };
   };
 
+  // The inputs a certificate's figures are computed from
+  const subCertInputOf = (c: typeof paymentSubcontractorCertificates.$inferSelect) => ({
+    subcontractorId: c.subcontractorId ?? "",
+    scope: c.scope, contractValue: n(c.contractValue), periodFrom: c.periodFrom, periodTo: c.periodTo,
+    grossAmount: n(c.grossAmount), retentionPercent: n(c.retentionPercent), advanceRecovery: n(c.advanceRecovery),
+    otherDeductions: n(c.otherDeductions), deductionsNote: c.deductionsNote, vatPercent: n(c.vatPercent), notes: c.notes,
+  }) as z.infer<typeof subCertUpdateSchema>;
+
   // The person who raised it, or accounting, may change it while it is still theirs to change
   const requireSubCertOwner = (ctx: Ctx, row: { createdBy: string | null }) => {
     if (row.createdBy !== ctx.cu.user.id && !ctx.perms.isAccounting) {
@@ -1289,7 +1379,12 @@ export function registerPaymentsRoutes(app: Express, deps: Deps) {
         requireSubCertOwner(ctx, cert);
         if (!["draft", "submitted", "rejected", "approved"].includes(from)) return fail(409, "This certificate can no longer be cancelled");
         if (await hasLiveOrder("subcontractorCertificateId", cert.id)) return fail(409, "A payment order exists for this certificate; cancel it first");
-        patch = { status: "cancelled" };
+        // What was taken off it goes back: the figures return to what they were before any deduction was applied,
+        // reserved deductions reopen, and invoice charges wait for the next certificate
+        patch = { status: "cancelled", ...subCertFigures(subCertInputOf(cert), 0) };
+        // (including deductions an approval already recovered through it: cancelling the certificate reopens them)
+        await db.update(paymentFines).set({ status: "open", deductedCertificateId: null, recoveredAt: null, recoveredBy: null, recoveredNote: null, updatedAt: now }).where(and(eq(paymentFines.deductedCertificateId, cert.id), inArray(paymentFines.status, ["open", "recovered"])));
+        if (n(cert.chargebackDeductions) > 0) await log(cert.projectId, "subcontractor_certificate", cert.id, "chargebacks_changed", ctx.cu.user.id, { note: `أُلغيت الخصومات المطبّقة عليه (${amountText(cert.chargebackDeductions)})` });
         // The invoice charges deducted on it go back to waiting for the next certificate
         await db.update(paymentChargebacks).set({ status: "approved", certificateId: null, updatedAt: now })
           .where(and(eq(paymentChargebacks.certificateId, cert.id), eq(paymentChargebacks.status, "applied")));
@@ -1297,6 +1392,14 @@ export function registerPaymentsRoutes(app: Express, deps: Deps) {
     }
     await db.update(paymentSubcontractorCertificates).set({ ...patch, updatedAt: now }).where(eq(paymentSubcontractorCertificates.id, cert.id));
     await log(cert.projectId, "subcontractor_certificate", cert.id, action, ctx.cu.user.id, { from, to: patch.status as string, note });
+    if (action === "approve") {
+      // Approval is what takes the reserved deductions off the subcontractor's account
+      const taken = await db.update(paymentFines).set({ status: "recovered", recoveredAt: now, recoveredBy: ctx.cu.user.id, recoveredNote: `خُصم من المستخلص ${cert.certNo}`, updatedAt: now })
+        .where(and(eq(paymentFines.deductedCertificateId, cert.id), eq(paymentFines.status, "open"))).returning({ id: paymentFines.id });
+      for (const f of taken) await log(cert.projectId, "fine", f.id, "recover", ctx.cu.user.id, { from: "open", to: "recovered", note: cert.certNo });
+    }
+    if (action === "submit") notify(ctx, cert.projectId, "approvers", "مستخلص مقاول باطن بانتظار الاعتماد", `${cert.certNo} · ${cert.subcontractorName} · ${amountText(cert.netPayable)}`, "subcontractors");
+    if (action === "approve" || action === "reject") notify(ctx, cert.projectId, [cert.createdBy], action === "approve" ? "اعتُمد المستخلص" : "رُفض المستخلص", `${cert.certNo} · ${cert.subcontractorName}${note ? ` — ${note}` : ""}`, "subcontractors");
     broadcast(cert.projectId, ctx);
     res.json({ ok: true, status: patch.status });
   }));
@@ -1350,6 +1453,7 @@ export function registerPaymentsRoutes(app: Express, deps: Deps) {
     await log(bill.projectId, "chargeback", created.id, "created", ctx.cu.user.id, { to: created.status, note: `${invoice.invoiceNo} → ${sub.name}` });
     // The invoice's own history shows that part of it was charged, without changing its status
     await log(bill.projectId, "bill_request", bill.id, "chargeback_created", ctx.cu.user.id, { note: `${created.chargeNo}: ${invoice.invoiceNo} — ${data.amount} → ${sub.name}` });
+    if (created.status === "proposed") notify(ctx, bill.projectId, "approvers", "تحميل فاتورة على مقاول بانتظار اعتمادك", `${created.chargeNo} · ${sub.name} · ${amountText(created.amount)}`, "subcontractors");
     broadcast(bill.projectId, ctx);
     res.status(201).json(created);
   }));
@@ -1404,13 +1508,15 @@ export function registerPaymentsRoutes(app: Express, deps: Deps) {
     }
     await db.update(paymentChargebacks).set({ ...patch, updatedAt: now }).where(eq(paymentChargebacks.id, cb.id));
     await log(cb.projectId, "chargeback", cb.id, action, ctx.cu.user.id, { from, to: patch.status as string, note });
+    if (action === "approve" || action === "reject") notify(ctx, cb.projectId, [cb.createdBy], action === "approve" ? "اعتُمد التحميل على المقاول" : "رُفض التحميل على المقاول", `${cb.chargeNo} · ${cb.subcontractorName}${note ? ` — ${note}` : ""}`, "subcontractors");
     broadcast(cb.projectId, ctx);
     res.json({ ok: true, status: patch.status });
   }));
 
-  // Choose which approved charge-backs a draft certificate deducts; the net is recomputed from the result
+  // Choose which approved charge-backs and open deductions a draft certificate takes off; the net is recomputed from the
+  // result. A deduction picked here is only reserved: it becomes "recovered" when the certificate is approved.
   app.post(`${base}/subcontractor-certificates/:id/chargebacks`, route(async (req, res, ctx) => {
-    const { ids } = chargebackApplySchema.parse(req.body);
+    const { ids, fineIds } = chargebackApplySchema.parse(req.body);
     const cert = await loadSubCert(ctx, req.params.id);
     requireSubCertOwner(ctx, cert);
     if (!["draft", "rejected"].includes(cert.status)) return fail(409, "Charge-backs can only be changed on a draft or rejected certificate");
@@ -1425,22 +1531,47 @@ export function registerPaymentsRoutes(app: Express, deps: Deps) {
       if (c.status === "applied" && c.certificateId !== cert.id) return fail(409, `${c.chargeNo} is already deducted on another certificate`);
       if (c.subcontractorId !== cert.subcontractorId) return fail(400, `${c.chargeNo} is charged to a different subcontractor`);
     }
+
+    // Open deductions on this subcontractor: only touched when the caller sends fineIds
+    const reservedHere = await db.select().from(paymentFines).where(and(eq(paymentFines.deductedCertificateId, cert.id), eq(paymentFines.status, "open")));
+    let fineTake: (typeof reservedHere) = [];
+    let fineRelease: (typeof reservedHere) = [];
+    let fineKept = reservedHere;
+    if (fineIds !== undefined) {
+      const wanted = new Set(fineIds);
+      fineTake = [];
+      for (const id of fineIds) {
+        const [f] = await db.select().from(paymentFines).where(eq(paymentFines.id, id));
+        if (!f || f.projectId !== cert.projectId) return fail(400, "A selected deduction is not available");
+        if (f.status !== "open") return fail(409, "Only an open deduction can be taken off a certificate");
+        if (!cert.subcontractorId || f.subcontractorId !== cert.subcontractorId) return fail(400, "A selected deduction is charged to a different subcontractor");
+        if (f.deductedCertificateId && f.deductedCertificateId !== cert.id) return fail(409, `The deduction ${f.referenceNo ?? f.title} is already reserved on another certificate`);
+        if (await hasLiveOrder("fineId", f.id)) return fail(409, `A payment order exists for the deduction ${f.referenceNo ?? f.title}`);
+        if (f.deductedCertificateId !== cert.id) fineTake.push(f);
+      }
+      fineRelease = reservedHere.filter((f) => !wanted.has(f.id));
+      fineKept = reservedHere.filter((f) => wanted.has(f.id));
+    }
+
     const now = new Date();
     const release = candidates.filter((c) => c.certificateId === cert.id && c.status === "applied" && !picked.has(c.id));
     const take = candidates.filter((c) => picked.has(c.id) && !(c.status === "applied" && c.certificateId === cert.id));
     if (release.length) await db.update(paymentChargebacks).set({ status: "approved", certificateId: null, updatedAt: now }).where(inArray(paymentChargebacks.id, release.map((c) => c.id)));
     if (take.length) await db.update(paymentChargebacks).set({ status: "applied", certificateId: cert.id, updatedAt: now }).where(inArray(paymentChargebacks.id, take.map((c) => c.id)));
-    const total = candidates.filter((c) => picked.has(c.id)).reduce((s, c) => s + n(c.amount), 0);
-    const figures = subCertFigures({
-      subcontractorId: cert.subcontractorId ?? "",
-      scope: cert.scope, contractValue: n(cert.contractValue), periodFrom: cert.periodFrom, periodTo: cert.periodTo,
-      grossAmount: n(cert.grossAmount), retentionPercent: n(cert.retentionPercent), advanceRecovery: n(cert.advanceRecovery),
-      otherDeductions: n(cert.otherDeductions), deductionsNote: cert.deductionsNote, vatPercent: n(cert.vatPercent), notes: cert.notes,
-    } as z.infer<typeof subCertUpdateSchema>, total);
+    if (fineRelease.length) await db.update(paymentFines).set({ deductedCertificateId: null, updatedAt: now }).where(inArray(paymentFines.id, fineRelease.map((f) => f.id)));
+    if (fineTake.length) await db.update(paymentFines).set({ deductedCertificateId: cert.id, updatedAt: now }).where(inArray(paymentFines.id, fineTake.map((f) => f.id)));
+
+    const fineAmount = (f: { amount: unknown; paidAmount: unknown }) => Math.max(0, n(f.amount) - n(f.paidAmount));
+    const chargebackTotal = candidates.filter((c) => picked.has(c.id)).reduce((s, c) => s + n(c.amount), 0);
+    const fineTotal = [...fineKept, ...fineTake].reduce((s, f) => s + fineAmount(f), 0);
+    const total = chargebackTotal + fineTotal;
+    const figures = subCertFigures(subCertInputOf(cert), total);
     await db.update(paymentSubcontractorCertificates).set({ ...figures, updatedAt: now }).where(eq(paymentSubcontractorCertificates.id, cert.id));
     for (const c of take) await log(cert.projectId, "chargeback", c.id, "applied", ctx.cu.user.id, { from: c.status, to: "applied", note: cert.certNo });
     for (const c of release) await log(cert.projectId, "chargeback", c.id, "released", ctx.cu.user.id, { from: "applied", to: "approved", note: cert.certNo });
-    if (take.length || release.length) await log(cert.projectId, "subcontractor_certificate", cert.id, "chargebacks_changed", ctx.cu.user.id, { note: String(total) });
+    for (const f of fineTake) await log(cert.projectId, "fine", f.id, "reserved", ctx.cu.user.id, { note: cert.certNo });
+    for (const f of fineRelease) await log(cert.projectId, "fine", f.id, "released", ctx.cu.user.id, { note: cert.certNo });
+    if (take.length || release.length || fineTake.length || fineRelease.length) await log(cert.projectId, "subcontractor_certificate", cert.id, "chargebacks_changed", ctx.cu.user.id, { note: String(total) });
     broadcast(cert.projectId, ctx);
     res.json({ ok: true, chargebackDeductions: total, netPayable: Number(figures.netPayable) });
   }));
@@ -1521,9 +1652,10 @@ export function registerPaymentsRoutes(app: Express, deps: Deps) {
   app.patch(`${base}/fines/:id`, route(async (req, res, ctx) => {
     const row = await loadFine(ctx, req.params.id);
     const data = fineUpdateSchema.parse(req.body);
-    if (["payment_requested", "paid", "waiver_requested", "waived"].includes(row.status)) {
-      return fail(409, "This fine is in payment or waiver handling and can no longer be edited");
+    if (["payment_requested", "paid", "waiver_requested", "waived", "recovered"].includes(row.status)) {
+      return fail(409, "This fine is in payment, waiver or recovery handling and can no longer be edited");
     }
+    if (row.deductedCertificateId) return fail(409, "This deduction is reserved on a subcontractor certificate; release it there first");
     if (data.amount !== undefined && data.amount < n(row.paidAmount)) return fail(400, "Amount cannot be below what has already been paid");
     const party = data.liableParty ?? row.liableParty;
     let subId = data.subcontractorId !== undefined ? data.subcontractorId : row.subcontractorId;
@@ -1544,6 +1676,23 @@ export function registerPaymentsRoutes(app: Express, deps: Deps) {
     res.json({ ok: true });
   }));
 
+  // A deduction charged to a subcontractor is recovered when it is taken off one of their certificates (done by the
+  // certificate's approval) or settled some other way, which accounting or a project manager records here.
+  app.post(`${base}/fines/:id/recover`, route(async (req, res, ctx) => {
+    if (!ctx.perms.isAccounting && !ctx.perms.canApprove) return fail(403, "Only accounting or a project manager can record a recovery");
+    const { note } = z.object({ note: z.string().trim().min(1, "Say how the deduction was recovered").max(1000) }).parse(req.body);
+    const fine = await loadFine(ctx, req.params.id);
+    if (!["open", "under_appeal"].includes(fine.status)) return fail(409, "Only an open deduction can be recovered");
+    if (!fine.subcontractorId) return fail(409, "Only a deduction charged to a subcontractor can be recovered");
+    if (fine.deductedCertificateId) return fail(409, "This deduction is reserved on a subcontractor certificate; it is recovered when that certificate is approved");
+    if (await hasLiveOrder("fineId", fine.id)) return fail(409, "A payment order exists for this deduction");
+    const now = new Date();
+    await db.update(paymentFines).set({ status: "recovered", recoveredAt: now, recoveredBy: ctx.cu.user.id, recoveredNote: note, updatedAt: now }).where(eq(paymentFines.id, fine.id));
+    await log(fine.projectId, "fine", fine.id, "recover", ctx.cu.user.id, { from: fine.status, to: "recovered", note });
+    broadcast(fine.projectId, ctx);
+    res.json({ ok: true, status: "recovered" });
+  }));
+
   // A fine is never waived directly: someone on the project asks, a project manager decides.
   app.post(`${base}/fines/:id/waiver`, route(async (req, res, ctx) => {
     const { action, note } = waiverSchema.parse(req.body);
@@ -1557,6 +1706,7 @@ export function registerPaymentsRoutes(app: Express, deps: Deps) {
         if (!["open", "under_appeal"].includes(from)) return fail(409, "A waiver can only be requested for an open fine");
         if (!note) return fail(400, "Explain why the fine should be waived");
         if (await hasLiveOrder("fineId", fine.id)) return fail(409, "A payment order exists for this fine");
+        if (fine.deductedCertificateId) return fail(409, "This deduction is reserved on a subcontractor certificate");
         patch = { status: "waiver_requested", waiverReason: note, waiverRequestedBy: ctx.cu.user.id, waiverDecidedBy: null };
         break;
       case "withdraw":
@@ -1578,6 +1728,8 @@ export function registerPaymentsRoutes(app: Express, deps: Deps) {
     }
     await db.update(paymentFines).set({ ...patch, updatedAt: now }).where(eq(paymentFines.id, fine.id));
     await log(fine.projectId, "fine", fine.id, `waiver_${action}`, ctx.cu.user.id, { from, to: patch.status as string, note });
+    if (action === "request") notify(ctx, fine.projectId, "approvers", "طلب إعفاء من خصم بانتظار اعتمادك", `${fine.title} · ${amountText(fine.amount)}`, "fines");
+    if (action === "approve" || action === "reject") notify(ctx, fine.projectId, [fine.waiverRequestedBy], action === "approve" ? "اعتُمد طلب الإعفاء" : "رُفض طلب الإعفاء", `${fine.title}${note ? ` — ${note}` : ""}`, "fines");
     broadcast(fine.projectId, ctx);
     res.json({ ok: true, status: patch.status });
   }));
@@ -1586,6 +1738,7 @@ export function registerPaymentsRoutes(app: Express, deps: Deps) {
     requireAccounting(ctx);
     const row = await loadFine(ctx, req.params.id);
     if (await hasLiveOrder("fineId", row.id)) return fail(409, "A payment order exists for this fine");
+    if (row.deductedCertificateId || row.status === "recovered") return fail(409, "This deduction is tied to a subcontractor certificate and cannot be deleted");
     await db.delete(paymentFines).where(eq(paymentFines.id, row.id));
     await db.delete(paymentAttachments).where(and(eq(paymentAttachments.entityType, "fine"), eq(paymentAttachments.entityId, row.id)));
     broadcast(row.projectId, ctx);

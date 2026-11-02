@@ -146,7 +146,7 @@ export default function Payments() {
                 <OrdersTab ctx={ctx} projectId={projectId} data={overview} draft={draft} onDraftClose={() => setDraft(null)} onStartDraft={() => setDraft({})} onOpenBillRequest={(id) => { setFocusBillId(id); setTab("bills"); }} requesterAction={<PaymentActionButtons context={{ projectId: projectId === "all" ? "" : projectId }} size="default" />} />
               </TabsContent>
               <TabsContent value="subcontractors">
-                <SubcontractorCertificatesTab ctx={ctx} projectId={projectId} rows={overview.subcontractorCertificates} chargebacks={overview.chargebacks ?? []} subcontractors={overview.subcontractors ?? []} orders={overview.orders} onRequestOrder={(id) => startOrder({ subcontractorCertificateId: id })} />
+                <SubcontractorCertificatesTab ctx={ctx} projectId={projectId} rows={overview.subcontractorCertificates} chargebacks={overview.chargebacks ?? []} fines={overview.fines} subcontractors={overview.subcontractors ?? []} orders={overview.orders} onRequestOrder={(id) => startOrder({ subcontractorCertificateId: id })} />
               </TabsContent>
               <TabsContent value="clearances">
                 <ClearancesTab ctx={ctx} projectId={projectId} rows={overview.clearances} orders={overview.orders} onRequestPayment={(id) => startOrder({ clearanceId: id })} />
