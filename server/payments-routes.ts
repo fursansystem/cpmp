@@ -420,6 +420,29 @@ export function registerPaymentsRoutes(app: Express, deps: Deps) {
     })();
   };
   const amountText = (v: unknown) => n(v).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  // Whoever raised the order, and whoever raised the certificate, bill request or deduction it pays for
+  const notifyOrderOwners = (ctx: Ctx, order: typeof paymentOrders.$inferSelect, title: string, message: string, tab: string) => {
+    void (async () => {
+      try {
+        const ids: (string | null)[] = [order.createdBy];
+        if (order.subcontractorCertificateId) {
+          const [c] = await db.select({ by: paymentSubcontractorCertificates.createdBy }).from(paymentSubcontractorCertificates).where(eq(paymentSubcontractorCertificates.id, order.subcontractorCertificateId));
+          ids.push(c?.by ?? null);
+        }
+        if (order.billRequestId) {
+          const [b] = await db.select({ by: paymentBillRequests.requestedBy }).from(paymentBillRequests).where(eq(paymentBillRequests.id, order.billRequestId));
+          ids.push(b?.by ?? null);
+        }
+        if (order.fineId) {
+          const [f] = await db.select({ by: paymentFines.createdBy }).from(paymentFines).where(eq(paymentFines.id, order.fineId));
+          ids.push(f?.by ?? null);
+        }
+        notify(ctx, order.projectId, ids, title, message, tab);
+      } catch (error) {
+        console.error("[Payments] notification failed:", error);
+      }
+    })();
+  };
 
   // Attach files and the owning project's name to every row, in two queries rather than N.
   async function withAttachments<T extends { id: string }>(type: PaymentEntityType, rows: T[]) {
@@ -1138,6 +1161,9 @@ export function registerPaymentsRoutes(app: Express, deps: Deps) {
       case "approve":
         notify(ctx, order.projectId, [order.createdBy], "اعتُمد أمر الدفع", orderText, "orders");
         break;
+      case "pay":
+        notifyOrderOwners(ctx, order, "تم صرف الدفعة", orderText, "orders");
+        break;
       case "reject":
         notify(ctx, order.projectId, [order.createdBy], "رُفض أمر الدفع", `${orderText}${input.note ? ` — ${input.note}` : ""}`, "orders");
         break;
@@ -1188,6 +1214,7 @@ export function registerPaymentsRoutes(app: Express, deps: Deps) {
     });
     await log(order.projectId, "bill_request", created.id, "created", ctx.cu.user.id, { to: "requested", note: `لأمر الدفع ${order.orderNo}` });
     await log(order.projectId, "payment_order", order.id, "originals_requested", ctx.cu.user.id, { note: created.requestNo });
+    notifyOrderOwners(ctx, order, "مطلوب أصل الفاتورة بعد الصرف", `${created.requestNo} · ${order.orderNo} · ${order.payeeName}`, "bills");
     broadcast(order.projectId, ctx);
     res.status(201).json(created);
   }));
