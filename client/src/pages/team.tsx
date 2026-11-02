@@ -5,7 +5,8 @@ import { TeamMemberFormDialog } from "@/components/team-member-form-dialog";
 import { TeamMemberDetailsDialog } from "@/components/team-member-details-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Plus, Search } from "lucide-react";
+import { StatCard } from "@/components/stat-card";
+import { Plus, Search, Users, Building2, CheckSquare, UserPlus } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -141,10 +142,13 @@ export default function Team() {
       ).length;
       const organization = organizations.find(o => o.id === member.organizationId);
       
-      // Find associated username
-      const utm = userTeamMembers.find(link => link.teamMemberId === member.id);
-      const associatedUser = utm ? users.find(u => u.id === utm.userId) : null;
-      
+      // A member can be linked to several user accounts
+      const usernames = userTeamMembers
+        .filter(link => link.teamMemberId === member.id)
+        .map(link => users.find(u => u.id === link.userId)?.username)
+        .filter((u): u is string => Boolean(u))
+        .sort((a, b) => a.localeCompare(b));
+
       return {
         id: member.id,
         name: member.name,
@@ -154,7 +158,7 @@ export default function Team() {
         organizationId: member.organizationId,
         organizationName: organization?.name || null,
         activeTasksCount,
-        username: associatedUser?.username || null,
+        usernames,
       };
     });
   }, [teamMembers, tasks, organizations, userTeamMembers, users]);
@@ -178,6 +182,17 @@ export default function Team() {
       return matchesSearch && matchesOrg;
     });
   }, [teamMembersWithTaskCount, searchQuery, organizationFilter, user?.role, userOrganizationId]);
+
+  const stats = useMemo(() => {
+    const orgIds = new Set(
+      filteredTeamMembers.map(m => m.organizationId).filter(Boolean) as string[]
+    );
+    return {
+      total: filteredTeamMembers.length,
+      organizations: orgIds.size,
+      activeTasks: filteredTeamMembers.reduce((sum, m) => sum + m.activeTasksCount, 0),
+    };
+  }, [filteredTeamMembers]);
 
   const handleCreateTeamMember = async (data: InsertTeamMember) => {
     // Auto-assign to developer_admin's organization
@@ -235,6 +250,14 @@ export default function Team() {
         )}
       </div>
 
+      {!teamLoading && (
+        <div className="grid gap-4 sm:grid-cols-3">
+          <StatCard title="Total Members" value={stats.total} icon={Users} />
+          <StatCard title="Organizations" value={stats.organizations} icon={Building2} />
+          <StatCard title="Active Tasks" value={stats.activeTasks} icon={CheckSquare} />
+        </div>
+      )}
+
       <div className="flex items-center gap-4 flex-wrap">
         <div className="relative flex-1 min-w-[200px] max-w-md">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -269,13 +292,19 @@ export default function Team() {
       </div>
 
       {teamLoading ? (
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {[...Array(8)].map((_, i) => (
             <Card key={i}>
               <div className="p-6 space-y-4">
-                <Skeleton className="h-6 w-3/4" />
-                <Skeleton className="h-4 w-1/2" />
-                <Skeleton className="h-4 w-2/3" />
+                <div className="flex items-center gap-3">
+                  <Skeleton className="h-14 w-14 rounded-full flex-shrink-0" />
+                  <div className="flex-1 space-y-2">
+                    <Skeleton className="h-4 w-3/4" />
+                    <Skeleton className="h-3 w-1/2" />
+                  </div>
+                </div>
+                <Skeleton className="h-3 w-2/3" />
+                <Skeleton className="h-5 w-1/2 rounded-full" />
                 <Skeleton className="h-4 w-1/3" />
               </div>
             </Card>
@@ -283,12 +312,36 @@ export default function Team() {
         </div>
       ) : filteredTeamMembers.length === 0 ? (
         <Card>
-          <div className="p-6 text-center text-muted-foreground">
-            No team members found
+          <div className="p-12 flex flex-col items-center text-center gap-3">
+            <div className="w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center">
+              <Users className="w-7 h-7 text-primary" />
+            </div>
+            <div>
+              <h3 className="font-semibold font-display">No members found</h3>
+              <p className="text-sm text-muted-foreground mt-1">
+                {searchQuery
+                  ? "Try a different search term or clear the filters."
+                  : "Add your first team member to get started."}
+              </p>
+            </div>
+            {searchQuery ? (
+              <Button
+                variant="outline"
+                onClick={() => setSearchQuery("")}
+                data-testid="button-clear-search"
+              >
+                Clear search
+              </Button>
+            ) : canEdit ? (
+              <Button onClick={() => setDialogOpen(true)} data-testid="button-empty-add-member">
+                <UserPlus className="w-4 h-4 mr-2" />
+                Add Member
+              </Button>
+            ) : null}
           </div>
         </Card>
       ) : (
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {filteredTeamMembers.map((member) => {
             const fullMember = teamMembers.find(m => m.id === member.id);
             return (
@@ -320,7 +373,7 @@ export default function Team() {
         }}
         tasks={tasks}
         organizationName={viewingMember ? organizations.find(o => o.id === viewingMember.organizationId)?.name || null : null}
-        username={viewingMember ? teamMembersWithTaskCount.find(m => m.id === viewingMember.id)?.username : null}
+        usernames={viewingMember ? teamMembersWithTaskCount.find(m => m.id === viewingMember.id)?.usernames ?? [] : []}
       />
     </div>
   );
