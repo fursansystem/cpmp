@@ -289,9 +289,11 @@ export function registerPaymentsRoutes(app: Express, deps: Deps) {
 
   const computePerms = async (cu: CurrentUser): Promise<PaymentsPermissions> => {
     const isAdmin = ["super_admin", "org_admin", "developer_admin"].includes(cu.user.role);
+    // An organization's admin approves but is not accounting: accounting is the Accountant job title (or a super/developer admin)
+    const isSystemAdmin = ["super_admin", "developer_admin"].includes(cu.user.role);
     let isAccountant = false;
     let isProjectManager = false;
-    if (!isAdmin) {
+    if (!isSystemAdmin) {
       for (const id of cu.teamMemberIds) {
         const member = await storage.getTeamMember(id);
         const title = member?.position?.trim().toLowerCase();
@@ -300,7 +302,7 @@ export function registerPaymentsRoutes(app: Express, deps: Deps) {
         if (PROJECT_MANAGER_TITLES.has(title)) isProjectManager = true;
       }
     }
-    return { isAccounting: isAdmin || isAccountant, canApprove: isAdmin || isProjectManager };
+    return { isAccounting: isSystemAdmin || isAccountant, canApprove: isAdmin || isProjectManager };
   };
 
   // Wraps a handler with auth, the caller's permissions and error mapping.
@@ -581,7 +583,7 @@ export function registerPaymentsRoutes(app: Express, deps: Deps) {
       .select({ id: suppliers.id, projectId: suppliers.projectId, name: suppliers.supplierName, taxNumber: suppliers.taxNumber })
       .from(suppliers)
       .where(inArray(suppliers.projectId, ids));
-    const [bills, orders, subCerts, clearances, fines, userRows, chargebackRows, subcontractorRows] = await Promise.all([
+    const [bills, allOrders, allSubCerts, clearances, fines, userRows, chargebackRows, subcontractorRows] = await Promise.all([
       db.select().from(paymentBillRequests).where(inArray(paymentBillRequests.projectId, ids)).orderBy(desc(paymentBillRequests.createdAt)),
       db.select().from(paymentOrders).where(inArray(paymentOrders.projectId, ids)).orderBy(desc(paymentOrders.createdAt)),
       db.select().from(paymentSubcontractorCertificates).where(inArray(paymentSubcontractorCertificates.projectId, ids)).orderBy(desc(paymentSubcontractorCertificates.createdAt)),
@@ -591,6 +593,11 @@ export function registerPaymentsRoutes(app: Express, deps: Deps) {
       db.select().from(paymentChargebacks).where(inArray(paymentChargebacks.projectId, ids)).orderBy(desc(paymentChargebacks.createdAt)),
       db.select().from(projectSubcontractors).where(inArray(projectSubcontractors.projectId, ids)).orderBy(projectSubcontractors.name),
     ]);
+    // A project manager decides on what has been sent to them. Drafts are still being prepared, so they stay with their
+    // authors (and accounting); a certificate the manager prepared themselves remains visible to them.
+    const approverOnly = ctx.perms.canApprove && !ctx.perms.isAccounting && !["super_admin", "org_admin", "developer_admin"].includes(ctx.cu.user.role);
+    const orders = approverOnly ? allOrders.filter((o) => o.status !== "draft") : allOrders;
+    const subCerts = approverOnly ? allSubCerts.filter((c) => c.status !== "draft" || c.createdBy === ctx.cu.user.id) : allSubCerts;
     const invoiceRows = bills.length
       ? await db.select().from(paymentInvoices).where(inArray(paymentInvoices.billRequestId, bills.map((b) => b.id))).orderBy(paymentInvoices.createdAt)
       : [];
@@ -1124,9 +1131,6 @@ export function registerPaymentsRoutes(app: Express, deps: Deps) {
         break;
       case "decline_request":
         notify(ctx, order.projectId, [order.createdBy], "رُفض طلب التحويل", `${orderText}${input.note ? ` — ${input.note}` : ""}`, "orders");
-        break;
-      case "accept_request":
-        notify(ctx, order.projectId, [order.createdBy], "قبلت المحاسبة طلبك وحوّلته إلى أمر دفع", orderText, "orders");
         break;
       case "submit":
         notify(ctx, order.projectId, "approvers", "أمر دفع بانتظار الاعتماد", orderText, "orders");
