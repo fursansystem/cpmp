@@ -14,7 +14,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/lib/auth";
 import { apiRequest } from "@/lib/queryClient";
-import { CHARGEBACK_LABELS } from "@shared/payments";
+import { CHARGEBACK_LABELS, FINE_LABELS } from "@shared/payments";
 import { SubcontractorSelect } from "./subcontractor-select";
 import { ActivityTimeline, StatusBadge, errorMessage, fmtDate, invalidatePayments, money, type PaymentsContext } from "./payments-common";
 
@@ -91,7 +91,7 @@ export function ChargeInvoiceDialog({ ctx, bill, invoice, chargebacks, onClose }
 }
 
 // Everything charged so far, with the decisions that move it along
-export function ChargebacksPanel({ ctx, projectId, rows }: { ctx: PaymentsContext; projectId: string; rows: any[] }) {
+export function ChargebacksPanel({ ctx, projectId, rows, fines = [] }: { ctx: PaymentsContext; projectId: string; rows: any[]; fines?: any[] }) {
   const { toast } = useToast();
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -205,6 +205,7 @@ export function ChargebacksPanel({ ctx, projectId, rows }: { ctx: PaymentsContex
               <div><div className="text-xs text-muted-foreground">الفاتورة</div><span className="font-mono">{current.invoiceNo}</span> · {current.requestNo}</div>
               <div><div className="text-xs text-muted-foreground">اقترحه</div>{current.createdByName ?? "—"} · {fmtDate(current.createdAt)}</div>
               <div className="col-span-2"><div className="text-xs text-muted-foreground">السبب</div>{current.reason}</div>
+              {current.fineId && (() => { const f = fines.find((x) => x.id === current.fineId); return f ? <div className="col-span-2"><div className="text-xs text-muted-foreground">الخصم المحوَّل إليه</div>{f.title} <StatusBadge status={f.status} labels={FINE_LABELS} /></div> : null; })()}
               {current.rejectReason && <div className="col-span-2 rounded-xl border border-destructive/30 bg-destructive/5 p-3"><b>ملاحظة: </b>{current.rejectReason}</div>}
             </div>
             <ActivityTimeline entityType="chargeback" entityId={current.id} labels={CHARGEBACK_LABELS} />

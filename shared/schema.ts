@@ -2900,6 +2900,11 @@ export const paymentFines = pgTable("payment_fines", {
   referenceNo: text("reference_no"),
   reason: text("reason"),
   liableParty: text("liable_party").notNull().default("contractor"),
+  // Reserved on (and, once approved, recovered through) this subcontractor certificate
+  deductedCertificateId: varchar("deducted_certificate_id"),
+  recoveredAt: timestamp("recovered_at"),
+  recoveredBy: varchar("recovered_by").references(() => users.id, { onDelete: "set null" }),
+  recoveredNote: text("recovered_note"),
   // Which subcontractor, when the liable party is a subcontractor
   subcontractorId: varchar("subcontractor_id").references(() => projectSubcontractors.id, { onDelete: "set null" }),
   amount: decimal("amount", { precision: 14, scale: 2 }).notNull().default("0"),

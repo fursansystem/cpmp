@@ -10,7 +10,7 @@ export type PaymentOrderStatus = (typeof PAYMENT_ORDER_STATUSES)[number];
 export const CLEARANCE_STATUSES = ["pending", "in_progress", "obtained", "rejected", "expired"] as const;
 export type ClearanceStatus = (typeof CLEARANCE_STATUSES)[number];
 
-export const FINE_STATUSES = ["open", "under_appeal", "waiver_requested", "payment_requested", "paid", "waived", "cancelled"] as const;
+export const FINE_STATUSES = ["open", "under_appeal", "waiver_requested", "payment_requested", "paid", "waived", "recovered", "cancelled"] as const;
 export type FineStatus = (typeof FINE_STATUSES)[number];
 
 export const LIABLE_PARTIES = ["contractor", "subcontractor", "owner", "consultant", "supplier", "other"] as const;
@@ -106,6 +106,7 @@ export const FINE_LABELS: Record<FineStatus, string> = {
   paid: "مسدد (Paid)",
   waiver_requested: "طلب إعفاء (Waiver requested)",
   waived: "معفى (Waived)",
+  recovered: "مُسترَد (Recovered)",
   cancelled: "ملغى (Cancelled)",
 };
 

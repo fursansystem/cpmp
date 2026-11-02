@@ -68,7 +68,7 @@ export const STATUS_TONE: Record<string, string> = {
   // clearances
   pending: "muted", in_progress: "blue", obtained: "emerald", expired: "red",
   // fines
-  open: "amber", under_appeal: "violet", payment_requested: "blue", waiver_requested: "violet", waived: "muted",
+  open: "amber", under_appeal: "violet", payment_requested: "blue", waiver_requested: "violet", waived: "muted", recovered: "emerald",
   // invoice charge-backs
   proposed: "amber", applied: "emerald", converted: "violet",
 };
@@ -227,6 +227,8 @@ const ACTION_LABELS: Record<string, string> = {
   applied: "خُصم في مستخلص",
   released: "أُعيد للانتظار",
   convert: "حُوّل إلى خصم",
+  recover: "تسجيل الاسترداد",
+  reserved: "حُجز للخصم من مستخلص",
   withdraw: "سحب",
   chargebacks_changed: "تغيير خصومات الفواتير",
   waiver_request: "طلب إعفاء",

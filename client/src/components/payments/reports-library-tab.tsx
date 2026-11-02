@@ -182,6 +182,7 @@ function SubcontractorStatement({ data, projectName }: { data: PaymentsOverview;
     // Deductions recorded against this subcontractor (including those a charge-back was converted to)
     const deductions = (data.fines ?? []).filter((f) => f.subcontractorId === sel.id && !["cancelled", "waived"].includes(f.status));
     const deductionsOpen = sum(deductions.filter((f) => ["open", "under_appeal", "waiver_requested", "payment_requested"].includes(f.status)), (f) => Math.max(0, num(f.amount) - num(f.paidAmount)));
+    const deductionsRecovered = sum(deductions.filter((f) => f.status === "recovered"), (f) => num(f.amount));
     const chargedApplied = sum(charges.filter((c) => c.status === "applied"), (c) => num(c.amount));
     const chargedWaiting = sum(charges.filter((c) => ["proposed", "approved"].includes(c.status)), (c) => num(c.amount));
     const chargedConverted = sum(charges.filter((c) => c.status === "converted"), (c) => num(c.amount));
@@ -205,6 +206,7 @@ function SubcontractorStatement({ data, projectName }: { data: PaymentsOverview;
       charges,
       deductions,
       deductionsOpen,
+      deductionsRecovered,
       chargedApplied,
       chargedWaiting,
       chargedConverted,
@@ -249,6 +251,7 @@ function SubcontractorStatement({ data, projectName }: { data: PaymentsOverview;
           <Mini label="المستردّ منها" value={money(view.recovered)} />
           <Mini label="المتبقي من الدفعة المقدمة" value={money(view.advanceRemaining)} tone={view.advanceRemaining > 0 ? "warn" : undefined} />
           <Mini label="المصروف / المعتمد غير المصروف" value={`${money(view.paid)} / ${money(view.payable)}`} />
+          {view.deductionsRecovered > 0 && <Mini label="خصومات مُستردّة" value={money(view.deductionsRecovered)} />}
           {view.deductions.length > 0 && <Mini label="خصومات مسجّلة عليه (مفتوحة)" value={money(view.deductionsOpen)} tone={view.deductionsOpen > 0 ? "warn" : undefined} />}
           {view.charges.length > 0 && (
             <>

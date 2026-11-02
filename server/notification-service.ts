@@ -37,6 +37,13 @@ class NotificationService {
     }
   }
 
+  // Something in المدفوعات is waiting for these people, or has been decided. The link opens the right tab.
+  async notifyPayments(params: { userIds: string[]; title: string; message: string; projectId?: string; link: string }) {
+    for (const userId of params.userIds) {
+      await this.createAndSend({ userId, type: "approval", title: params.title, message: params.message, projectId: params.projectId, link: params.link });
+    }
+  }
+
   // A developer has offered this organization a role on one of its projects. Until the
   // invitation is answered the project itself is not visible to them, so the
   // notification carries everything needed to decide, and links to the answer screen.

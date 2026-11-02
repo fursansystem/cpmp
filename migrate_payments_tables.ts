@@ -294,6 +294,13 @@ async function main() {
     FROM project_subcontractors s
     WHERE c.subcontractor_id IS NULL AND s.project_id = c.project_id AND lower(s.name) = lower(trim(c.subcontractor_name))
   `);
+  // A deduction taken off a subcontractor certificate (reserved, then recovered), and how it was recovered
+  await db.execute(sql`ALTER TABLE payment_fines ADD COLUMN IF NOT EXISTS deducted_certificate_id VARCHAR;`);
+  await db.execute(sql`ALTER TABLE payment_fines ADD COLUMN IF NOT EXISTS recovered_at TIMESTAMP;`);
+  await db.execute(sql`ALTER TABLE payment_fines ADD COLUMN IF NOT EXISTS recovered_by VARCHAR REFERENCES users(id) ON DELETE SET NULL;`);
+  await db.execute(sql`ALTER TABLE payment_fines ADD COLUMN IF NOT EXISTS recovered_note TEXT;`);
+  // A cancelled certificate no longer carries the invoice charge-backs that were deducted on it
+  await db.execute(sql`UPDATE payment_subcontractor_certificates SET net_payable = net_payable + chargeback_deductions, chargeback_deductions = 0 WHERE status = 'cancelled' AND chargeback_deductions > 0`);
   console.log("Table 'project_subcontractors' ready.");
 }
 
