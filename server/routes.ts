@@ -7603,6 +7603,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Unread notifications grouped by where they came from, for the summary shown after signing in
+  app.get("/api/notifications/summary", async (req, res) => {
+    try {
+      if (!req.isAuthenticated() || !req.user) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+      const user = req.user as User;
+      const unread = (await storage.getNotificationsByUser(user.id)).filter((n) => !n.isRead);
+      const paymentTabs: Record<string, string> = {
+        bills: "أصول الفواتير", orders: "أوامر الدفع", subcontractors: "مستخلصات الباطن", clearances: "الرخص", fines: "الخصومات",
+      };
+      type Group = { key: string; label: string; count: number; latestTitle: string; latestMessage: string; link: string | null; payments: boolean };
+      const groups = new Map<string, Group>();
+      for (const n of unread) {
+        const tab = /^\/payments\?tab=([a-z]+)/.exec(n.link ?? "")?.[1];
+        const key = tab ? `payments:${tab}` : ["message", "mention"].includes(n.type) ? "messages" : "other";
+        const label = tab ? `المدفوعات · ${paymentTabs[tab] ?? tab}` : key === "messages" ? "الرسائل والإشارات" : "تنبيهات أخرى";
+        const existing = groups.get(key);
+        if (existing) existing.count += 1;
+        // the list is newest first, so the first one seen in a group is its latest
+        else groups.set(key, { key, label, count: 1, latestTitle: n.title, latestMessage: n.message, link: n.link, payments: !!tab });
+      }
+      const list = Array.from(groups.values()).sort((a, b) => Number(b.payments) - Number(a.payments) || b.count - a.count);
+      res.json({ total: unread.length, groups: list });
+    } catch (error) {
+      handleError(res, error);
+    }
+  });
+
   app.get("/api/notifications/unread-count", async (req, res) => {
     try {
       if (!req.isAuthenticated() || !req.user) {

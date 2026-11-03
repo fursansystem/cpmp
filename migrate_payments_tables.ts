@@ -301,6 +301,11 @@ async function main() {
   await db.execute(sql`ALTER TABLE payment_fines ADD COLUMN IF NOT EXISTS recovered_note TEXT;`);
   // A cancelled certificate no longer carries the invoice charge-backs that were deducted on it
   await db.execute(sql`UPDATE payment_subcontractor_certificates SET net_payable = net_payable + chargeback_deductions, chargeback_deductions = 0 WHERE status = 'cancelled' AND chargeback_deductions > 0`);
+  // Notifications sent before they carried the record id: point them at the record named at the start of their text
+  await db.execute(sql`UPDATE notifications n SET link = n.link || '&focus=' || r.id FROM payment_orders r WHERE n.link LIKE '/payments?%' AND n.link NOT LIKE '%focus=%' AND n.project_id = r.project_id AND r.order_no = split_part(n.message, ' ', 1)`);
+  await db.execute(sql`UPDATE notifications n SET link = n.link || '&focus=' || r.id FROM payment_subcontractor_certificates r WHERE n.link LIKE '/payments?%' AND n.link NOT LIKE '%focus=%' AND n.project_id = r.project_id AND r.cert_no = split_part(n.message, ' ', 1)`);
+  await db.execute(sql`UPDATE notifications n SET link = n.link || '&focus=' || r.id FROM payment_bill_requests r WHERE n.link LIKE '/payments?%' AND n.link NOT LIKE '%focus=%' AND n.project_id = r.project_id AND r.request_no = split_part(n.message, ' ', 1)`);
+  await db.execute(sql`UPDATE notifications n SET link = n.link || '&focus=' || r.id FROM payment_chargebacks r WHERE n.link LIKE '/payments?%' AND n.link NOT LIKE '%focus=%' AND n.project_id = r.project_id AND r.charge_no = split_part(n.message, ' ', 1)`);
   console.log("Table 'project_subcontractors' ready.");
 }
 

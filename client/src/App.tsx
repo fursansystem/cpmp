@@ -9,6 +9,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
 import { AppHeader } from "@/components/app-header";
+import { LoginSummary } from "@/components/login-summary";
 import { ThemeProvider } from "@/components/theme-provider";
 import { AuthProvider, RequireAuth, useAuth } from "@/lib/auth";
 import type { TeamMember, Organization, UserTeamMember } from "@shared/schema";
@@ -148,6 +149,7 @@ function AppLayout() {
   return (
     <RequireAuth>
       <BackgroundDataPreloader />
+      <LoginSummary />
       <SidebarProvider style={style as React.CSSProperties} defaultOpen={true}>
         <div className="flex h-screen w-full bg-[#F8FAFC] dark:bg-background">
           <AppSidebar />

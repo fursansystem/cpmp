@@ -397,6 +397,7 @@ export function registerPaymentsRoutes(app: Express, deps: Deps) {
     title: string,
     message: string,
     tab: string,
+    focusId?: string,
   ) => {
     const project = ctx.projects.find((p) => p.id === projectId);
     if (!project) return;
@@ -407,12 +408,15 @@ export function registerPaymentsRoutes(app: Express, deps: Deps) {
           : await usersWithTitle(project, audience === "approvers" ? PROJECT_MANAGER_TITLES : ACCOUNTANT_TITLES);
         const targets = Array.from(new Set(userIds)).filter((id) => id !== ctx.cu.user.id);
         if (targets.length === 0) return;
+        // Waiting for a decision or an action → approval; sent back → warning; everything else is good news
+        const type = !Array.isArray(audience) || /مطلوب/.test(title) ? "approval" : /رُفض|أُعيد/.test(title) ? "warning" : "success";
         await notificationService.notifyPayments({
+          type,
           userIds: targets,
           title,
           message,
           projectId,
-          link: `/payments?tab=${tab}&project=${projectId}`,
+          link: `/payments?tab=${tab}&project=${projectId}${focusId ? `&focus=${focusId}` : ""}`,
         });
       } catch (error) {
         console.error("[Payments] notification failed:", error);
@@ -421,7 +425,7 @@ export function registerPaymentsRoutes(app: Express, deps: Deps) {
   };
   const amountText = (v: unknown) => n(v).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   // Whoever raised the order, and whoever raised the certificate, bill request or deduction it pays for
-  const notifyOrderOwners = (ctx: Ctx, order: typeof paymentOrders.$inferSelect, title: string, message: string, tab: string) => {
+  const notifyOrderOwners = (ctx: Ctx, order: typeof paymentOrders.$inferSelect, title: string, message: string, tab: string, focusId?: string) => {
     void (async () => {
       try {
         const ids: (string | null)[] = [order.createdBy];
@@ -437,7 +441,7 @@ export function registerPaymentsRoutes(app: Express, deps: Deps) {
           const [f] = await db.select({ by: paymentFines.createdBy }).from(paymentFines).where(eq(paymentFines.id, order.fineId));
           ids.push(f?.by ?? null);
         }
-        notify(ctx, order.projectId, ids, title, message, tab);
+        notify(ctx, order.projectId, ids, title, message, tab, focusId);
       } catch (error) {
         console.error("[Payments] notification failed:", error);
       }
@@ -557,6 +561,45 @@ export function registerPaymentsRoutes(app: Express, deps: Deps) {
         .map((p) => ({ id: p.id, name: p.name, canRequest: canRequestTransfer(ctx, p) }))
         .sort((a, b) => a.name.localeCompare(b.name)),
     });
+  }));
+
+  // What is waiting for the caller right now. The summary shown at sign-in builds its first section from this.
+  app.get(`${base}/inbox`, route(async (_req, res, ctx) => {
+    const ids = Array.from(ctx.projectIds);
+    const items: { key: string; label: string; count: number; tab: string }[] = [];
+    if (ids.length === 0) return res.json({ items });
+    const me = ctx.cu.user.id;
+    // Whoever prepared something does not decide on it (a super admin is the escape hatch)
+    const decides = (createdBy: string | null) => ctx.cu.user.role === "super_admin" || createdBy !== me;
+    const [orders, certs, chargebacks, fines, bills] = await Promise.all([
+      db.select().from(paymentOrders).where(inArray(paymentOrders.projectId, ids)),
+      db.select().from(paymentSubcontractorCertificates).where(inArray(paymentSubcontractorCertificates.projectId, ids)),
+      db.select().from(paymentChargebacks).where(inArray(paymentChargebacks.projectId, ids)),
+      db.select().from(paymentFines).where(inArray(paymentFines.projectId, ids)),
+      db.select().from(paymentBillRequests).where(inArray(paymentBillRequests.projectId, ids)),
+    ]);
+    const add = (key: string, label: string, count: number, tab: string) => { if (count > 0) items.push({ key, label, count, tab }); };
+
+    if (ctx.perms.canApprove) {
+      add("orders_approve", "أوامر دفع بانتظار اعتمادك", orders.filter((o) => o.status === "pending_approval" && decides(o.createdBy)).length, "orders");
+      add("requests_approve", "طلبات تحويل بانتظار اعتمادك", orders.filter((o) => o.status === "requested" && decides(o.createdBy)).length, "orders");
+      add("certs_approve", "مستخلصات باطن بانتظار اعتمادك", certs.filter((c) => c.status === "submitted" && decides(c.createdBy)).length, "subcontractors");
+      add("chargebacks_approve", "تحميلات فواتير بانتظار اعتمادك", chargebacks.filter((c) => c.status === "proposed" && decides(c.createdBy)).length, "subcontractors");
+      add("waivers_approve", "طلبات إعفاء بانتظار اعتمادك", fines.filter((f) => f.status === "waiver_requested" && decides(f.waiverRequestedBy)).length, "fines");
+    }
+    if (ctx.perms.isAccounting) {
+      const liveOrderForCert = (certId: string) => orders.some((o) => o.subcontractorCertificateId === certId && ([...OPEN_PAYMENT_ORDER, "paid"] as string[]).includes(o.status));
+      add("requests_accept", "طلبات تحويل معتمدة بانتظار قبولك", orders.filter((o) => o.status === "request_approved").length, "orders");
+      add("bills_receive", "أصول فواتير بانتظار تأكيد الاستلام", bills.filter((b) => b.status === "submitted").length, "bills");
+      add("orders_pay", "أوامر دفع معتمدة بانتظار الصرف", orders.filter((o) => o.status === "approved").length, "orders");
+      add("certs_order", "مستخلصات معتمدة بانتظار أمر دفع", certs.filter((c) => c.status === "approved" && !liveOrderForCert(c.id)).length, "subcontractors");
+    }
+    // Anything sent back to the person who prepared it
+    add("returned", "أُعيدت إليك للتصحيح",
+      orders.filter((o) => o.status === "rejected" && o.createdBy === me).length
+      + certs.filter((c) => c.status === "rejected" && c.createdBy === me).length
+      + bills.filter((b) => b.status === "returned" && b.submittedBy === me).length, "orders");
+    res.json({ items });
   }));
 
   // Purchase orders and payment certificates a record can be linked to
@@ -853,8 +896,9 @@ export function registerPaymentsRoutes(app: Express, deps: Deps) {
     }
     await db.update(paymentBillRequests).set({ ...patch, updatedAt: now }).where(eq(paymentBillRequests.id, bill.id));
     await log(bill.projectId, "bill_request", bill.id, action, ctx.cu.user.id, { from, to: patch.status as string, note });
-    if (action === "submit") notify(ctx, bill.projectId, "accounting", "وصلت أصول فواتير للمراجعة", `${bill.requestNo} · ${bill.payeeName}`, "bills");
-    if (action === "return") notify(ctx, bill.projectId, [bill.requestedBy], "أُعيد طلب الأصول للتصحيح", `${bill.requestNo} · ${bill.payeeName}${note ? ` — ${note}` : ""}`, "bills");
+    if (action === "submit") notify(ctx, bill.projectId, "accounting", "وصلت أصول فواتير للمراجعة", `${bill.requestNo} · ${bill.payeeName}`, "bills", bill.id);
+    if (action === "receive") notify(ctx, bill.projectId, [bill.submittedBy], "استلمت المحاسبة أصول الفواتير", `${bill.requestNo} · ${bill.payeeName}`, "bills", bill.id);
+    if (action === "return") notify(ctx, bill.projectId, [bill.requestedBy], "أُعيد طلب الأصول للتصحيح", `${bill.requestNo} · ${bill.payeeName}${note ? ` — ${note}` : ""}`, "bills", bill.id);
     broadcast(bill.projectId, ctx);
     res.json({ ok: true, status: patch.status });
   }));
@@ -1013,7 +1057,7 @@ export function registerPaymentsRoutes(app: Express, deps: Deps) {
       return row;
     });
     await log(data.projectId, "payment_order", created.id, "requested", ctx.cu.user.id, { to: status, note: data.reason });
-    notify(ctx, data.projectId, status === "requested" ? "approvers" : "accounting", status === "requested" ? "طلب تحويل بانتظار اعتمادك" : "طلب تحويل بانتظار المحاسبة", `${created.orderNo} · ${data.payeeName} · ${amountText(data.amount)}`, "orders");
+    notify(ctx, data.projectId, status === "requested" ? "approvers" : "accounting", status === "requested" ? "طلب تحويل بانتظار اعتمادك" : "طلب تحويل بانتظار المحاسبة", `${created.orderNo} · ${data.payeeName} · ${amountText(data.amount)}`, "orders", created.id);
     broadcast(data.projectId, ctx);
     res.status(201).json(created);
   }));
@@ -1149,23 +1193,23 @@ export function registerPaymentsRoutes(app: Express, deps: Deps) {
     const orderText = `${order.orderNo} · ${order.payeeName} · ${amountText(order.amount)}`;
     switch (input.action) {
       case "approve_request":
-        notify(ctx, order.projectId, "accounting", "طلب تحويل معتمد من مدير المشروع", orderText, "orders");
-        notify(ctx, order.projectId, [order.createdBy], "اعتمد مدير المشروع طلبك", orderText, "orders");
+        notify(ctx, order.projectId, "accounting", "طلب تحويل معتمد من مدير المشروع", orderText, "orders", order.id);
+        notify(ctx, order.projectId, [order.createdBy], "اعتمد مدير المشروع طلبك", orderText, "orders", order.id);
         break;
       case "decline_request":
-        notify(ctx, order.projectId, [order.createdBy], "رُفض طلب التحويل", `${orderText}${input.note ? ` — ${input.note}` : ""}`, "orders");
+        notify(ctx, order.projectId, [order.createdBy], "رُفض طلب التحويل", `${orderText}${input.note ? ` — ${input.note}` : ""}`, "orders", order.id);
         break;
       case "submit":
-        notify(ctx, order.projectId, "approvers", "أمر دفع بانتظار الاعتماد", orderText, "orders");
+        notify(ctx, order.projectId, "approvers", "أمر دفع بانتظار الاعتماد", orderText, "orders", order.id);
         break;
       case "approve":
-        notify(ctx, order.projectId, [order.createdBy], "اعتُمد أمر الدفع", orderText, "orders");
+        notify(ctx, order.projectId, [order.createdBy], "اعتُمد أمر الدفع", orderText, "orders", order.id);
         break;
       case "pay":
-        notifyOrderOwners(ctx, order, "تم صرف الدفعة", orderText, "orders");
+        notifyOrderOwners(ctx, order, "تم صرف الدفعة", orderText, "orders", order.id);
         break;
       case "reject":
-        notify(ctx, order.projectId, [order.createdBy], "رُفض أمر الدفع", `${orderText}${input.note ? ` — ${input.note}` : ""}`, "orders");
+        notify(ctx, order.projectId, [order.createdBy], "رُفض أمر الدفع", `${orderText}${input.note ? ` — ${input.note}` : ""}`, "orders", order.id);
         break;
     }
     broadcast(order.projectId, ctx);
@@ -1214,7 +1258,7 @@ export function registerPaymentsRoutes(app: Express, deps: Deps) {
     });
     await log(order.projectId, "bill_request", created.id, "created", ctx.cu.user.id, { to: "requested", note: `لأمر الدفع ${order.orderNo}` });
     await log(order.projectId, "payment_order", order.id, "originals_requested", ctx.cu.user.id, { note: created.requestNo });
-    notifyOrderOwners(ctx, order, "مطلوب أصل الفاتورة بعد الصرف", `${created.requestNo} · ${order.orderNo} · ${order.payeeName}`, "bills");
+    notifyOrderOwners(ctx, order, "مطلوب أصل الفاتورة بعد الصرف", `${created.requestNo} · ${order.orderNo} · ${order.payeeName}`, "bills", created.id);
     broadcast(order.projectId, ctx);
     res.status(201).json(created);
   }));
@@ -1425,8 +1469,8 @@ export function registerPaymentsRoutes(app: Express, deps: Deps) {
         .where(and(eq(paymentFines.deductedCertificateId, cert.id), eq(paymentFines.status, "open"))).returning({ id: paymentFines.id });
       for (const f of taken) await log(cert.projectId, "fine", f.id, "recover", ctx.cu.user.id, { from: "open", to: "recovered", note: cert.certNo });
     }
-    if (action === "submit") notify(ctx, cert.projectId, "approvers", "مستخلص مقاول باطن بانتظار الاعتماد", `${cert.certNo} · ${cert.subcontractorName} · ${amountText(cert.netPayable)}`, "subcontractors");
-    if (action === "approve" || action === "reject") notify(ctx, cert.projectId, [cert.createdBy], action === "approve" ? "اعتُمد المستخلص" : "رُفض المستخلص", `${cert.certNo} · ${cert.subcontractorName}${note ? ` — ${note}` : ""}`, "subcontractors");
+    if (action === "submit") notify(ctx, cert.projectId, "approvers", "مستخلص مقاول باطن بانتظار الاعتماد", `${cert.certNo} · ${cert.subcontractorName} · ${amountText(cert.netPayable)}`, "subcontractors", cert.id);
+    if (action === "approve" || action === "reject") notify(ctx, cert.projectId, [cert.createdBy], action === "approve" ? "اعتُمد المستخلص" : "رُفض المستخلص", `${cert.certNo} · ${cert.subcontractorName}${note ? ` — ${note}` : ""}`, "subcontractors", cert.id);
     broadcast(cert.projectId, ctx);
     res.json({ ok: true, status: patch.status });
   }));
@@ -1480,7 +1524,7 @@ export function registerPaymentsRoutes(app: Express, deps: Deps) {
     await log(bill.projectId, "chargeback", created.id, "created", ctx.cu.user.id, { to: created.status, note: `${invoice.invoiceNo} → ${sub.name}` });
     // The invoice's own history shows that part of it was charged, without changing its status
     await log(bill.projectId, "bill_request", bill.id, "chargeback_created", ctx.cu.user.id, { note: `${created.chargeNo}: ${invoice.invoiceNo} — ${data.amount} → ${sub.name}` });
-    if (created.status === "proposed") notify(ctx, bill.projectId, "approvers", "تحميل فاتورة على مقاول بانتظار اعتمادك", `${created.chargeNo} · ${sub.name} · ${amountText(created.amount)}`, "subcontractors");
+    if (created.status === "proposed") notify(ctx, bill.projectId, "approvers", "تحميل فاتورة على مقاول بانتظار اعتمادك", `${created.chargeNo} · ${sub.name} · ${amountText(created.amount)}`, "subcontractors", created.id);
     broadcast(bill.projectId, ctx);
     res.status(201).json(created);
   }));
@@ -1535,7 +1579,7 @@ export function registerPaymentsRoutes(app: Express, deps: Deps) {
     }
     await db.update(paymentChargebacks).set({ ...patch, updatedAt: now }).where(eq(paymentChargebacks.id, cb.id));
     await log(cb.projectId, "chargeback", cb.id, action, ctx.cu.user.id, { from, to: patch.status as string, note });
-    if (action === "approve" || action === "reject") notify(ctx, cb.projectId, [cb.createdBy], action === "approve" ? "اعتُمد التحميل على المقاول" : "رُفض التحميل على المقاول", `${cb.chargeNo} · ${cb.subcontractorName}${note ? ` — ${note}` : ""}`, "subcontractors");
+    if (action === "approve" || action === "reject") notify(ctx, cb.projectId, [cb.createdBy], action === "approve" ? "اعتُمد التحميل على المقاول" : "رُفض التحميل على المقاول", `${cb.chargeNo} · ${cb.subcontractorName}${note ? ` — ${note}` : ""}`, "subcontractors", cb.id);
     broadcast(cb.projectId, ctx);
     res.json({ ok: true, status: patch.status });
   }));
@@ -1755,8 +1799,8 @@ export function registerPaymentsRoutes(app: Express, deps: Deps) {
     }
     await db.update(paymentFines).set({ ...patch, updatedAt: now }).where(eq(paymentFines.id, fine.id));
     await log(fine.projectId, "fine", fine.id, `waiver_${action}`, ctx.cu.user.id, { from, to: patch.status as string, note });
-    if (action === "request") notify(ctx, fine.projectId, "approvers", "طلب إعفاء من خصم بانتظار اعتمادك", `${fine.title} · ${amountText(fine.amount)}`, "fines");
-    if (action === "approve" || action === "reject") notify(ctx, fine.projectId, [fine.waiverRequestedBy], action === "approve" ? "اعتُمد طلب الإعفاء" : "رُفض طلب الإعفاء", `${fine.title}${note ? ` — ${note}` : ""}`, "fines");
+    if (action === "request") notify(ctx, fine.projectId, "approvers", "طلب إعفاء من خصم بانتظار اعتمادك", `${fine.title} · ${amountText(fine.amount)}`, "fines", fine.id);
+    if (action === "approve" || action === "reject") notify(ctx, fine.projectId, [fine.waiverRequestedBy], action === "approve" ? "اعتُمد طلب الإعفاء" : "رُفض طلب الإعفاء", `${fine.title}${note ? ` — ${note}` : ""}`, "fines", fine.id);
     broadcast(fine.projectId, ctx);
     res.json({ ok: true, status: patch.status });
   }));

@@ -66,9 +66,9 @@ class NotificationService {
   }
 
   // Something in المدفوعات is waiting for these people, or has been decided. The link opens the right tab.
-  async notifyPayments(params: { userIds: string[]; title: string; message: string; projectId?: string; link: string }) {
+  async notifyPayments(params: { userIds: string[]; title: string; message: string; projectId?: string; link: string; type?: NotificationType }) {
     for (const userId of params.userIds) {
-      await this.createAndSend({ userId, type: "approval", title: params.title, message: params.message, projectId: params.projectId, link: params.link });
+      await this.createAndSend({ userId, type: params.type ?? "approval", title: params.title, message: params.message, projectId: params.projectId, link: params.link });
     }
   }
 

@@ -1,6 +1,6 @@
-import { useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Link } from "wouter";
+import { Link, useSearch } from "wouter";
 import { Paperclip, Trash2, Loader2, FileText, Upload, AlertTriangle, ShoppingCart, BarChart3 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -45,6 +45,27 @@ export function errorMessage(e: unknown): string {
     /* not JSON */
   }
   return body || "حدث خطأ";
+}
+
+// A notification links to a record (?focus=<id>). The tab that owns that record opens it once, then the parameter
+// is dropped so going back or refreshing does not open it again.
+export function useFocusFromUrl(owns: (id: string) => boolean, open: (id: string) => void) {
+  // Following a notification while already on this page changes only the query string, so react to it
+  const search = useSearch();
+  useEffect(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const id = params.get("focus");
+      if (!id || !owns(id)) return;
+      open(id);
+      params.delete("focus");
+      const qs = params.toString();
+      window.history.replaceState(window.history.state, "", window.location.pathname + (qs ? `?${qs}` : ""));
+    } catch {
+      /* a link that cannot be read just opens the tab */
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search]);
 }
 
 export function invalidatePayments(queryClient: ReturnType<typeof useQueryClient>) {

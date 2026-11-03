@@ -1,4 +1,5 @@
-import { Bell, Check, CheckCheck, Trash2, Info, AlertCircle, CheckCircle, AlertTriangle, FileText, UserPlus, RefreshCw } from "lucide-react";
+import { Bell, Check, CheckCheck, Trash2, Info, AlertCircle, CheckCircle, AlertTriangle, FileText, UserPlus, RefreshCw, Hourglass } from "lucide-react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -13,15 +14,22 @@ const notificationTypeConfig: Record<string, { icon: typeof Bell; className: str
   error: { icon: AlertCircle, className: "text-red-500", label: "Error" },
   assignment: { icon: UserPlus, className: "text-purple-500", label: "Assignment" },
   status_change: { icon: RefreshCw, className: "text-orange-500", label: "Status Change" },
-  approval: { icon: Check, className: "text-green-600", label: "Approval" },
+  approval: { icon: Hourglass, className: "text-amber-600", label: "Approval" },
   mention: { icon: Bell, className: "text-blue-600", label: "Mention" },
   document: { icon: FileText, className: "text-indigo-500", label: "Document" },
 };
 
-function NotificationIcon({ type }: { type: string }) {
+function NotificationIcon({ type, link, title }: { type: string; link?: string | null; title?: string }) {
   const config = notificationTypeConfig[type] || notificationTypeConfig.info;
-  const Icon = config.icon;
-  return <Icon className={`h-5 w-5 ${config.className}`} />;
+  // Anything about bill documents (أصول الفواتير) shows a document, whatever type it was sent with
+  const isBills = (link ?? "").startsWith("/payments?tab=bills");
+  // A payments item waiting for you (sent as an assignment) shows the same hourglass as the other items awaiting a decision
+  const inPayments = (link ?? "").startsWith("/payments?");
+  // Sent back, rejected or cancelled: a warning, even though it was sent as an assignment
+  const sentBack = !isBills && type === "assignment" && inPayments && /مرفوض|رُفض|معاد|أُعيد|أُلغي/.test(title ?? "");
+  const waiting = !isBills && !sentBack && type === "assignment" && inPayments;
+  const Icon = isBills ? FileText : sentBack ? AlertTriangle : waiting ? Hourglass : config.icon;
+  return <Icon className={`h-5 w-5 ${sentBack ? "text-yellow-500" : waiting ? "text-amber-600" : config.className}`} />;
 }
 
 function formatTimeAgo(dateString: string): string {
@@ -55,12 +63,12 @@ function NotificationCard({
       <CardContent className="p-4">
         <div className="flex items-start gap-4">
           <div className={`p-2 rounded-full bg-muted`}>
-            <NotificationIcon type={notification.type} />
+            <NotificationIcon type={notification.type} link={notification.link} title={notification.title} />
           </div>
           <div className="flex-1 min-w-0">
             <div className="flex items-start justify-between gap-2 flex-wrap">
               <div className="flex items-center gap-2">
-                <h4 className={`font-medium ${!notification.isRead ? "text-foreground" : "text-muted-foreground"}`}>
+                <h4 dir="auto" className={`font-medium ${!notification.isRead ? "text-foreground" : "text-muted-foreground"}`}>
                   {notification.title}
                 </h4>
                 {!notification.isRead && (
@@ -69,7 +77,7 @@ function NotificationCard({
               </div>
               <Badge variant="outline" className="text-xs">{config.label}</Badge>
             </div>
-            <p className="text-sm text-muted-foreground mt-1">{notification.message}</p>
+            <p dir="auto" className="text-sm text-muted-foreground mt-1">{notification.message}</p>
             <p className="text-xs text-muted-foreground mt-2">{formatTimeAgo(notification.createdAt)}</p>
           </div>
           <div className="flex gap-1 shrink-0">
@@ -109,7 +117,7 @@ function NotificationCard({
   if (notification.link) {
     return (
       <Link href={notification.link}>
-        <span className="block cursor-pointer">{content}</span>
+        <span className="block cursor-pointer" onClick={() => { if (!notification.isRead) onMarkAsRead(notification.id); }}>{content}</span>
       </Link>
     );
   }
@@ -118,6 +126,7 @@ function NotificationCard({
 }
 
 export default function Notifications() {
+  const [filter, setFilter] = useState<"all" | "unread" | "payments">("all");
   const {
     notifications,
     unreadCount,
@@ -128,6 +137,8 @@ export default function Notifications() {
     deleteAllNotifications,
     isMarkingAllAsRead,
   } = useNotifications();
+
+  const visible = notifications.filter((n) => filter === "unread" ? !n.isRead : filter === "payments" ? (n.link ?? "").startsWith("/payments") : true);
 
   return (
     <div className="p-6 lg:p-8 space-y-6">
@@ -167,6 +178,12 @@ export default function Notifications() {
         </div>
       </div>
 
+      <div className="flex gap-2 flex-wrap">
+        {([["all", "الكل"], ["unread", "غير المقروء"], ["payments", "المدفوعات"]] as const).map(([k, label]) => (
+          <Button key={k} size="sm" variant={filter === k ? "default" : "outline"} onClick={() => setFilter(k)} data-testid={`filter-${k}`}>{label}</Button>
+        ))}
+      </div>
+
       {isLoading ? (
         <div className="flex items-center justify-center py-12">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
@@ -181,7 +198,8 @@ export default function Notifications() {
         </Card>
       ) : (
         <div className="space-y-4">
-          {notifications.map((notification) => (
+          {visible.length === 0 && <p className="text-center text-sm text-muted-foreground py-8">لا توجد تنبيهات في هذا التصنيف</p>}
+          {visible.map((notification) => (
             <NotificationCard
               key={notification.id}
               notification={notification}

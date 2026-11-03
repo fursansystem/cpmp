@@ -6,14 +6,17 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
-import { Settings, Globe, Bell, Shield, Palette, Monitor, BellOff } from "lucide-react";
+import { useState } from "react";
+import { Settings, Globe, Bell, Shield, Palette, Monitor, BellOff, ClipboardCheck } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { ProfileForm } from "@/components/profile-form";
 import { useDesktopNotifications } from "@/hooks/use-desktop-notifications";
+import { isLoginSummaryEnabled, setLoginSummaryEnabled } from "@/components/login-summary";
 
 export default function SettingsPage() {
   const { user } = useAuth();
   const { settings: desktopSettings, permissionState, toggleEnabled, updateSetting } = useDesktopNotifications();
+  const [summaryOn, setSummaryOn] = useState(() => (user?.id ? isLoginSummaryEnabled(user.id) : true));
 
   return (
     <div className="p-6 space-y-6">
@@ -95,6 +98,23 @@ export default function SettingsPage() {
             <CardDescription>Manage notification preferences</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <ClipboardCheck className="w-4 h-4 text-muted-foreground" />
+                <div>
+                  <Label>ملخص ما ينتظرك عند تسجيل الدخول</Label>
+                  <p className="text-sm text-muted-foreground">نافذة تعرض ما يحتاج متابعتك وتنبيهاتك غير المقروءة بعد كل تسجيل دخول</p>
+                </div>
+              </div>
+              <Switch
+                checked={summaryOn}
+                onCheckedChange={(v) => { setSummaryOn(v); if (user?.id) setLoginSummaryEnabled(user.id, v); }}
+                data-testid="switch-login-summary"
+              />
+            </div>
+
+            <Separator />
+
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Monitor className="w-4 h-4 text-muted-foreground" />

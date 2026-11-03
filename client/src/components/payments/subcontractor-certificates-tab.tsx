@@ -23,6 +23,7 @@ import {
   fmtDate,
   invalidatePayments,
   money,
+  useFocusFromUrl,
   type PaymentsContext,
 } from "./payments-common";
 
@@ -45,6 +46,7 @@ export function SubcontractorCertificatesTab({ ctx, projectId, rows, chargebacks
   const [status, setStatus] = useState("all");
   const [search, setSearch] = useState("");
   const [editing, setEditing] = useState<any | "new" | null>(null);
+  useFocusFromUrl((id) => rows.some((r) => r.id === id), (id) => setEditing(rows.find((r) => r.id === id) ?? null));
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();

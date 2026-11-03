@@ -31,6 +31,7 @@ import {
   getJson,
   invalidatePayments,
   money,
+  useFocusFromUrl,
   paymentsQuery,
   PoCard,
   PoOverAlert,
@@ -76,6 +77,7 @@ export function OrdersTab({ ctx, projectId, data, draft, onDraftClose, onStartDr
   const [status, setStatus] = useState("all");
   const [search, setSearch] = useState("");
   const [openId, setOpenId] = useState<string | null>(null);
+  useFocusFromUrl((id) => data.orders.some((o: any) => o.id === id), setOpenId);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();

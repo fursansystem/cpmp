@@ -1,4 +1,8 @@
-import { useEffect, useRef, useState, useCallback } from "react";
+import { createElement, useEffect, useRef, useState, useCallback } from "react";
+import { useLocation } from "wouter";
+import { ToastAction } from "@/components/ui/toast";
+import { useToast } from "@/hooks/use-toast";
+import { isSoundMuted, playNotificationSound } from "@/lib/notification-sound";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/lib/auth";
@@ -10,10 +14,14 @@ type RequestUpdateCallback = (data: { requestId: string; updateType: string }) =
 // Shared WebSocket instance and subscribers
 let sharedWs: WebSocket | null = null;
 let requestUpdateCallbacks: Map<string, RequestUpdateCallback> = new Map();
+// The hook runs in several components, each with its own socket, so announce each notification only once
+const announced = new Set<string>();
 
 export function useNotifications() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  const { toast } = useToast();
+  const [, setLocation] = useLocation();
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [isConnected, setIsConnected] = useState(false);
@@ -97,6 +105,18 @@ export function useNotifications() {
           queryClient.invalidateQueries({ queryKey: ["/api/notifications/unread-count"] });
           if (user?.id && message.data) {
             const n = message.data;
+            if (n.id && !announced.has(n.id)) {
+              announced.add(n.id);
+              // Something waiting for a decision stays on screen longer than news
+              const needsAction = n.type === "approval";
+              toast({
+                title: n.title || "New Notification",
+                description: n.message || undefined,
+                duration: needsAction ? 10000 : 5000,
+                action: n.link ? (createElement(ToastAction, { altText: "فتح", onClick: () => setLocation(n.link) }, "فتح") as any) : undefined,
+              });
+              if (!isSoundMuted(user.id)) playNotificationSound(needsAction ? "action" : "result");
+            }
             triggerDesktopNotification(
               user.id,
               n.title || "New Notification",
@@ -224,7 +244,7 @@ export function useNotifications() {
       console.error("WebSocket error:", error);
       ws.close();
     };
-  }, [user?.id, queryClient]);
+  }, [user?.id, queryClient, toast, setLocation]);
 
   useEffect(() => {
     if (user?.id) {

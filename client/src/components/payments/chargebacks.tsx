@@ -16,7 +16,7 @@ import { useAuth } from "@/lib/auth";
 import { apiRequest } from "@/lib/queryClient";
 import { CHARGEBACK_LABELS, FINE_LABELS } from "@shared/payments";
 import { SubcontractorSelect } from "./subcontractor-select";
-import { ActivityTimeline, StatusBadge, errorMessage, fmtDate, invalidatePayments, money, type PaymentsContext } from "./payments-common";
+import { ActivityTimeline, StatusBadge, useFocusFromUrl, errorMessage, fmtDate, invalidatePayments, money, type PaymentsContext } from "./payments-common";
 
 const num = (v: unknown) => Number(v ?? 0) || 0;
 
@@ -96,6 +96,7 @@ export function ChargebacksPanel({ ctx, projectId, rows, fines = [] }: { ctx: Pa
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [openId, setOpenId] = useState<string | null>(null);
+  useFocusFromUrl((id) => rows.some((r) => r.id === id), setOpenId);
   const [rejecting, setRejecting] = useState<any | null>(null);
   const [note, setNote] = useState("");
   const [show, setShow] = useState(false);

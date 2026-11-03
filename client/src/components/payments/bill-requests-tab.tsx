@@ -28,6 +28,7 @@ import {
   invalidatePayments,
   money,
   paymentsQuery,
+  useFocusFromUrl,
   type PaymentsContext,
 } from "./payments-common";
 
@@ -52,6 +53,7 @@ export function BillRequestsTab({ ctx, projectId, rows, orders, purchaseOrders, 
   const [search, setSearch] = useState("");
   const [creating, setCreating] = useState(false);
   const [openId, setOpenId] = useState<string | null>(null);
+  useFocusFromUrl((id) => rows.some((r) => r.id === id), setOpenId);
 
   useEffect(() => {
     if (!focusId) return;

@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Bell, Check, CheckCheck, Trash2, Info, AlertCircle, CheckCircle, AlertTriangle, FileText, UserPlus, RefreshCw, MessageSquare } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Bell, Check, CheckCheck, Trash2, Info, AlertCircle, CheckCircle, AlertTriangle, FileText, UserPlus, RefreshCw, MessageSquare, Volume2, VolumeX, Hourglass } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -11,6 +11,8 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useNotifications } from "@/hooks/use-notifications";
+import { useAuth } from "@/lib/auth";
+import { isSoundMuted, setSoundMuted } from "@/lib/notification-sound";
 import { Link } from "wouter";
 import type { Notification } from "@shared/schema";
 
@@ -21,7 +23,8 @@ const notificationTypeConfig: Record<string, { icon: typeof Bell; className: str
   error: { icon: AlertCircle, className: "text-red-500" },
   assignment: { icon: UserPlus, className: "text-purple-500" },
   status_change: { icon: RefreshCw, className: "text-orange-500" },
-  approval: { icon: Check, className: "text-green-600" },
+  // waiting for a decision: an hourglass, so it is not mistaken for the "mark as read" tick
+  approval: { icon: Hourglass, className: "text-amber-600" },
   mention: { icon: MessageSquare, className: "text-blue-600" },
   document: { icon: FileText, className: "text-indigo-500" },
   message: { icon: MessageSquare, className: "text-blue-500" },
@@ -29,10 +32,17 @@ const notificationTypeConfig: Record<string, { icon: typeof Bell; className: str
 
 const MESSAGE_TYPES = ["mention", "message"];
 
-function NotificationIcon({ type }: { type: string }) {
+function NotificationIcon({ type, link, title }: { type: string; link?: string | null; title?: string }) {
   const config = notificationTypeConfig[type] || notificationTypeConfig.info;
-  const Icon = config.icon;
-  return <Icon className={`h-4 w-4 ${config.className}`} />;
+  // Anything about bill documents (أصول الفواتير) shows a document, whatever type it was sent with
+  const isBills = (link ?? "").startsWith("/payments?tab=bills");
+  // A payments item waiting for you (sent as an assignment) shows the same hourglass as the other items awaiting a decision
+  const inPayments = (link ?? "").startsWith("/payments?");
+  // Sent back, rejected or cancelled: a warning, even though it was sent as an assignment
+  const sentBack = !isBills && type === "assignment" && inPayments && /مرفوض|رُفض|معاد|أُعيد|أُلغي/.test(title ?? "");
+  const waiting = !isBills && !sentBack && type === "assignment" && inPayments;
+  const Icon = isBills ? FileText : sentBack ? AlertTriangle : waiting ? Hourglass : config.icon;
+  return <Icon className={`h-4 w-4 ${sentBack ? "text-yellow-500" : waiting ? "text-amber-600" : config.className}`} />;
 }
 
 function formatTimeAgo(dateString: string): string {
@@ -65,19 +75,20 @@ function NotificationItem({
         notification.isRead 
           ? "bg-transparent" 
           : "bg-primary/5"
-      } hover-elevate`}
+      } ${!notification.isRead && notification.type === "approval" ? "border-s-4 border-primary bg-primary/10" : ""} hover-elevate`}
     >
-      <NotificationIcon type={notification.type} />
+      <NotificationIcon type={notification.type} link={notification.link} title={notification.title} />
       <div className="flex-1 min-w-0">
         <div className="flex items-start justify-between gap-2">
-          <p className={`text-sm font-medium truncate ${!notification.isRead ? "text-foreground" : "text-muted-foreground"}`}>
+          <p dir="auto" className={`text-sm font-medium truncate ${!notification.isRead ? "text-foreground" : "text-muted-foreground"}`}>
+            {!notification.isRead && notification.type === "approval" && <span className="me-2 rounded bg-primary px-1.5 py-0.5 text-[10px] font-bold text-primary-foreground">مطلوب</span>}
             {notification.title}
           </p>
           {!notification.isRead && (
             <span className="h-2 w-2 rounded-full bg-primary shrink-0 mt-1" />
           )}
         </div>
-        <p className="text-xs text-muted-foreground line-clamp-2 mt-0.5">{notification.message}</p>
+        <p dir="auto" className="text-xs text-muted-foreground line-clamp-2 mt-0.5">{notification.message}</p>
         <p className="text-xs text-muted-foreground mt-1">{formatTimeAgo(notification.createdAt)}</p>
       </div>
       <div className="flex gap-1 shrink-0">
@@ -116,7 +127,8 @@ function NotificationItem({
   if (notification.link) {
     return (
       <Link href={notification.link}>
-        <span className="block cursor-pointer">{content}</span>
+        {/* Opening the record counts as having read the notification */}
+        <span className="block cursor-pointer" onClick={() => { if (!notification.isRead) onMarkAsRead(notification.id); }}>{content}</span>
       </Link>
     );
   }
@@ -163,7 +175,10 @@ function NotificationList({
 
   return (
     <div className="p-1 space-y-1">
-      {notifications.slice(0, 10).map((notification) => (
+      {[...notifications]
+        .sort((a, b) => Number(!b.isRead && b.type === "approval") - Number(!a.isRead && a.type === "approval"))
+        .slice(0, 10)
+        .map((notification) => (
         <NotificationItem
           key={notification.id}
           notification={notification}
@@ -176,6 +191,8 @@ function NotificationList({
 }
 
 export function NotificationCenter() {
+  const { user } = useAuth();
+  const [muted, setMuted] = useState(() => (user?.id ? isSoundMuted(user.id) : false));
   const [activeTab, setActiveTab] = useState<"notifications" | "messages">("notifications");
   const {
     notifications,
@@ -195,6 +212,13 @@ export function NotificationCenter() {
     (n) => MESSAGE_TYPES.includes(n.type)
   );
 
+  // The unread count in the tab title, so it shows while this tab is in the background
+  useEffect(() => {
+    const base = document.title.replace(/^\(\d+\)\s*/, "");
+    document.title = unreadCount > 0 ? `(${unreadCount > 99 ? "99+" : unreadCount}) ${base}` : base;
+    return () => { document.title = document.title.replace(/^\(\d+\)\s*/, ""); };
+  }, [unreadCount]);
+
   const unreadGeneralCount = generalNotifications.filter((n) => !n.isRead).length;
   const unreadMessagesCount = messageNotifications.filter((n) => !n.isRead).length;
 
@@ -207,11 +231,11 @@ export function NotificationCenter() {
           className="relative h-9 w-9 rounded-md hover:bg-transparent hover:text-primary transition-all"
           data-testid="button-notifications"
         >
-          <Bell className="h-5 w-5" />
+          <Bell className={`h-5 w-5 ${unreadCount > 0 ? "text-primary" : ""}`} />
           {unreadCount > 0 && (
             <Badge
               variant="destructive"
-              className="absolute -top-1 -right-1 h-5 w-5 flex items-center justify-center p-0 text-xs"
+              className="absolute -top-1.5 -right-1.5 h-5 min-w-5 px-1 flex items-center justify-center text-xs animate-pulse"
             >
               {unreadCount > 99 ? "99+" : unreadCount}
             </Badge>
@@ -239,6 +263,16 @@ export function NotificationCenter() {
                 )}
               </TabsTrigger>
             </TabsList>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7"
+              title={muted ? "تشغيل صوت التنبيهات" : "كتم صوت التنبيهات"}
+              onClick={() => { const next = !muted; setMuted(next); if (user?.id) setSoundMuted(user.id, next); }}
+              data-testid="button-toggle-notification-sound"
+            >
+              {muted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
+            </Button>
             {unreadCount > 0 && (
               <Button
                 variant="ghost"

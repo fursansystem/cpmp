@@ -59,6 +59,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       
       queryClient.clear();
+      // Ask for the "what is waiting for you" summary once for this sign-in
+      try { sessionStorage.setItem("pm-show-login-summary", "1"); } catch { /* storage can be blocked */ }
       setUser(data.user);
       
       return { success: true };

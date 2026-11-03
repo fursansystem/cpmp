@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { useLocation } from "wouter";
+import { useLocation, useSearch } from "wouter";
 import { BarChart3, Wallet } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -52,6 +52,15 @@ function CountBadge({ n }: { n: number }) {
 export default function Payments() {
   const [tab, setTab] = useState(["reports", null, ""].includes(query("tab")) ? "dashboard" : (query("tab") as string)); // reports moved to /reports
   const [projectId, setProjectId] = useState(query("project") || "all");
+  // A notification can point at another tab or project while this page is already open
+  const search = useSearch();
+  useEffect(() => {
+    const params = new URLSearchParams(search);
+    const wantedTab = params.get("tab");
+    const wantedProject = params.get("project");
+    if (wantedTab && !("reports" === wantedTab)) setTab(wantedTab);
+    if (wantedProject) setProjectId(wantedProject);
+  }, [search]);
   const [draft, setDraft] = useState<OrderDraft | null>(null);
   // A bill request to open as soon as the أصول الفواتير tab shows (used when jumping from a payment order)
   const [focusBillId, setFocusBillId] = useState<string | null>(null);
