@@ -566,7 +566,7 @@ export function registerPaymentsRoutes(app: Express, deps: Deps) {
   // What is waiting for the caller right now. The summary shown at sign-in builds its first section from this.
   app.get(`${base}/inbox`, route(async (_req, res, ctx) => {
     const ids = Array.from(ctx.projectIds);
-    const items: { key: string; label: string; count: number; tab: string }[] = [];
+    const items: { key: string; label: string; count: number; tab: string; ids: string[]; projectId: string | null }[] = [];
     if (ids.length === 0) return res.json({ items });
     const me = ctx.cu.user.id;
     // Whoever prepared something does not decide on it (a super admin is the escape hatch)
@@ -578,27 +578,30 @@ export function registerPaymentsRoutes(app: Express, deps: Deps) {
       db.select().from(paymentFines).where(inArray(paymentFines.projectId, ids)),
       db.select().from(paymentBillRequests).where(inArray(paymentBillRequests.projectId, ids)),
     ]);
-    const add = (key: string, label: string, count: number, tab: string) => { if (count > 0) items.push({ key, label, count, tab }); };
+    const add = (key: string, label: string, rows: { id: string; projectId: string }[], tab: string) => {
+      if (rows.length === 0) return;
+      const projects = new Set(rows.map((r) => r.projectId));
+      items.push({ key, label, count: rows.length, tab, ids: rows.map((r) => r.id), projectId: projects.size === 1 ? rows[0].projectId : null });
+    };
 
     if (ctx.perms.canApprove) {
-      add("orders_approve", "أوامر دفع بانتظار اعتمادك", orders.filter((o) => o.status === "pending_approval" && decides(o.createdBy)).length, "orders");
-      add("requests_approve", "طلبات تحويل بانتظار اعتمادك", orders.filter((o) => o.status === "requested" && decides(o.createdBy)).length, "orders");
-      add("certs_approve", "مستخلصات باطن بانتظار اعتمادك", certs.filter((c) => c.status === "submitted" && decides(c.createdBy)).length, "subcontractors");
-      add("chargebacks_approve", "تحميلات فواتير بانتظار اعتمادك", chargebacks.filter((c) => c.status === "proposed" && decides(c.createdBy)).length, "subcontractors");
-      add("waivers_approve", "طلبات إعفاء بانتظار اعتمادك", fines.filter((f) => f.status === "waiver_requested" && decides(f.waiverRequestedBy)).length, "fines");
+      add("orders_approve", "أوامر دفع بانتظار اعتمادك", orders.filter((o) => o.status === "pending_approval" && decides(o.createdBy)), "orders");
+      add("requests_approve", "طلبات تحويل بانتظار اعتمادك", orders.filter((o) => o.status === "requested" && decides(o.createdBy)), "orders");
+      add("certs_approve", "مستخلصات باطن بانتظار اعتمادك", certs.filter((c) => c.status === "submitted" && decides(c.createdBy)), "subcontractors");
+      add("chargebacks_approve", "تحميلات فواتير بانتظار اعتمادك", chargebacks.filter((c) => c.status === "proposed" && decides(c.createdBy)), "subcontractors");
+      add("waivers_approve", "طلبات إعفاء بانتظار اعتمادك", fines.filter((f) => f.status === "waiver_requested" && decides(f.waiverRequestedBy)), "fines");
     }
     if (ctx.perms.isAccounting) {
       const liveOrderForCert = (certId: string) => orders.some((o) => o.subcontractorCertificateId === certId && ([...OPEN_PAYMENT_ORDER, "paid"] as string[]).includes(o.status));
-      add("requests_accept", "طلبات تحويل معتمدة بانتظار قبولك", orders.filter((o) => o.status === "request_approved").length, "orders");
-      add("bills_receive", "أصول فواتير بانتظار تأكيد الاستلام", bills.filter((b) => b.status === "submitted").length, "bills");
-      add("orders_pay", "أوامر دفع معتمدة بانتظار الصرف", orders.filter((o) => o.status === "approved").length, "orders");
-      add("certs_order", "مستخلصات معتمدة بانتظار أمر دفع", certs.filter((c) => c.status === "approved" && !liveOrderForCert(c.id)).length, "subcontractors");
+      add("requests_accept", "طلبات تحويل معتمدة بانتظار قبولك", orders.filter((o) => o.status === "request_approved"), "orders");
+      add("bills_receive", "أصول فواتير بانتظار تأكيد الاستلام", bills.filter((b) => b.status === "submitted"), "bills");
+      add("orders_pay", "أوامر دفع معتمدة بانتظار الصرف", orders.filter((o) => o.status === "approved"), "orders");
+      add("certs_order", "مستخلصات معتمدة بانتظار أمر دفع", certs.filter((c) => c.status === "approved" && !liveOrderForCert(c.id)), "subcontractors");
     }
     // Anything sent back to the person who prepared it
-    add("returned", "أُعيدت إليك للتصحيح",
-      orders.filter((o) => o.status === "rejected" && o.createdBy === me).length
-      + certs.filter((c) => c.status === "rejected" && c.createdBy === me).length
-      + bills.filter((b) => b.status === "returned" && b.submittedBy === me).length, "orders");
+    add("returned_orders", "أوامر دفع أُعيدت إليك للتصحيح", orders.filter((o) => o.status === "rejected" && o.createdBy === me), "orders");
+    add("returned_certs", "مستخلصات أُعيدت إليك للتصحيح", certs.filter((c) => c.status === "rejected" && c.createdBy === me), "subcontractors");
+    add("returned_bills", "أصول فواتير أُعيدت إليك للتصحيح", bills.filter((b) => b.status === "returned" && b.submittedBy === me), "bills");
     res.json({ items });
   }));
 

@@ -24,7 +24,7 @@ export function setLoginSummaryEnabled(userId: string, enabled: boolean) {
 }
 
 interface SummaryGroup { key: string; label: string; count: number; latestTitle: string; latestMessage: string; link: string | null; payments: boolean }
-interface InboxItem { key: string; label: string; count: number; tab: string }
+interface InboxItem { key: string; label: string; count: number; tab: string; ids: string[]; projectId: string | null }
 
 export function LoginSummary() {
   const { user } = useAuth();
@@ -99,7 +99,7 @@ export function LoginSummary() {
             <ul className="space-y-1.5">
               {waiting.map((i) => (
                 <li key={i.key}>
-                  <button type="button" onClick={() => go(`/payments?tab=${i.tab}`)} className="w-full flex items-center gap-3 rounded-xl border bg-primary/5 px-3 py-2 text-start hover-elevate">
+                  <button type="button" onClick={() => go(`/payments?tab=${i.tab}${i.projectId ? `&project=${i.projectId}` : ""}${i.ids.length === 1 ? `&focus=${i.ids[0]}` : ""}`)} className="w-full flex items-center gap-3 rounded-xl border bg-primary/5 px-3 py-2 text-start hover-elevate">
                     <span className="min-w-8 text-center rounded-full bg-primary text-primary-foreground text-sm font-bold px-2">{i.count}</span>
                     <span className="flex-1 text-sm">{i.label}</span>
                     <ChevronLeft className="w-4 h-4 text-muted-foreground" />
