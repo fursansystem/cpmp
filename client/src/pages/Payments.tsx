@@ -1,9 +1,11 @@
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useLocation, useSearch } from "wouter";
-import { BarChart3, Wallet } from "lucide-react";
+import { BarChart3, Wallet, Hourglass, FileText, Banknote, ShieldAlert } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { StatCard } from "@/components/stat-card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { BillRequestsTab } from "@/components/payments/bill-requests-tab";
@@ -13,7 +15,7 @@ import { SubcontractorCertificatesTab } from "@/components/payments/subcontracto
 import { ReportsTab } from "@/components/payments/reports-tab";
 import type { ReportId } from "@/components/payments/reports-library-tab";
 import { PaymentActionButtons } from "@/components/payments/payment-actions";
-import { getJson, paymentsQuery, type PaymentsContext, type PaymentsOverview } from "@/components/payments/payments-common";
+import { getJson, money, paymentsQuery, type PaymentsContext, type PaymentsOverview } from "@/components/payments/payments-common";
 
 const query = (key: string) => {
   try {
@@ -80,7 +82,7 @@ export default function Payments() {
 
   if (ctxLoading || !ctx) {
     return (
-      <div className="px-6 lg:px-10 pt-4 pb-10 space-y-4">
+      <div className="p-6 lg:p-8 space-y-6">
         <Skeleton className="h-16 rounded-2xl" />
         <Skeleton className="h-96 rounded-2xl" />
       </div>
@@ -103,34 +105,62 @@ export default function Payments() {
     fines: overview.fines.filter((f) => ["open", "under_appeal"].includes(f.status) || (ctx.perms.canApprove && f.status === "waiver_requested")).length,
   };
 
+  // The summary row above the tabs, for the project selected
+  const stats = {
+    waiting: actionable.bills + actionable.orders + actionable.subCerts + actionable.clearances + actionable.fines,
+    openOrders: overview.orders.filter((o) => ["requested", "request_approved", "pending_approval", "approved"].includes(o.status)).length,
+    paid: overview.orders.filter((o) => o.status === "paid").reduce((sum, o) => sum + Number(o.amount ?? 0), 0),
+    attention: actionable.clearances + actionable.fines,
+  };
+
   const startOrder = (d: OrderDraft) => {
     setDraft(d);
     setTab("orders");
   };
 
   return (
-    <div className="min-h-screen px-6 lg:px-10 pt-4 pb-10 space-y-5" data-testid="page-payments">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <div className="w-11 h-11 rounded-2xl bg-primary/10 text-primary flex items-center justify-center"><Wallet className="w-6 h-6" /></div>
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight">المدفوعات <span className="text-muted-foreground font-medium">Payments</span></h1>
-            <p className="text-sm text-muted-foreground">
-              {ctx.perms.isAccounting ? "طلب أصول الفواتير، أوامر الدفع، مستخلصات الباطن، الرخص والخصومات" : "الرد على طلبات المحاسبة، ومتابعة الرخص والخصومات"}
-            </p>
-          </div>
+    <div className="p-6 lg:p-8 space-y-6" data-testid="page-payments">
+      <div className="flex items-center justify-between flex-wrap gap-4">
+        <div>
+          <h1 className="text-3xl font-bold font-display mb-2">المدفوعات</h1>
+          <p className="text-muted-foreground">
+            {ctx.perms.isAccounting ? "طلب أصول الفواتير، أوامر الدفع، مستخلصات الباطن، الرخص والخصومات" : "الرد على طلبات المحاسبة، ومتابعة الرخص والخصومات"}
+          </p>
         </div>
-        <Select value={projectId} onValueChange={setProjectId}>
-          <SelectTrigger className="w-[260px]" data-testid="select-payments-project"><SelectValue /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">كل المشاريع</SelectItem>
-            {ctx.projects.map((p) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
-          </SelectContent>
-        </Select>
+        {ctx.projects.length > 0 && (
+          <div className="flex items-center gap-2">
+            <Select value={projectId} onValueChange={setProjectId}>
+              <SelectTrigger className="w-[260px]" data-testid="select-payments-project"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">كل المشاريع</SelectItem>
+                {ctx.projects.map((p) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
       </div>
 
+      {ctx.projects.length > 0 && !isLoading && (
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <StatCard title="بانتظار إجراء منك" value={stats.waiting} icon={Hourglass} />
+          <StatCard title="أوامر دفع مفتوحة" value={stats.openOrders} icon={FileText} />
+          <StatCard title="المصروف" value={money(stats.paid)} icon={Banknote} />
+          <StatCard title="رخص وخصومات تحتاج انتباه" value={stats.attention} icon={ShieldAlert} />
+        </div>
+      )}
+
       {ctx.projects.length === 0 ? (
-        <p className="text-center text-muted-foreground py-20">لا توجد مشاريع متاحة لك.</p>
+        <Card>
+          <div className="p-12 flex flex-col items-center text-center gap-3">
+            <div className="w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center">
+              <Wallet className="w-7 h-7 text-primary" />
+            </div>
+            <div>
+              <h3 className="font-semibold font-display">لا توجد مشاريع متاحة لك</h3>
+              <p className="text-sm text-muted-foreground mt-1">تظهر المدفوعات هنا عندما تُضاف إلى مشروع.</p>
+            </div>
+          </div>
+        </Card>
       ) : (
         <Tabs value={tab} onValueChange={setTab} className="space-y-4">
           <TabsList className="h-auto flex-wrap justify-start">

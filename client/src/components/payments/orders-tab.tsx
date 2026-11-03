@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus, Search, Paperclip, Printer, Send, CheckCircle2, XCircle, Banknote, Ban, AlertTriangle, FileSearch, FileCheck } from "lucide-react";
+import { Plus, Search, Paperclip, Printer, Send, CheckCircle2, XCircle, Banknote, Ban, AlertTriangle, FileSearch, FileCheck, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -8,7 +8,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/lib/auth";
 import { apiRequest } from "@/lib/queryClient";
@@ -22,7 +21,7 @@ import {
   PAYMENT_ORDER_LABELS,
 } from "@shared/payments";
 import {
-  ActivityTimeline,
+  LatestActivity,
   AttachmentsPanel,
   Field,
   StatusBadge,
@@ -33,9 +32,13 @@ import {
   money,
   useFocusFromUrl,
   paymentsQuery,
+  PaymentDialog,
   PoCard,
   PoOverAlert,
   poLabel,
+  Section,
+  Tile,
+  TileRow,
   type PaymentsContext,
   type PaymentsOverview,
 } from "./payments-common";
@@ -295,12 +298,25 @@ export function CreateOrderDialog({ ctx, defaultProjectId, data, draft, onClose 
     : `${r.title} · ${money(r.feeAmount)}`;
 
   return (
-    <Dialog open onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>أمر دفع جديد</DialogTitle>
-          <DialogDescription>يُصدر كمسودة، ثم يُرسل للاعتماد من الإدارة قبل الصرف.</DialogDescription>
-        </DialogHeader>
+    <PaymentDialog
+      onClose={onClose}
+      size="md"
+      icon={Banknote}
+      kind="أمر دفع"
+      title="أمر دفع جديد"
+      description="يُصدر كمسودة، ثم يُرسل للاعتماد من الإدارة قبل الصرف"
+      footer={
+        <>
+          <Button
+            disabled={create.isPending || !projectId || !payeeName.trim() || !(Number(amount) > 0) || (isSourced(kind) ? !sourceId : !reason.trim())}
+            onClick={() => create.mutate()}
+          >
+            <Plus className="w-4 h-4 mr-1" /> إنشاء المسودة
+          </Button>
+          <Button variant="outline" onClick={onClose}>إلغاء</Button>
+        </>
+      }
+    >
         <div className="grid gap-3">
           <div className="space-y-1.5">
             <Label>المشروع</Label>
@@ -391,17 +407,7 @@ export function CreateOrderDialog({ ctx, defaultProjectId, data, draft, onClose 
             <Textarea rows={2} value={reason} onChange={(e) => setReason(e.target.value)} />
           </div>
         </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose}>إلغاء</Button>
-          <Button
-            disabled={create.isPending || !projectId || !payeeName.trim() || !(Number(amount) > 0) || (isSourced(kind) ? !sourceId : !reason.trim())}
-            onClick={() => create.mutate()}
-          >
-            إنشاء المسودة
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    </PaymentDialog>
   );
 }
 
@@ -477,115 +483,59 @@ function OrderDialog({ ctx, row, data, onClose, onOpenBillRequest }: { ctx: Paym
   const ownOrder = row.createdBy === user?.id && user?.role !== "super_admin";
   const editable = ["draft", "rejected", "pending_approval", "approved"].includes(row.status);
 
-  return (
-    <Dialog open onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-3">
-            <span className="font-mono">{row.orderNo}</span>
-            <StatusBadge status={row.status} labels={PAYMENT_ORDER_LABELS} />
-          </DialogTitle>
-          <DialogDescription>{row.projectName}</DialogDescription>
-        </DialogHeader>
-
-        <div className="grid sm:grid-cols-3 gap-4">
-          <Field label="المستفيد">{row.payeeName}</Field>
-          <Field label="المبلغ">{money(row.amount)}</Field>
-          <Field label="المصدر">{sourceLabel(row, data)}</Field>
-          {row.billRequestId && (() => {
-            const invoices = data.billRequests.find((b) => b.id === row.billRequestId)?.invoices ?? [];
-            return invoices.length > 0 ? (
-              <div className="sm:col-span-3">
-                <Field label="الفواتير المسددة">
-                  <ul className="space-y-1">
-                    {invoices.map((i: any) => (
-                      <li key={i.id} className="flex gap-3 text-sm"><span className="font-mono">{i.invoiceNo}</span><span className="text-muted-foreground">{fmtDate(i.invoiceDate)}</span><span className="ms-auto tabular-nums">{money(i.amount)}</span></li>
-                    ))}
-                  </ul>
-                </Field>
-              </div>
-            ) : null;
-          })()}
-          {row.reason && <div className="sm:col-span-3"><Field label="البيان">{row.reason}</Field></div>}
-          {poForOrder && <div className="sm:col-span-3"><PoCard po={poForOrder} /></div>}
-          <Field label="أنشأه">{row.createdByName ?? "—"}</Field>
-          <Field label="اعتمده">{row.approvedByName ?? "—"}</Field>
-          <Field label="تاريخ الاعتماد">{fmtDate(row.approvedAt)}</Field>
-          {row.rejectReason && <div className="sm:col-span-3"><Field label="سبب الرفض"><span className="text-destructive">{row.rejectReason}</span></Field></div>}
-          {row.status === "paid" && (
-            <>
-              <Field label="طريقة الدفع">{PAYMENT_METHOD_LABELS[row.paymentMethod as keyof typeof PAYMENT_METHOD_LABELS] ?? row.paymentMethod}</Field>
-              <Field label="المرجع">{row.paymentReference ?? "—"}</Field>
-              <Field label="تاريخ الصرف">{fmtDate(row.paidDate)}</Field>
-            </>
-          )}
-        </div>
-
-        <AttachmentsPanel
-          entityType="payment_order"
-          entityId={row.id}
-          projectId={row.projectId}
-          files={row.attachments}
-          editable={isAccounting && editable}
-          hint="أرفق ما يلزم لإثبات الدفع، مثل إشعار التحويل أو صورة الشيك."
-          canRemove={() => true}
-        />
-
-        {panel === "reject" && (
-          <div className="space-y-2 rounded-xl border p-3">
-            <Label>سبب الرفض</Label>
-            <Textarea rows={2} value={note} onChange={(e) => setNote(e.target.value)} />
-            <div className="flex justify-end gap-2">
-              <Button variant="outline" size="sm" onClick={() => setPanel(null)}>تراجع</Button>
-              <Button size="sm" variant="destructive" disabled={!note.trim() || act.isPending} onClick={() => act.mutate({ action: "reject", note })}>رفض الأمر</Button>
-            </div>
-          </div>
-        )}
-        {panel === "decline" && (
-          <div className="space-y-2 rounded-xl border p-3">
-            <Label>سبب رفض الطلب</Label>
-            <Textarea rows={2} value={note} onChange={(e) => setNote(e.target.value)} />
-            <div className="flex justify-end gap-2">
-              <Button variant="outline" size="sm" onClick={() => setPanel(null)}>تراجع</Button>
-              <Button size="sm" variant="destructive" disabled={!note.trim() || act.isPending} onClick={() => act.mutate({ action: "decline_request", note })}>رفض الطلب</Button>
-            </div>
-          </div>
-        )}
-        {panel === "pay" && (
-          <div className="space-y-3 rounded-xl border p-3">
-            <div className="grid sm:grid-cols-3 gap-3">
-              <div className="space-y-1.5">
-                <Label>طريقة الدفع</Label>
-                <Select value={method} onValueChange={setMethod}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>{PAYMENT_METHODS.map((m) => <SelectItem key={m} value={m}>{PAYMENT_METHOD_LABELS[m]}</SelectItem>)}</SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1.5">
-                <Label>رقم المرجع / الشيك</Label>
-                <Input value={reference} onChange={(e) => setReference(e.target.value)} />
-              </div>
-              <div className="space-y-1.5">
-                <Label>تاريخ الصرف</Label>
-                <Input type="date" value={paidDate} onChange={(e) => setPaidDate(e.target.value)} />
-              </div>
-            </div>
-            <div className="flex justify-end gap-2">
-              <Button variant="outline" size="sm" onClick={() => setPanel(null)}>تراجع</Button>
-              <Button size="sm" disabled={act.isPending} onClick={() => act.mutate({ action: "pay", paymentMethod: method, paymentReference: reference || null, paidDate })}>
-                تأكيد الصرف
-              </Button>
-            </div>
-          </div>
-        )}
-
-        <ActivityTimeline entityType="payment_order" entityId={row.id} labels={PAYMENT_ORDER_LABELS} />
-
-        <DialogFooter className="gap-2 sm:gap-2 flex-wrap">
-          <Button variant="outline" onClick={() => printVoucher(row, data)}>
-            <Printer className="w-4 h-4 mr-1" /> طباعة
+  // Reject, decline and pay open above the actions, so the form is in view however far the body is scrolled
+  const panelForm =
+    panel === "reject" || panel === "decline" ? (
+      <Section title={panel === "reject" ? "سبب الرفض" : "سبب رفض الطلب"} icon={XCircle} tone="danger">
+        <Textarea rows={2} value={note} onChange={(e) => setNote(e.target.value)} autoFocus />
+        <div className="flex justify-end gap-2">
+          <Button variant="outline" size="sm" onClick={() => setPanel(null)}>تراجع</Button>
+          <Button size="sm" variant="destructive" disabled={!note.trim() || act.isPending} onClick={() => act.mutate({ action: panel === "reject" ? "reject" : "decline_request", note })}>
+            {panel === "reject" ? "رفض الأمر" : "رفض الطلب"}
           </Button>
-          <OriginalsControl ctx={ctx} order={row} data={data} onOpen={onOpenBillRequest} />
+        </div>
+      </Section>
+    ) : panel === "pay" ? (
+      <Section title="تسجيل الصرف" icon={Banknote}>
+        <div className="grid sm:grid-cols-3 gap-3">
+          <div className="space-y-1.5">
+            <Label>طريقة الدفع</Label>
+            <Select value={method} onValueChange={setMethod}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>{PAYMENT_METHODS.map((m) => <SelectItem key={m} value={m}>{PAYMENT_METHOD_LABELS[m]}</SelectItem>)}</SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <Label>رقم المرجع / الشيك</Label>
+            <Input value={reference} onChange={(e) => setReference(e.target.value)} />
+          </div>
+          <div className="space-y-1.5">
+            <Label>تاريخ الصرف</Label>
+            <Input type="date" value={paidDate} onChange={(e) => setPaidDate(e.target.value)} />
+          </div>
+        </div>
+        <div className="flex justify-end gap-2">
+          <Button variant="outline" size="sm" onClick={() => setPanel(null)}>تراجع</Button>
+          <Button size="sm" disabled={act.isPending} onClick={() => act.mutate({ action: "pay", paymentMethod: method, paymentReference: reference || null, paidDate })}>
+            تأكيد الصرف
+          </Button>
+        </div>
+      </Section>
+    ) : null;
+
+  return (
+    <PaymentDialog
+      onClose={onClose}
+      icon={Banknote}
+      kind="أمر دفع"
+      title={<span className="font-mono">{row.orderNo}</span>}
+      badge={<StatusBadge status={row.status} labels={PAYMENT_ORDER_LABELS} />}
+      description={row.projectName}
+      amount={money(row.amount)}
+      panel={panelForm}
+      footer={
+        <>
+          {/* The step this order is waiting for comes first */}
           {isAccounting && ["draft", "rejected"].includes(row.status) && (
             <Button disabled={act.isPending} onClick={() => act.mutate({ action: "submit" })}>
               <Send className="w-4 h-4 mr-1" /> إرسال للاعتماد
@@ -599,7 +549,22 @@ function OrderDialog({ ctx, row, data, onClose, onOpenBillRequest }: { ctx: Paym
           )}
           {row.status === "request_approved" && isAccounting && (
             <Button disabled={act.isPending} onClick={() => act.mutate({ action: "accept_request" })}>
-              <CheckCircle2 className="w-4 h-4 mr-1" /> قبول وتحويله إلى مسودة أمر دفع
+              <CheckCircle2 className="w-4 h-4 mr-1" /> أمر دفع
+            </Button>
+          )}
+          {canApprove && row.status === "pending_approval" && (
+            <Button disabled={act.isPending || ownOrder} title={ownOrder ? "لا يمكنك اعتماد أمر أنشأته" : undefined} onClick={() => act.mutate({ action: "approve" })}>
+              <CheckCircle2 className="w-4 h-4 mr-1" /> اعتماد
+            </Button>
+          )}
+          {isAccounting && row.status === "approved" && (
+            <Button disabled={act.isPending} onClick={() => setPanel("pay")}>
+              <Banknote className="w-4 h-4 mr-1" /> تسجيل الصرف
+            </Button>
+          )}
+          {canApprove && row.status === "pending_approval" && (
+            <Button variant="outline" disabled={act.isPending} onClick={() => setPanel("reject")}>
+              <XCircle className="w-4 h-4 mr-1" /> رفض
             </Button>
           )}
           {((row.status === "requested" && canApprove) || (row.status === "request_approved" && isAccounting)) && (
@@ -607,24 +572,14 @@ function OrderDialog({ ctx, row, data, onClose, onOpenBillRequest }: { ctx: Paym
               <XCircle className="w-4 h-4 mr-1" /> رفض الطلب
             </Button>
           )}
-          {["requested", "request_approved"].includes(row.status) && (row.createdBy === user?.id || isAccounting) && (
+          <OriginalsControl ctx={ctx} order={row} data={data} onOpen={onOpenBillRequest} />
+          <Button variant="outline" onClick={() => printVoucher(row, data)}>
+            <Printer className="w-4 h-4 mr-1" /> طباعة
+          </Button>
+          {/* Only whoever made the request may withdraw it */}
+          {["requested", "request_approved"].includes(row.status) && row.createdBy === user?.id && (
             <Button variant="ghost" className="text-destructive" disabled={act.isPending} onClick={() => act.mutate({ action: "withdraw_request" })}>
               <Ban className="w-4 h-4 mr-1" /> سحب الطلب
-            </Button>
-          )}
-          {canApprove && row.status === "pending_approval" && (
-            <>
-              <Button disabled={act.isPending || ownOrder} title={ownOrder ? "لا يمكنك اعتماد أمر أنشأته" : undefined} onClick={() => act.mutate({ action: "approve" })}>
-                <CheckCircle2 className="w-4 h-4 mr-1" /> اعتماد
-              </Button>
-              <Button variant="outline" disabled={act.isPending} onClick={() => setPanel("reject")}>
-                <XCircle className="w-4 h-4 mr-1" /> رفض
-              </Button>
-            </>
-          )}
-          {isAccounting && row.status === "approved" && (
-            <Button disabled={act.isPending} onClick={() => setPanel("pay")}>
-              <Banknote className="w-4 h-4 mr-1" /> تسجيل الصرف
             </Button>
           )}
           {isAccounting && ["draft", "pending_approval", "approved", "rejected"].includes(row.status) && (
@@ -632,9 +587,76 @@ function OrderDialog({ ctx, row, data, onClose, onOpenBillRequest }: { ctx: Paym
               <Ban className="w-4 h-4 mr-1" /> إلغاء
             </Button>
           )}
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        </>
+      }
+    >
+      <Section title="تفاصيل الأمر">
+        <TileRow>
+          <Tile label="المستفيد">{row.payeeName}</Tile>
+          <Tile label="المصدر">{sourceLabel(row, data)}</Tile>
+        </TileRow>
+        {row.reason && (
+          <TileRow>
+            <Tile label="البيان">{row.reason}</Tile>
+          </TileRow>
+        )}
+        {row.billRequestId && (() => {
+          const invoices = data.billRequests.find((b) => b.id === row.billRequestId)?.invoices ?? [];
+          return invoices.length > 0 ? (
+            <div className="rounded-md border border-muted/50 overflow-hidden shadow-xl bg-background">
+              <div className="flex gap-3 bg-muted/50 px-4 py-2.5 text-[11px] font-bold text-muted-foreground">
+                <span>الفواتير المسددة</span><span className="ms-auto">المبلغ</span>
+              </div>
+              <ul className="divide-y divide-muted/40">
+                {invoices.map((i: any) => (
+                  <li key={i.id} className="flex items-center gap-3 px-4 py-2.5 text-sm hover:bg-primary/5">
+                    <span className="font-mono font-bold">{i.invoiceNo}</span>
+                    <span className="text-muted-foreground">{fmtDate(i.invoiceDate)}</span>
+                    <span className="ms-auto font-mono font-black text-primary tabular-nums">{money(i.amount)}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null;
+        })()}
+      </Section>
+
+      {poForOrder && <PoCard po={poForOrder} />}
+
+      <Section title="الاعتماد والصرف">
+        <TileRow>
+          <Tile label="أنشأه">{row.createdByName ?? "—"}</Tile>
+          <Tile label="اعتمده">{row.approvedByName ?? "—"}</Tile>
+          <Tile label="تاريخ الاعتماد">{fmtDate(row.approvedAt)}</Tile>
+        </TileRow>
+        {row.status === "paid" && (
+          <TileRow>
+            <Tile label="طريقة الدفع">{PAYMENT_METHOD_LABELS[row.paymentMethod as keyof typeof PAYMENT_METHOD_LABELS] ?? row.paymentMethod}</Tile>
+            <Tile label="المرجع">{row.paymentReference ?? "—"}</Tile>
+            <Tile label="تاريخ الصرف">{fmtDate(row.paidDate)}</Tile>
+          </TileRow>
+        )}
+        {row.rejectReason && (
+          <TileRow className="border-destructive/30 bg-destructive/5">
+            <Tile label="سبب الرفض"><span className="text-destructive">{row.rejectReason}</span></Tile>
+          </TileRow>
+        )}
+      </Section>
+
+      <LatestActivity entityType="payment_order" entityId={row.id} labels={PAYMENT_ORDER_LABELS} />
+
+      <div className="rounded-md border border-dashed border-primary/20 bg-primary/5 p-3">
+        <AttachmentsPanel
+          entityType="payment_order"
+          entityId={row.id}
+          projectId={row.projectId}
+          files={row.attachments}
+          editable={isAccounting && editable}
+          hint="أرفق ما يلزم لإثبات الدفع، مثل إشعار التحويل أو صورة الشيك."
+          canRemove={() => true}
+        />
+      </div>
+    </PaymentDialog>
   );
 }
 

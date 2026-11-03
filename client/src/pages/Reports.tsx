@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { BarChart3 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ReportsLibraryTab, isReportId, type ReportId } from "@/components/payments/reports-library-tab";
@@ -34,22 +33,21 @@ export default function Reports() {
   const projectName = projectId === "all" ? "كل المشاريع" : ctx?.projects.find((p) => p.id === projectId)?.name ?? "";
 
   return (
-    <div className="min-h-screen px-6 lg:px-10 pt-4 pb-10 space-y-5" data-testid="page-reports">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <div className="w-11 h-11 rounded-2xl bg-primary/10 text-primary flex items-center justify-center"><BarChart3 className="w-6 h-6" /></div>
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight">التقارير <span className="text-muted-foreground font-medium">Reports</span></h1>
-            <p className="text-sm text-muted-foreground">تقارير المدفوعات: الالتزامات، التدفق النقدي، مقاولو الباطن، أوامر الشراء، الرخص، الخصومات والموافقات</p>
-          </div>
+    <div className="p-6 lg:p-8 space-y-6" data-testid="page-reports">
+      <div className="flex items-center justify-between flex-wrap gap-4">
+        <div>
+          <h1 className="text-3xl font-bold font-display mb-2">التقارير</h1>
+          <p className="text-muted-foreground">تقارير المدفوعات: الالتزامات، التدفق النقدي، مقاولو الباطن، أوامر الشراء، الرخص، الخصومات والموافقات</p>
         </div>
-        <Select value={projectId} onValueChange={setProjectId}>
-          <SelectTrigger className="w-[260px]" data-testid="select-reports-project"><SelectValue /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">كل المشاريع</SelectItem>
-            {ctx?.projects.map((p) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
-          </SelectContent>
-        </Select>
+        <div className="flex items-center gap-2">
+          <Select value={projectId} onValueChange={setProjectId}>
+            <SelectTrigger className="w-[260px]" data-testid="select-reports-project"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">كل المشاريع</SelectItem>
+              {ctx?.projects.map((p) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
       {!ctx || isLoading || !data ? (

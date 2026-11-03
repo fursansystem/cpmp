@@ -8,7 +8,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/lib/auth";
 import { apiRequest } from "@/lib/queryClient";
@@ -17,7 +16,11 @@ import { cn } from "@/lib/utils";
 import { CHARGEBACK_LABELS } from "@shared/payments";
 import { ChargeInvoiceDialog, chargedOf } from "./chargebacks";
 import {
-  ActivityTimeline,
+  LatestActivity,
+  PaymentDialog,
+  Section,
+  Tile,
+  TileRow,
   AttachmentsPanel,
   Field,
   PoCard,
@@ -230,12 +233,23 @@ export function CreateBillRequestDialog({ ctx, defaultProjectId, open, onClose, 
   };
 
   return (
-    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>طلب أصول الفواتير والمرفقات</DialogTitle>
-          <DialogDescription>يُرسل الطلب إلى المشروع ليرفع الفواتير الأصلية وما يلزم قبل إصدار أمر الدفع.</DialogDescription>
-        </DialogHeader>
+    <PaymentDialog
+      open={open}
+      onClose={onClose}
+      size="md"
+      icon={Receipt}
+      kind="طلب أصول فواتير"
+      title="طلب جديد"
+      description="يُرسل إلى المشروع ليرفع الفواتير الأصلية وما يلزم قبل إصدار أمر الدفع"
+      footer={
+        <>
+          <Button disabled={create.isPending || !projectId || !form.payeeName.trim() || !form.description.trim()} onClick={() => create.mutate()}>
+            <Send className="w-4 h-4 mr-1" /> إرسال الطلب
+          </Button>
+          <Button variant="outline" onClick={onClose}>إلغاء</Button>
+        </>
+      }
+    >
         <div className="grid gap-3">
           <div className="space-y-1.5">
             <Label>المشروع</Label>
@@ -309,14 +323,7 @@ export function CreateBillRequestDialog({ ctx, defaultProjectId, open, onClose, 
             <Textarea rows={2} value={form.notes} onChange={(e) => set("notes")(e.target.value)} />
           </div>
         </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose}>إلغاء</Button>
-          <Button disabled={create.isPending || !projectId || !form.payeeName.trim() || !form.description.trim()} onClick={() => create.mutate()}>
-            إرسال الطلب
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    </PaymentDialog>
   );
 }
 
@@ -415,84 +422,26 @@ function BillRequestDialog({ ctx, row, orders, po, chargebacks, onClose, onCreat
   const filesEditable = ["requested", "returned", "submitted"].includes(row.status);
 
   return (
-    <Dialog open onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-3">
-            <span className="font-mono">{row.requestNo}</span>
-            <StatusBadge status={row.status} labels={BILL_REQUEST_LABELS} />
-          </DialogTitle>
-          <DialogDescription>{row.projectName}</DialogDescription>
-        </DialogHeader>
-
-        <div className="grid sm:grid-cols-3 gap-4">
-          <Field label="المستفيد">{row.payeeName}</Field>
-          <Field label="المبلغ المتوقع">{money(row.amount)}</Field>
-          <Field label="الرد قبل">{fmtDate(row.dueDate)}</Field>
-          <div className="sm:col-span-3"><Field label="المطلوب">{row.description}</Field></div>
-          {row.notes && <div className="sm:col-span-3"><Field label="ملاحظات">{row.notes}</Field></div>}
-          <Field label="طلبه">{row.requestedByName ?? "—"}</Field>
-          <Field label="تاريخ الطلب">{fmtDate(row.createdAt)}</Field>
-          {forOrder && (
-            <div className="sm:col-span-3 rounded-xl border bg-muted/30 p-3 text-sm flex flex-wrap items-center gap-2">
-              <span>طلب لاحق لدفعة تمت: أمر الدفع <span className="font-mono font-semibold">{forOrder.orderNo}</span></span>
-              <StatusBadge status={forOrder.status} labels={PAYMENT_ORDER_LABELS} />
-              <span className="ms-auto tabular-nums">{money(forOrder.amount)}</span>
-              <span className="w-full text-xs text-muted-foreground">الدفع تم بالفعل، فالمطلوب هنا أصل الفاتورة والمستندات المؤيدة فقط، ولا يُصدر أمر دفع جديد.</span>
-            </div>
-          )}
-          {row.receivedAt && <Field label="تاريخ الاستلام">{fmtDate(row.receivedAt)}</Field>}
-        </div>
-
-        {po && <PoCard po={po} />}
-
-        <InvoicesPanel
-          ctx={ctx}
-          chargebacks={chargebacks}
-          row={row}
-          editable={["requested", "returned"].includes(row.status) || (row.status === "submitted" && isAccounting)}
-          canRemove={(i) => i.createdBy === user?.id || isAccounting}
-        />
-
-        {linkedOrders.length > 0 && (
-          <div className="space-y-2">
-            <div className="text-sm font-bold">أوامر الدفع المرتبطة</div>
-            <ul className="space-y-1.5">
-              {linkedOrders.map((o) => (
-                <li key={o.id} className="flex items-center gap-3 rounded-xl border px-3 py-2 text-sm">
-                  <span className="font-mono">{o.orderNo}</span>
-                  <StatusBadge status={o.status} labels={PAYMENT_ORDER_LABELS} />
-                  <span className="ms-auto tabular-nums">{money(o.amount)}</span>
-                </li>
-              ))}
-            </ul>
+    <PaymentDialog
+      onClose={onClose}
+      icon={Receipt}
+      kind="طلب أصول فواتير"
+      title={<span className="font-mono">{row.requestNo}</span>}
+      badge={<StatusBadge status={row.status} labels={BILL_REQUEST_LABELS} />}
+      description={row.projectName}
+      amount={money(row.amount)}
+      amountLabel="المبلغ المتوقع"
+      panel={returning && (
+        <Section title="ما المطلوب تصحيحه؟" icon={Undo2} tone="danger">
+          <Textarea rows={2} value={note} onChange={(e) => setNote(e.target.value)} autoFocus />
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" size="sm" onClick={() => setReturning(false)}>تراجع</Button>
+            <Button size="sm" disabled={!note.trim() || act.isPending} onClick={() => act.mutate({ action: "return", note })}>إعادة الطلب</Button>
           </div>
-        )}
-
-        <AttachmentsPanel
-          entityType="bill_request"
-          entityId={row.id}
-          projectId={row.projectId}
-          files={row.attachments}
-          editable={filesEditable}
-          hint={["requested", "returned"].includes(row.status) ? "سجّل الفواتير أعلاه وأرفق نسخها الأصلية، ثم اضغط «إرسال للمحاسبة»." : undefined}
-          canRemove={(f) => f.uploadedBy === user?.id || isAccounting}
-        />
-
-        {returning && (
-          <div className="space-y-2 rounded-xl border p-3">
-            <Label>ما المطلوب تصحيحه؟</Label>
-            <Textarea rows={2} value={note} onChange={(e) => setNote(e.target.value)} />
-            <div className="flex justify-end gap-2">
-              <Button variant="outline" size="sm" onClick={() => setReturning(false)}>تراجع</Button>
-              <Button size="sm" disabled={!note.trim() || act.isPending} onClick={() => act.mutate({ action: "return", note })}>إعادة الطلب</Button>
-            </div>
-          </div>
-        )}
-
-        <ActivityTimeline entityType="bill_request" entityId={row.id} labels={BILL_REQUEST_LABELS} />
-
-        <DialogFooter className="gap-2 sm:gap-2 flex-wrap">
+        </Section>
+      )}
+      footer={
+        <>
           {["requested", "returned"].includes(row.status) && (
             <Button disabled={act.isPending || row.attachments.length === 0 || row.invoices.length === 0} onClick={() => act.mutate({ action: "submit" })}>
               <Send className="w-4 h-4 mr-1" /> إرسال للمحاسبة
@@ -518,8 +467,74 @@ function BillRequestDialog({ ctx, row, orders, po, chargebacks, onClose, onCreat
               <Ban className="w-4 h-4 mr-1" /> إلغاء الطلب
             </Button>
           )}
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        </>
+      }
+    >
+      <Section title="تفاصيل الطلب">
+        <TileRow>
+          <Tile label="المستفيد">{row.payeeName}</Tile>
+          <Tile label="الرد قبل">{fmtDate(row.dueDate)}</Tile>
+        </TileRow>
+        <TileRow>
+          <Tile label="المطلوب">{row.description}</Tile>
+        </TileRow>
+        {row.notes && (
+          <TileRow>
+            <Tile label="ملاحظات">{row.notes}</Tile>
+          </TileRow>
+        )}
+        <TileRow>
+          <Tile label="طلبه">{row.requestedByName ?? "—"}</Tile>
+          <Tile label="تاريخ الطلب">{fmtDate(row.createdAt)}</Tile>
+          {row.receivedAt && <Tile label="تاريخ الاستلام">{fmtDate(row.receivedAt)}</Tile>}
+        </TileRow>
+        {forOrder && (
+          <div className="rounded-md border border-primary/20 bg-primary/5 p-3 text-sm flex flex-wrap items-center gap-2">
+            <span>طلب لاحق لدفعة تمت: أمر الدفع <span className="font-mono font-semibold">{forOrder.orderNo}</span></span>
+            <StatusBadge status={forOrder.status} labels={PAYMENT_ORDER_LABELS} />
+            <span className="ms-auto tabular-nums font-bold">{money(forOrder.amount)}</span>
+            <span className="w-full text-xs text-muted-foreground">الدفع تم بالفعل، فالمطلوب هنا أصل الفاتورة والمستندات المؤيدة فقط، ولا يُصدر أمر دفع جديد.</span>
+          </div>
+        )}
+      </Section>
+
+      {po && <PoCard po={po} />}
+
+      <InvoicesPanel
+        ctx={ctx}
+        chargebacks={chargebacks}
+        row={row}
+        editable={["requested", "returned"].includes(row.status) || (row.status === "submitted" && isAccounting)}
+        canRemove={(i) => i.createdBy === user?.id || isAccounting}
+      />
+
+      {linkedOrders.length > 0 && (
+        <Section title="أوامر الدفع المرتبطة">
+          <div className="rounded-md border border-muted/50 bg-muted/30 divide-y divide-muted/60">
+            {linkedOrders.map((o) => (
+              <div key={o.id} className="flex items-center gap-3 px-3 py-2.5 text-sm">
+                <span className="font-mono font-bold">{o.orderNo}</span>
+                <StatusBadge status={o.status} labels={PAYMENT_ORDER_LABELS} />
+                <span className="ms-auto font-mono font-black text-primary tabular-nums">{money(o.amount)}</span>
+              </div>
+            ))}
+          </div>
+        </Section>
+      )}
+
+      <LatestActivity entityType="bill_request" entityId={row.id} labels={BILL_REQUEST_LABELS} />
+
+      <div className="rounded-md border border-dashed border-primary/20 bg-primary/5 p-3">
+        <AttachmentsPanel
+          entityType="bill_request"
+          entityId={row.id}
+          projectId={row.projectId}
+          files={row.attachments}
+          editable={filesEditable}
+          hint={["requested", "returned"].includes(row.status) ? "سجّل الفواتير أعلاه وأرفق نسخها الأصلية، ثم اضغط «إرسال للمحاسبة»." : undefined}
+          canRemove={(f) => f.uploadedBy === user?.id || isAccounting}
+        />
+      </div>
+    </PaymentDialog>
   );
 }

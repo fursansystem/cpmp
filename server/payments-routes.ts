@@ -1112,7 +1112,8 @@ export function registerPaymentsRoutes(app: Express, deps: Deps) {
         break;
       case "withdraw_request":
         if (!["requested", "request_approved"].includes(from)) return fail(409, "This request can no longer be withdrawn");
-        if (order.createdBy !== ctx.cu.user.id && !ctx.perms.isAccounting) return fail(403, "Only the person who made the request can withdraw it");
+        // Accounting turns a request down with decline_request; withdrawing is the requester's own step
+        if (order.createdBy !== ctx.cu.user.id) return fail(403, "Only the person who made the request can withdraw it");
         patch = { status: "cancelled" };
         break;
       case "submit": {

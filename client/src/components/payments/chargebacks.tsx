@@ -3,20 +3,19 @@
 // subcontractor certificate (or, when there is none, as a deduction record).
 import { useMemo, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Ban, CheckCircle2, Repeat, XCircle } from "lucide-react";
+import { Ban, CheckCircle2, Repeat, Split, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/lib/auth";
 import { apiRequest } from "@/lib/queryClient";
 import { CHARGEBACK_LABELS, FINE_LABELS } from "@shared/payments";
 import { SubcontractorSelect } from "./subcontractor-select";
-import { ActivityTimeline, StatusBadge, useFocusFromUrl, errorMessage, fmtDate, invalidatePayments, money, type PaymentsContext } from "./payments-common";
+import { LatestActivity, PaymentDialog, Section, Tile, TileRow, StatusBadge, useFocusFromUrl, errorMessage, fmtDate, invalidatePayments, money, type PaymentsContext } from "./payments-common";
 
 const num = (v: unknown) => Number(v ?? 0) || 0;
 
@@ -48,16 +47,26 @@ export function ChargeInvoiceDialog({ ctx, bill, invoice, chargebacks, onClose }
   });
 
   return (
-    <Dialog open onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-lg">
-        <DialogHeader>
-          <DialogTitle>تحميل الفاتورة على مقاول باطن</DialogTitle>
-          <DialogDescription>
-            الفاتورة <span className="font-mono">{invoice.invoiceNo}</span> ({bill.requestNo}) بقيمة {money(invoice.amount)} شاملة الضريبة. دورة الفاتورة تبقى كما هي، ويُسجَّل التحميل كخصم منفصل.
-          </DialogDescription>
-        </DialogHeader>
-
+    <PaymentDialog
+      onClose={onClose}
+      size="md"
+      icon={Split}
+      kind="تحميل فاتورة"
+      title="تحميل على مقاول باطن"
+      description={<>الفاتورة <span className="font-mono">{invoice.invoiceNo}</span> ({bill.requestNo}) بقيمة {money(invoice.amount)} شاملة الضريبة</>}
+      amount={value > 0 ? money(value) : undefined}
+      amountLabel="المبلغ المحمَّل"
+      footer={
+        <>
+          <Button disabled={create.isPending || remaining <= 0 || !subId || !reason.trim() || !(value > 0) || value > remaining + 0.005} onClick={() => create.mutate()}>
+            <CheckCircle2 className="w-4 h-4 mr-1" /> تسجيل التحميل
+          </Button>
+          <Button variant="outline" onClick={onClose}>إلغاء</Button>
+        </>
+      }
+    >
         <div className="space-y-3">
+          <p className="text-xs text-muted-foreground">دورة الفاتورة تبقى كما هي، ويُسجَّل التحميل كخصم منفصل.</p>
           <div className="space-y-1.5">
             <Label>مقاول الباطن</Label>
             <SubcontractorSelect projectId={bill.projectId} value={subId} onChange={setSubId} />
@@ -80,13 +89,7 @@ export function ChargeInvoiceDialog({ ctx, bill, invoice, chargebacks, onClose }
             {ctx.perms.canApprove ? "سيُعتمد التحميل مباشرة لأنك مدير المشروع." : "يُرفع للتحميل لمدير المشروع ليعتمده، ثم يُخصم من مستخلص المقاول."}
           </p>
         </div>
-
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose}>إلغاء</Button>
-          <Button disabled={create.isPending || remaining <= 0 || !subId || !reason.trim() || !(value > 0) || value > remaining + 0.005} onClick={() => create.mutate()}>تسجيل التحميل</Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    </PaymentDialog>
   );
 }
 
@@ -178,40 +181,68 @@ export function ChargebacksPanel({ ctx, projectId, rows, fines = [] }: { ctx: Pa
       </CardContent>
 
       {rejecting && (
-        <Dialog open onOpenChange={(o) => !o && setRejecting(null)}>
-          <DialogContent className="max-w-md">
-            <DialogHeader><DialogTitle>رفض التحميل {rejecting.chargeNo}</DialogTitle></DialogHeader>
-            <div className="space-y-2">
-              <Label>سبب الرفض</Label>
-              <Textarea rows={3} value={note} onChange={(e) => setNote(e.target.value)} />
-            </div>
-            <DialogFooter>
+        <PaymentDialog
+          onClose={() => setRejecting(null)}
+          size="sm"
+          icon={XCircle}
+          kind="تحميل فاتورة"
+          title={<>رفض التحميل <span className="font-mono">{rejecting.chargeNo}</span></>}
+          description={rejecting.subcontractorName}
+          footer={
+            <>
+              <Button variant="destructive" disabled={!note.trim() || act.isPending} onClick={() => act.mutate({ id: rejecting.id, action: "reject", note })}>
+                <XCircle className="w-4 h-4 mr-1" /> رفض
+              </Button>
               <Button variant="outline" onClick={() => setRejecting(null)}>تراجع</Button>
-              <Button variant="destructive" disabled={!note.trim() || act.isPending} onClick={() => act.mutate({ id: rejecting.id, action: "reject", note })}>رفض</Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+            </>
+          }
+        >
+          <Section title="سبب الرفض" tone="danger">
+            <Textarea rows={3} value={note} onChange={(e) => setNote(e.target.value)} autoFocus />
+          </Section>
+        </PaymentDialog>
       )}
 
       {current && (
-        <Dialog open onOpenChange={(o) => !o && setOpenId(null)}>
-          <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-3"><span className="font-mono">{current.chargeNo}</span><StatusBadge status={current.status} labels={CHARGEBACK_LABELS} /></DialogTitle>
-              <DialogDescription>{current.projectName}</DialogDescription>
-            </DialogHeader>
-            <div className="grid grid-cols-2 gap-3 text-sm">
-              <div><div className="text-xs text-muted-foreground">مقاول الباطن</div>{current.subcontractorName}</div>
-              <div><div className="text-xs text-muted-foreground">المبلغ (شامل الضريبة)</div><span className="tabular-nums font-semibold">{money(current.amount)}</span> من {money(current.invoiceAmount)}</div>
-              <div><div className="text-xs text-muted-foreground">الفاتورة</div><span className="font-mono">{current.invoiceNo}</span> · {current.requestNo}</div>
-              <div><div className="text-xs text-muted-foreground">اقترحه</div>{current.createdByName ?? "—"} · {fmtDate(current.createdAt)}</div>
-              <div className="col-span-2"><div className="text-xs text-muted-foreground">السبب</div>{current.reason}</div>
-              {current.fineId && (() => { const f = fines.find((x) => x.id === current.fineId); return f ? <div className="col-span-2"><div className="text-xs text-muted-foreground">الخصم المحوَّل إليه</div>{f.title} <StatusBadge status={f.status} labels={FINE_LABELS} /></div> : null; })()}
-              {current.rejectReason && <div className="col-span-2 rounded-xl border border-destructive/30 bg-destructive/5 p-3"><b>ملاحظة: </b>{current.rejectReason}</div>}
-            </div>
-            <ActivityTimeline entityType="chargeback" entityId={current.id} labels={CHARGEBACK_LABELS} />
-          </DialogContent>
-        </Dialog>
+        <PaymentDialog
+          onClose={() => setOpenId(null)}
+          size="md"
+          icon={Split}
+          kind="تحميل فاتورة"
+          title={<span className="font-mono">{current.chargeNo}</span>}
+          badge={<StatusBadge status={current.status} labels={CHARGEBACK_LABELS} />}
+          description={current.projectName}
+          amount={money(current.amount)}
+          amountLabel={`المبلغ (شامل الضريبة) من ${money(current.invoiceAmount)}`}
+        >
+          <Section title="تفاصيل التحميل">
+            <TileRow>
+              <Tile label="مقاول الباطن">{current.subcontractorName}</Tile>
+              <Tile label="الفاتورة"><span className="font-mono">{current.invoiceNo}</span> · {current.requestNo}</Tile>
+            </TileRow>
+            <TileRow>
+              <Tile label="السبب">{current.reason}</Tile>
+            </TileRow>
+            <TileRow>
+              <Tile label="اقترحه">{current.createdByName ?? "—"}</Tile>
+              <Tile label="التاريخ">{fmtDate(current.createdAt)}</Tile>
+            </TileRow>
+            {current.fineId && (() => {
+              const f = fines.find((x) => x.id === current.fineId);
+              return f ? (
+                <TileRow>
+                  <Tile label="الخصم المحوَّل إليه"><span className="inline-flex flex-wrap items-center gap-2">{f.title} <StatusBadge status={f.status} labels={FINE_LABELS} /></span></Tile>
+                </TileRow>
+              ) : null;
+            })()}
+            {current.rejectReason && (
+              <TileRow className="border-destructive/30 bg-destructive/5">
+                <Tile label="ملاحظة"><span className="text-destructive">{current.rejectReason}</span></Tile>
+              </TileRow>
+            )}
+          </Section>
+          <LatestActivity entityType="chargeback" entityId={current.id} labels={CHARGEBACK_LABELS} />
+        </PaymentDialog>
       )}
     </Card>
   );

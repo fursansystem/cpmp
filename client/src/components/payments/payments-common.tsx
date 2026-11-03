@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link, useSearch } from "wouter";
-import { Paperclip, Trash2, Loader2, FileText, Upload, AlertTriangle, ShoppingCart, BarChart3 } from "lucide-react";
+import { Paperclip, Trash2, Loader2, FileText, Upload, AlertTriangle, ShoppingCart, BarChart3, X, History, Clock, User, type LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { cn } from "@/lib/utils";
@@ -111,6 +113,187 @@ export function Field({ label, children }: { label: string; children: ReactNode 
   );
 }
 
+// The Saudi Riyal sign. Drawn rather than typed: few fonts carry U+20C1 yet
+export function RiyalSymbol({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 1124.14 1256.39" fill="currentColor" role="img" aria-label="ريال سعودي" className={cn("block", className)}>
+      <path d="M699.62,1113.02h0c-20.06,44.48-33.32,92.75-38.4,143.37l424.51-90.24c20.06-44.47,33.31-92.75,38.4-143.37l-424.51,90.24Z" />
+      <path d="M1085.73,895.8c20.06-44.47,33.32-92.75,38.4-143.37l-330.68,70.33v-135.2l292.27-62.11c20.06-44.47,33.32-92.75,38.4-143.37l-330.68,70.27V66.13c-50.67,28.45-95.67,66.32-132.25,110.99v403.35l-132.25,28.11V0c-50.67,28.44-95.67,66.32-132.25,110.99v525.69l-295.91,62.88c-20.06,44.47-33.33,92.75-38.42,143.37l334.33-71.05v170.26l-358.3,76.14c-20.06,44.47-33.32,92.75-38.4,143.37l375.04-79.7c30.53-6.35,56.77-24.4,73.83-49.24l68.78-101.97v-.02c7.14-10.55,11.3-23.27,11.3-36.97v-149.98l132.25-28.11v270.4l424.53-90.28Z" />
+    </svg>
+  );
+}
+
+const DIALOG_SIZES ={ sm: "sm:max-w-md", md: "sm:max-w-xl", lg: "sm:max-w-3xl" } as const;
+
+interface PaymentDialogProps {
+  // Forms kept mounted pass their own open state; record dialogs are mounted only while open
+  open?: boolean;
+  onClose: () => void;
+  size?: keyof typeof DIALOG_SIZES;
+  icon: LucideIcon;
+  // What kind of record this is, shown above the title (أمر دفع، مستخلص…)
+  kind: string;
+  title: ReactNode;
+  badge?: ReactNode;
+  description?: ReactNode;
+  // The record's amount, on one line above the actions
+  amount?: ReactNode;
+  amountLabel?: string;
+  // Small buttons next to the close button, such as the record's history
+  headerActions?: ReactNode;
+  // A form the user opened from the actions (reject, pay…): kept above the actions, outside the scrolling body
+  panel?: ReactNode;
+  // Main action first: the bar starts on the right, where an Arabic line starts
+  footer?: ReactNode;
+  children: ReactNode;
+}
+
+// One shell for the payments dialogs: the header and the actions stay in place while the body scrolls
+export function PaymentDialog({ open = true, onClose, size = "lg", icon: Icon, kind, title, badge, description, amount, amountLabel = "المبلغ", headerActions, panel, footer, children }: PaymentDialogProps) {
+  return (
+    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+      {/* No focus jump on open: the first focusable control sits low in the body and would scroll it down */}
+      <DialogContent hideCloseButton dir="rtl" onOpenAutoFocus={(e) => e.preventDefault()} className={cn("flex flex-col gap-0 p-0 max-h-[90vh] overflow-hidden border-none shadow-2xl rounded-[1.5rem] sm:rounded-[1.5rem]", DIALOG_SIZES[size])}>
+        {/* Soft glow behind the header, as on the delivery overview */}
+        {/* Clipped in its own layer: sticking out, it would make the dialog scroll sideways */}
+        <div className="pointer-events-none absolute inset-0 overflow-hidden">
+          <div className="absolute top-0 left-0 w-64 h-64 bg-primary/5 rounded-full blur-3xl -translate-y-1/2 -translate-x-1/2" />
+        </div>
+        <DialogHeader className="relative flex-row flex-wrap items-center gap-x-4 gap-y-3 space-y-0 px-6 pt-6 pb-4 text-start sm:text-start">
+          <div className="w-14 h-14 rounded-md bg-primary text-primary-foreground shadow-xl shadow-primary/30 flex items-center justify-center shrink-0">
+            <Icon className="w-7 h-7" />
+          </div>
+          <div className="min-w-0 flex-1 space-y-1.5">
+            <DialogTitle className="flex flex-wrap items-center gap-2 text-2xl font-black leading-tight">
+              {title}
+              {badge}
+            </DialogTitle>
+            {/* The record kind and its project on one line */}
+            <DialogDescription className="flex flex-wrap items-center gap-2">
+              <span className="inline-flex items-center gap-1.5 text-xs font-bold text-primary">
+                <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
+                {kind}
+              </span>
+              {description && (
+                <>
+                  <span className="text-muted-foreground/50">·</span>
+                  <span>{description}</span>
+                </>
+              )}
+            </DialogDescription>
+          </div>
+          <div className="flex items-center gap-1 shrink-0 self-start">
+            {headerActions}
+            <DialogClose asChild>
+              <Button type="button" variant="ghost" size="icon" className="rounded-full bg-muted/50 hover:bg-muted">
+                <X className="w-4 h-4" />
+                <span className="sr-only">إغلاق</span>
+              </Button>
+            </DialogClose>
+          </div>
+        </DialogHeader>
+        <div className="relative flex-1 overflow-y-auto px-6 pt-2 pb-6 space-y-6">{children}</div>
+        {panel && <div className="border-t px-6 py-4">{panel}</div>}
+        {amount != null && (
+          // The amount on one line, just above the actions
+          // Same size as the title; padded alike on the sides and below
+          <div className="flex items-center gap-3 border-t px-6 pt-4 pb-6 text-2xl font-black leading-tight">
+            <span className="text-muted-foreground">{amountLabel}</span>
+            <span className="ms-auto flex items-center gap-2 tabular-nums text-primary">
+              {amount}
+              <RiyalSymbol className="h-6 w-auto" />
+            </span>
+          </div>
+        )}
+        {footer && (
+          <DialogFooter className="flex-row flex-wrap items-center justify-start sm:justify-start gap-2 sm:space-x-0 border-t bg-muted/30 px-6 py-4 [&_button]:h-11 empty:hidden">
+            {footer}
+          </DialogFooter>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// A group inside a payments dialog (details, approvals…): a dotted heading over its tiles, like the delivery overview
+export function Section({ title, icon: Icon, tone, children }: { title?: string; icon?: LucideIcon; tone?: "danger"; children: ReactNode }) {
+  return (
+    <section className={cn("space-y-3", tone === "danger" && "rounded-md border border-destructive/30 bg-destructive/5 p-3")}>
+      {title && (
+        <div className={cn("flex items-center gap-2 text-sm font-bold", tone === "danger" ? "text-destructive" : "text-foreground/70")}>
+          {Icon ? <Icon className={cn("w-4 h-4", tone !== "danger" && "text-primary")} /> : <span className="w-2 h-2 rounded-full bg-primary/40" />}
+          {title}
+        </div>
+      )}
+      {children}
+    </section>
+  );
+}
+
+// One row of values in a single tinted rectangle, split by thin rules (stacked on a phone)
+export function TileRow({ children, className }: { children: ReactNode; className?: string }) {
+  return (
+    <div
+      className={cn(
+        "grid auto-cols-fr rounded-md border border-muted/50 bg-muted/30 transition-colors hover:border-primary/30 sm:grid-flow-col",
+        "[&>*+*]:border-t [&>*+*]:border-muted/60 sm:[&>*+*]:border-t-0 sm:[&>*+*]:border-s",
+        className,
+      )}
+    >
+      {children}
+    </div>
+  );
+}
+
+// One value inside a TileRow: the label small above it
+export function Tile({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="min-w-0 px-3 py-2.5">
+      <div className="text-[11px] font-bold text-muted-foreground mb-0.5">{label}</div>
+      <div className="text-sm font-bold text-foreground">{children}</div>
+    </div>
+  );
+}
+
+// The last thing done on the record, with the full history a click away
+export function LatestActivity({ entityType, entityId, labels }: { entityType: PaymentEntityType; entityId: string; labels: Record<string, string> }) {
+  const { data = [], isLoading } = useQuery<ActivityRow[]>({
+    queryKey: ["payments", "activity", entityType, entityId],
+    queryFn: () => getJson(`/api/payments/activity?entityType=${entityType}&entityId=${entityId}`),
+    meta: paymentsQuery,
+  });
+  const last = data[0];
+
+  return (
+    <div className="flex items-center gap-3 rounded-md border border-muted/50 bg-muted/30 px-3 py-2.5">
+      <div className="w-8 h-8 rounded-full bg-background border border-primary/20 flex items-center justify-center shadow-sm shrink-0">
+        <Clock className="w-4 h-4 text-primary" />
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="text-[11px] font-bold text-muted-foreground">آخر إجراء</div>
+        {isLoading ? (
+          <div className="text-sm text-muted-foreground">…</div>
+        ) : !last ? (
+          <div className="text-sm text-muted-foreground">لا يوجد سجل</div>
+        ) : (
+          <>
+            <div className="text-sm font-bold truncate">
+              {ACTION_LABELS[last.action] ?? last.action}
+              {last.toStatus && last.fromStatus !== last.toStatus && (
+                <span className="font-normal text-muted-foreground"> · {labels[last.toStatus] ?? last.toStatus}</span>
+              )}
+            </div>
+            <div className="text-xs text-muted-foreground">
+              {last.userName ?? "—"} · <span dir="ltr">{fmtDateTime(last.createdAt)}</span>
+            </div>
+          </>
+        )}
+      </div>
+      <ActivityHistory entityType={entityType} entityId={entityId} labels={labels} />
+    </div>
+  );
+}
+
 // The server only accepts files under /projects/<id>/payments/, which is where this uploads them
 async function uploadToPayments(file: File, projectId: string) {
   const presign = await fetch("/api/uploads/request-url", {
@@ -204,7 +387,7 @@ export function AttachmentsPanel({ entityType, entityId, projectId, files, edita
           </>
         )}
       </div>
-      {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
+      {hint && editable && <p className="text-xs text-muted-foreground">{hint}</p>}
       {files.length === 0 ? (
         <p className="text-sm text-muted-foreground border border-dashed rounded-xl p-4 text-center">لا توجد مرفقات</p>
       ) : (
@@ -308,6 +491,70 @@ export function ActivityTimeline({ entityType, entityId, labels }: { entityType:
         </ol>
       )}
     </div>
+  );
+}
+
+// The record's tracking log in a popover under a header icon, laid out like the History card on request pages
+export function ActivityHistory({ entityType, entityId, labels }: { entityType: PaymentEntityType; entityId: string; labels: Record<string, string> }) {
+  const [open, setOpen] = useState(false);
+  const { data = [], isLoading } = useQuery<ActivityRow[]>({
+    queryKey: ["payments", "activity", entityType, entityId],
+    queryFn: () => getJson(`/api/payments/activity?entityType=${entityType}&entityId=${entityId}`),
+    meta: paymentsQuery,
+    enabled: open,
+  });
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button type="button" variant="ghost" size="icon" className="rounded-full text-primary hover:bg-primary/10 hover:text-primary" title="السجل (History)">
+          <History className="w-4 h-4" />
+          <span className="sr-only">السجل</span>
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent align="end" dir="rtl" className="w-80 p-0 overflow-hidden rounded-2xl">
+        <div className="flex items-center gap-2 border-b bg-gradient-to-br from-primary/5 via-background to-background px-4 py-3">
+          <div className="p-1.5 rounded-lg bg-primary shadow-md shadow-primary/10">
+            <Clock className="w-4 h-4 text-primary-foreground" />
+          </div>
+          <span className="font-bold">السجل</span>
+          <span className="text-xs text-muted-foreground">History</span>
+        </div>
+        {/* The popover sits outside the dialog, whose scroll lock cancels the wheel there, so scroll it by hand */}
+        <div className="max-h-[360px] overflow-y-auto px-4 py-4" onWheel={(e) => { e.currentTarget.scrollTop += e.deltaY; }}>
+          {isLoading ? (
+            <p className="text-sm text-muted-foreground">…</p>
+          ) : data.length === 0 ? (
+            <p className="text-sm text-muted-foreground">لا يوجد سجل</p>
+          ) : (
+            <ol className="space-y-5">
+              {data.map((a, index) => (
+                <li key={a.id} className="relative ps-10">
+                  {index !== data.length - 1 && <div className="absolute start-[13px] top-8 -bottom-5 w-[2px] bg-muted" />}
+                  <div className="absolute start-0 top-0 w-7 h-7 rounded-full bg-background border border-primary/20 flex items-center justify-center shadow-sm">
+                    <Clock className="w-3.5 h-3.5 text-primary" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <Badge variant="secondary" className="text-[11px] font-bold px-2 py-0 h-5">{ACTION_LABELS[a.action] ?? a.action}</Badge>
+                      <span className="text-[11px] text-muted-foreground whitespace-nowrap" dir="ltr">{fmtDateTime(a.createdAt)}</span>
+                    </div>
+                    {a.toStatus && a.fromStatus !== a.toStatus && (
+                      <div className="text-xs text-muted-foreground">الحالة: <span className="font-semibold text-foreground">{labels[a.toStatus] ?? a.toStatus}</span></div>
+                    )}
+                    {a.note && <p className="text-sm leading-relaxed bg-muted/30 px-3 py-2 rounded-xl border border-muted/50">{a.note}</p>}
+                    <div className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
+                      <User className="w-3 h-3" />
+                      {a.userName ?? "—"}
+                    </div>
+                  </div>
+                </li>
+              ))}
+            </ol>
+          )}
+        </div>
+      </PopoverContent>
+    </Popover>
   );
 }
 

@@ -1,16 +1,15 @@
 // مقاولو الباطن: the project's register of subcontractors and the picker that every form uses instead of a typed name.
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Pencil, Plus, Trash2 } from "lucide-react";
+import { HardHat, Pencil, Plus, Save, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import { errorMessage, getJson, invalidatePayments, paymentsQuery, type PaymentsContext } from "./payments-common";
+import { PaymentDialog, errorMessage, getJson, invalidatePayments, paymentsQuery, type PaymentsContext } from "./payments-common";
 
 export interface SubcontractorRow {
   id: string;
@@ -81,12 +80,20 @@ export function SubcontractorDialog({ projectId, row, onClose, onSaved }: {
   });
 
   return (
-    <Dialog open onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-md">
-        <DialogHeader>
-          <DialogTitle>{row ? "تعديل مقاول الباطن" : "مقاول باطن جديد"}</DialogTitle>
-          <DialogDescription>يُسجَّل مرة واحدة في المشروع، ثم يُختار من القائمة في المستخلصات والخصومات.</DialogDescription>
-        </DialogHeader>
+    <PaymentDialog
+      onClose={onClose}
+      size="sm"
+      icon={HardHat}
+      kind="مقاول باطن"
+      title={row ? "تعديل مقاول الباطن" : "مقاول باطن جديد"}
+      description="يُسجَّل مرة واحدة في المشروع، ثم يُختار من القائمة في المستخلصات والخصومات"
+      footer={
+        <>
+          <Button disabled={save.isPending || !form.name.trim()} onClick={() => save.mutate()}><Save className="w-4 h-4 mr-1" /> حفظ</Button>
+          <Button variant="outline" onClick={onClose}>إلغاء</Button>
+        </>
+      }
+    >
         <div className="grid gap-3">
           <div className="space-y-1.5"><Label>الاسم</Label><Input value={form.name} onChange={(e) => set("name")(e.target.value)} /></div>
           <div className="space-y-1.5"><Label>نطاق العمل</Label><Input value={form.scope} onChange={(e) => set("scope")(e.target.value)} placeholder="كهرباء، تشطيبات…" /></div>
@@ -96,12 +103,7 @@ export function SubcontractorDialog({ projectId, row, onClose, onSaved }: {
           </div>
           <div className="space-y-1.5"><Label>شخص التواصل</Label><Input value={form.contactPerson} onChange={(e) => set("contactPerson")(e.target.value)} /></div>
         </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose}>إلغاء</Button>
-          <Button disabled={save.isPending || !form.name.trim()} onClick={() => save.mutate()}>حفظ</Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    </PaymentDialog>
   );
 }
 

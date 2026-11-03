@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Search, Paperclip, AlertTriangle, Send, CheckCircle2, XCircle, Ban, Banknote, Save } from "lucide-react";
+import { Plus, Search, Paperclip, AlertTriangle, Send, CheckCircle2, XCircle, Ban, Banknote, Save, HardHat } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -8,7 +8,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/lib/auth";
 import { apiRequest } from "@/lib/queryClient";
@@ -16,7 +15,11 @@ import { OPEN_PAYMENT_ORDER, SUB_CERT_LABELS, computeSubCert } from "@shared/pay
 import { ChargebacksPanel } from "./chargebacks";
 import { SubcontractorSelect, SubcontractorsPanel, type SubcontractorRow } from "./subcontractor-select";
 import {
-  ActivityTimeline,
+  LatestActivity,
+  PaymentDialog,
+  Section,
+  Tile,
+  TileRow,
   AttachmentsPanel,
   StatusBadge,
   errorMessage,
@@ -256,17 +259,50 @@ function SubCertDialog({ ctx, defaultProjectId, row, chargebacks, fines, allRows
   const L = (label: string, child: React.ReactNode, cls = "") => <div className={`space-y-1.5 ${cls}`}><Label>{label}</Label>{child}</div>;
 
   return (
-    <Dialog open onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-3">
-            {row ? <><span className="font-mono">{row.certNo}</span><StatusBadge status={row.status} labels={SUB_CERT_LABELS} /></> : "مستخلص مقاول باطن جديد"}
-          </DialogTitle>
-          <DialogDescription>{row ? row.projectName : "يُعدّه فريق المشروع، يعتمده مدير المشروع، ثم تصرفه المحاسبة بأمر دفع."}</DialogDescription>
-        </DialogHeader>
-
+    <PaymentDialog
+      onClose={onClose}
+      icon={HardHat}
+      kind="مستخلص مقاول باطن"
+      title={row ? <span className="font-mono">{row.certNo}</span> : "مستخلص جديد"}
+      badge={row ? <StatusBadge status={row.status} labels={SUB_CERT_LABELS} /> : undefined}
+      description={row ? row.projectName : "يُعدّه فريق المشروع، يعتمده مدير المشروع، ثم تصرفه المحاسبة بأمر دفع"}
+      amount={<span className={figures.netPayable < 0 ? "text-destructive" : undefined}>{money(figures.netPayable)}</span>}
+      amountLabel="الصافي المستحق"
+      panel={rejecting && (
+        <Section title="سبب الرفض" icon={XCircle} tone="danger">
+          <Textarea rows={2} value={note} onChange={(e) => setNote(e.target.value)} autoFocus />
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" size="sm" onClick={() => setRejecting(false)}>تراجع</Button>
+            <Button size="sm" variant="destructive" disabled={!note.trim() || act.isPending} onClick={() => act.mutate({ action: "reject", note })}>رفض المستخلص</Button>
+          </div>
+        </Section>
+      )}
+      footer={
+        <>
+          {/* The step this certificate is waiting for comes first */}
+          {editable && (
+            <Button disabled={save.isPending || !projectId || !form.subcontractorId} onClick={() => save.mutate()}><Save className="w-4 h-4 mr-1" /> حفظ</Button>
+          )}
+          {row && editable && (
+            <Button variant="outline" disabled={act.isPending || save.isPending || saveAndSubmit.isPending} onClick={() => saveAndSubmit.mutate()}><Send className="w-4 h-4 mr-1" /> إرسال للاعتماد</Button>
+          )}
+          {row?.status === "submitted" && ctx.perms.canApprove && (
+            <>
+              <Button disabled={act.isPending || ownCert} title={ownCert ? "لا يمكنك اعتماد مستخلص أعددته" : undefined} onClick={() => act.mutate({ action: "approve" })}><CheckCircle2 className="w-4 h-4 mr-1" /> اعتماد</Button>
+              <Button variant="outline" disabled={act.isPending} onClick={() => setRejecting(true)}><XCircle className="w-4 h-4 mr-1" /> رفض</Button>
+            </>
+          )}
+          {row?.status === "approved" && ctx.perms.isAccounting && !hasLiveOrder && (
+            <Button onClick={() => onRequestOrder(row.id)}><Banknote className="w-4 h-4 mr-1" /> إصدار أمر دفع</Button>
+          )}
+          {row && isOwner && ["draft", "submitted", "rejected", "approved"].includes(row.status) && !hasLiveOrder && (
+            <Button variant="ghost" className="text-destructive" disabled={act.isPending} onClick={() => act.mutate({ action: "cancel" })}><Ban className="w-4 h-4 mr-1" /> إلغاء المستخلص</Button>
+          )}
+        </>
+      }
+    >
         {row?.rejectReason && row.status === "rejected" && (
-          <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-3 text-sm"><b>سبب الرفض: </b>{row.rejectReason}</div>
+          <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm"><b>سبب الرفض: </b>{row.rejectReason}</div>
         )}
 
         <div className="grid sm:grid-cols-2 gap-3">
@@ -294,31 +330,29 @@ function SubCertDialog({ ctx, defaultProjectId, row, chargebacks, fines, allRows
           {L("ملاحظات", <Textarea rows={2} value={form.notes} disabled={!editable} onChange={(e) => set("notes")(e.target.value)} />, "sm:col-span-2")}
         </div>
 
-        <div className="rounded-2xl border bg-muted/30 p-4 grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
-          <div><div className="text-xs text-muted-foreground">قيمة الأعمال</div><div className="font-semibold tabular-nums">{money(num(form.grossAmount))}</div></div>
-          <div><div className="text-xs text-muted-foreground">الاستقطاع</div><div className="font-semibold tabular-nums">− {money(figures.retentionAmount)}</div></div>
-          <div><div className="text-xs text-muted-foreground">الدفعة المقدمة والخصومات</div><div className="font-semibold tabular-nums">− {money(num(form.advanceRecovery) + num(form.otherDeductions) + chargebackTotal)}</div></div>
-          <div><div className="text-xs text-muted-foreground">ضريبة القيمة المضافة</div><div className="font-semibold tabular-nums">+ {money(figures.vatAmount)}</div></div>
-          <div className="col-span-2 sm:col-span-4 border-t pt-2 flex items-center justify-between">
-            <span className="font-bold">الصافي المستحق</span>
-            <span className={`text-lg font-bold tabular-nums ${figures.netPayable < 0 ? "text-destructive" : ""}`}>{money(figures.netPayable)}</span>
-          </div>
+        <Section title="الحساب">
+          <TileRow>
+            <Tile label="قيمة الأعمال"><span className="tabular-nums">{money(num(form.grossAmount))}</span></Tile>
+            <Tile label="الاستقطاع"><span className="tabular-nums">− {money(figures.retentionAmount)}</span></Tile>
+            <Tile label="الدفعة المقدمة والخصومات"><span className="tabular-nums">− {money(num(form.advanceRecovery) + num(form.otherDeductions) + chargebackTotal)}</span></Tile>
+            <Tile label="ضريبة القيمة المضافة"><span className="tabular-nums">+ {money(figures.vatAmount)}</span></Tile>
+          </TileRow>
           {form.subcontractorId && (
-            <div className={`col-span-2 sm:col-span-4 text-xs flex items-center gap-1 ${overContract ? "text-destructive font-semibold" : "text-muted-foreground"}`}>
+            <div className={`text-xs flex items-center gap-1 ${overContract ? "text-destructive font-semibold" : "text-muted-foreground"}`}>
               {overContract && <AlertTriangle className="w-3.5 h-3.5" />}
               المعتمد سابقاً {money(previousGross)} + هذا المستخلص = {money(cumulative)}
               {num(form.contractValue) > 0 && ` من قيمة العقد ${money(num(form.contractValue))}`}
               {overContract && " — يتجاوز قيمة العقد"}
             </div>
           )}
-        </div>
+        </Section>
 
         {!row && (
           <p className="text-xs text-muted-foreground">لخصم فواتير محمَّلة على المقاول، احفظ المستخلص كمسودة ثم افتحه واختر الخصومات.</p>
         )}
         {row && (available.length > 0 || availableFines.length > 0 || chargebackTotal > 0) && (
-          <div className="space-y-2 rounded-xl border p-3">
-            <div className="text-sm font-bold">خصومات على المقاول (فواتير محمَّلة وخصومات مسجَّلة)</div>
+          <Section title="خصومات على المقاول (فواتير محمَّلة وخصومات مسجَّلة)">
+            <div className="rounded-md border border-muted/50 bg-muted/30 p-3 space-y-2">
             {editable ? (
               <ul className="space-y-1.5">
                 {available.map((c) => (
@@ -360,58 +394,27 @@ function SubCertDialog({ ctx, defaultProjectId, row, chargebacks, fines, allRows
                 ))}
               </ul>
             )}
-            <div className="flex justify-between text-sm border-t pt-2"><span>المجموع المخصوم</span><span className="tabular-nums font-bold">{money(chargebackTotal)}</span></div>
-          </div>
+            <div className="flex justify-between text-sm border-t border-muted/60 pt-2"><span>المجموع المخصوم</span><span className="tabular-nums font-bold">{money(chargebackTotal)}</span></div>
+            </div>
+          </Section>
         )}
 
         {row && (
           <>
-            <AttachmentsPanel
-              entityType="subcontractor_certificate"
-              entityId={row.id}
-              projectId={row.projectId}
-              files={row.attachments}
-              editable={!["paid", "cancelled"].includes(row.status)}
-              hint="أرفق المستخلص الموقّع وجداول الكميات وأي مستندات داعمة."
-              canRemove={(f) => f.uploadedBy === user?.id || ctx.perms.isAccounting}
-            />
-            <ActivityTimeline entityType="subcontractor_certificate" entityId={row.id} labels={SUB_CERT_LABELS} />
+            <LatestActivity entityType="subcontractor_certificate" entityId={row.id} labels={SUB_CERT_LABELS} />
+            <div className="rounded-md border border-dashed border-primary/20 bg-primary/5 p-3">
+              <AttachmentsPanel
+                entityType="subcontractor_certificate"
+                entityId={row.id}
+                projectId={row.projectId}
+                files={row.attachments}
+                editable={!["paid", "cancelled"].includes(row.status)}
+                hint="أرفق المستخلص الموقّع وجداول الكميات وأي مستندات داعمة."
+                canRemove={(f) => f.uploadedBy === user?.id || ctx.perms.isAccounting}
+              />
+            </div>
           </>
         )}
-
-        {rejecting && (
-          <div className="space-y-2 rounded-xl border p-3">
-            <Label>سبب الرفض</Label>
-            <Textarea rows={2} value={note} onChange={(e) => setNote(e.target.value)} />
-            <div className="flex justify-end gap-2">
-              <Button variant="outline" size="sm" onClick={() => setRejecting(false)}>تراجع</Button>
-              <Button size="sm" variant="destructive" disabled={!note.trim() || act.isPending} onClick={() => act.mutate({ action: "reject", note })}>رفض المستخلص</Button>
-            </div>
-          </div>
-        )}
-
-        <DialogFooter className="gap-2 sm:gap-2 flex-wrap">
-          {row && isOwner && ["draft", "submitted", "rejected", "approved"].includes(row.status) && !hasLiveOrder && (
-            <Button variant="ghost" className="text-destructive me-auto" disabled={act.isPending} onClick={() => act.mutate({ action: "cancel" })}><Ban className="w-4 h-4 mr-1" /> إلغاء المستخلص</Button>
-          )}
-          {row?.status === "approved" && ctx.perms.isAccounting && !hasLiveOrder && (
-            <Button onClick={() => onRequestOrder(row.id)}><Banknote className="w-4 h-4 mr-1" /> إصدار أمر دفع</Button>
-          )}
-          {row?.status === "submitted" && ctx.perms.canApprove && (
-            <>
-              <Button disabled={act.isPending || ownCert} title={ownCert ? "لا يمكنك اعتماد مستخلص أعددته" : undefined} onClick={() => act.mutate({ action: "approve" })}><CheckCircle2 className="w-4 h-4 mr-1" /> اعتماد</Button>
-              <Button variant="outline" disabled={act.isPending} onClick={() => setRejecting(true)}><XCircle className="w-4 h-4 mr-1" /> رفض</Button>
-            </>
-          )}
-          {row && editable && (
-            <Button variant="outline" disabled={act.isPending || save.isPending || saveAndSubmit.isPending} onClick={() => saveAndSubmit.mutate()}><Send className="w-4 h-4 mr-1" /> إرسال للاعتماد</Button>
-          )}
-          <Button variant="outline" onClick={onClose}>إغلاق</Button>
-          {editable && (
-            <Button disabled={save.isPending || !projectId || !form.subcontractorId} onClick={() => save.mutate()}><Save className="w-4 h-4 mr-1" /> حفظ</Button>
-          )}
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    </PaymentDialog>
   );
 }

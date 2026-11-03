@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Banknote, FilePlus2, HandCoins } from "lucide-react";
+import { Banknote, FilePlus2, HandCoins, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -8,13 +8,12 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { BILL_REQUEST_LABELS, PAYMENT_ORDER_LABELS } from "@shared/payments";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { CreateBillRequestDialog, type BillRequestPrefill } from "./bill-requests-tab";
 import { CreateOrderDialog } from "./orders-tab";
 import { FineDialog, type DeductionPrefill } from "./clearances-fines-tab";
-import { PoCard, StatusBadge, errorMessage, fmtDate, getJson, invalidatePayments, money, paymentsQuery, type PaymentsContext, type PaymentsOverview } from "./payments-common";
+import { PaymentDialog, PoCard, StatusBadge, errorMessage, fmtDate, getJson, invalidatePayments, money, paymentsQuery, type PaymentsContext, type PaymentsOverview } from "./payments-common";
 
 // What a page knows when it starts a payment action. Whatever is missing, the person fills in.
 export interface PaymentContext {
@@ -183,14 +182,24 @@ function RequestTransferDialog({ ctx, context, onClose }: { ctx: PaymentsContext
   const po = sources?.purchaseOrders.find((p) => p.id === form.purchaseOrderId);
 
   return (
-    <Dialog open onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>طلب تحويل مالي</DialogTitle>
-          <DialogDescription>
-            {goesToManagerFirst ? "يصل الطلب أولاً إلى مدير المشروع للموافقة، ثم إلى المحاسبة لإصدار أمر الدفع." : "يصل الطلب إلى المحاسبة لإصدار أمر الدفع."}
-          </DialogDescription>
-        </DialogHeader>
+    <PaymentDialog
+      onClose={onClose}
+      size="md"
+      icon={HandCoins}
+      kind="طلب تحويل"
+      title="طلب تحويل مالي"
+      description={goesToManagerFirst ? "يصل أولاً إلى مدير المشروع للموافقة، ثم إلى المحاسبة لإصدار أمر الدفع" : "يصل إلى المحاسبة لإصدار أمر الدفع"}
+      amount={Number(form.amount) > 0 ? money(form.amount) : undefined}
+      amountLabel="المبلغ المطلوب"
+      footer={
+        <>
+          <Button disabled={send.isPending || !projectId || !form.payeeName.trim() || !(Number(form.amount) > 0) || !form.reason.trim()} onClick={() => send.mutate()}>
+            <Send className="w-4 h-4 mr-1" /> إرسال الطلب
+          </Button>
+          <Button variant="outline" onClick={onClose}>إلغاء</Button>
+        </>
+      }
+    >
         <div className="grid gap-3">
           {!context.projectId && (
             <Field label="المشروع">
@@ -252,12 +261,7 @@ function RequestTransferDialog({ ctx, context, onClose }: { ctx: PaymentsContext
             <Textarea rows={3} value={form.reason} onChange={(e) => set("reason")(e.target.value)} placeholder="لماذا يلزم التحويل؟ مثال: دفعة مقدمة لتوريد الألواح حسب شروط أمر الشراء." />
           </Field>
         </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose}>إلغاء</Button>
-          <Button disabled={send.isPending || !projectId || !form.payeeName.trim() || !(Number(form.amount) > 0) || !form.reason.trim()} onClick={() => send.mutate()}>إرسال الطلب</Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    </PaymentDialog>
   );
 }
 

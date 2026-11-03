@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Search, Paperclip, AlertTriangle, Banknote, Trash2, Save, HandHelping, CheckCircle2, XCircle } from "lucide-react";
+import { Plus, Search, Paperclip, AlertTriangle, Banknote, Trash2, Save, HandHelping, CheckCircle2, XCircle, FileBadge, Gavel } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,7 +9,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/lib/auth";
 import { apiRequest } from "@/lib/queryClient";
@@ -22,7 +21,9 @@ import {
   OPEN_PAYMENT_ORDER,
 } from "@shared/payments";
 import {
-  ActivityTimeline,
+  LatestActivity,
+  PaymentDialog,
+  Section,
   AttachmentsPanel,
   StatusBadge,
   errorMessage,
@@ -207,12 +208,25 @@ function ClearanceDialog({ ctx, defaultProjectId, row, orders, onClose, onReques
   const canRequestPayment = ctx.perms.isAccounting && row && Number(row.feeAmount) > 0 && !row.feePaid && !hasLiveOrder;
 
   return (
-    <Dialog open onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>{row ? row.title : "رخصة / تصريح جديد"}</DialogTitle>
-          <DialogDescription>{row ? row.projectName : "تتبّع الرخص ورسومها مع المشروع والمالية."}</DialogDescription>
-        </DialogHeader>
+    <PaymentDialog
+      onClose={onClose}
+      icon={FileBadge}
+      kind="رخصة / تصريح"
+      title={row ? row.title : "رخصة / تصريح جديد"}
+      badge={row ? <StatusBadge status={row.status} labels={CLEARANCE_LABELS} /> : undefined}
+      description={row ? row.projectName : "تتبّع الرخص ورسومها مع المشروع والمالية"}
+      amount={Number(form.feeAmount) > 0 ? money(form.feeAmount) : undefined}
+      amountLabel={row?.feePaid ? "الرسوم (مسددة)" : "الرسوم"}
+      footer={
+        <>
+          <Button disabled={save.isPending || !form.title.trim() || !projectId} onClick={() => save.mutate()}><Save className="w-4 h-4 mr-1" /> حفظ</Button>
+          {canRequestPayment && <Button variant="outline" onClick={() => onRequestPayment(row.id)}><Banknote className="w-4 h-4 mr-1" /> أمر دفع للرسوم</Button>}
+          {row && ctx.perms.isAccounting && (
+            <Button variant="ghost" className="text-destructive" disabled={remove.isPending} onClick={() => remove.mutate()}><Trash2 className="w-4 h-4 mr-1" /> حذف</Button>
+          )}
+        </>
+      }
+    >
         <div className="grid sm:grid-cols-2 gap-3">
           <div className="sm:col-span-2"><ProjectSelect ctx={ctx} value={projectId} onChange={setProjectId} disabled={!!row} /></div>
           <div className="space-y-1.5 sm:col-span-2"><Label>البند</Label><Input value={form.title} onChange={(e) => set("title")(e.target.value)} placeholder="مثال: رخصة الدفاع المدني، شهادة إتمام البناء…" /></div>
@@ -239,21 +253,13 @@ function ClearanceDialog({ ctx, defaultProjectId, row, orders, onClose, onReques
 
         {row && (
           <>
-            <AttachmentsPanel entityType="clearance" entityId={row.id} projectId={row.projectId} files={row.attachments} editable canRemove={(f) => f.uploadedBy === user?.id || ctx.perms.isAccounting} hint="أرفق صورة الرخصة أو إيصال الرسوم." />
-            <ActivityTimeline entityType="clearance" entityId={row.id} labels={CLEARANCE_LABELS} />
+            <LatestActivity entityType="clearance" entityId={row.id} labels={CLEARANCE_LABELS} />
+            <div className="rounded-md border border-dashed border-primary/20 bg-primary/5 p-3">
+              <AttachmentsPanel entityType="clearance" entityId={row.id} projectId={row.projectId} files={row.attachments} editable canRemove={(f) => f.uploadedBy === user?.id || ctx.perms.isAccounting} hint="أرفق صورة الرخصة أو إيصال الرسوم." />
+            </div>
           </>
         )}
-
-        <DialogFooter className="gap-2 sm:gap-2 flex-wrap">
-          {row && ctx.perms.isAccounting && (
-            <Button variant="ghost" className="text-destructive me-auto" disabled={remove.isPending} onClick={() => remove.mutate()}><Trash2 className="w-4 h-4 mr-1" /> حذف</Button>
-          )}
-          {canRequestPayment && <Button variant="outline" onClick={() => onRequestPayment(row.id)}><Banknote className="w-4 h-4 mr-1" /> أمر دفع للرسوم</Button>}
-          <Button variant="outline" onClick={onClose}>إغلاق</Button>
-          <Button disabled={save.isPending || !form.title.trim() || !projectId} onClick={() => save.mutate()}><Save className="w-4 h-4 mr-1" /> حفظ</Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    </PaymentDialog>
   );
 }
 
@@ -399,12 +405,55 @@ export function FineDialog({ ctx, defaultProjectId, row, orders, onClose, onRequ
   const editableStatuses = Array.from(new Set(["open", "under_appeal", "cancelled", row?.status ?? "open"]));
 
   return (
-    <Dialog open onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-3">{row ? row.title : "خصم جديد"}{row && <StatusBadge status={row.status} labels={FINE_LABELS} />}</DialogTitle>
-          <DialogDescription>{row ? row.projectName : "سجّل الخصم لتُتابع مع المشروع والمالية حتى السداد."}</DialogDescription>
-        </DialogHeader>
+    <PaymentDialog
+      onClose={onClose}
+      icon={Gavel}
+      kind="خصم"
+      title={row ? row.title : "خصم جديد"}
+      badge={row ? <StatusBadge status={row.status} labels={FINE_LABELS} /> : undefined}
+      description={row ? row.projectName : "سجّل الخصم لتُتابع مع المشروع والمالية حتى السداد"}
+      amount={Number(form.amount) > 0 ? money(form.amount) : undefined}
+      panel={waiverPanel && (
+        <Section
+          title={waiverPanel === "request" ? "لماذا يجب إعفاء هذا الخصم؟" : waiverPanel === "recover" ? "كيف استُرد هذا الخصم من المقاول؟" : "سبب رفض الإعفاء"}
+          icon={waiverPanel === "reject" ? XCircle : waiverPanel === "recover" ? CheckCircle2 : HandHelping}
+          tone={waiverPanel === "reject" ? "danger" : undefined}
+        >
+          <Textarea rows={2} value={waiverNote} onChange={(e) => setWaiverNote(e.target.value)} autoFocus />
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" size="sm" onClick={() => setWaiverPanel(null)}>تراجع</Button>
+            <Button size="sm" variant={waiverPanel === "reject" ? "destructive" : "default"} disabled={!waiverNote.trim() || waiver.isPending || recover.isPending} onClick={() => (waiverPanel === "recover" ? recover.mutate(waiverNote) : waiver.mutate({ action: waiverPanel, note: waiverNote }))}>
+              {waiverPanel === "request" ? "إرسال الطلب" : waiverPanel === "recover" ? "تسجيل الاسترداد" : "رفض الطلب"}
+            </Button>
+          </div>
+        </Section>
+      )}
+      footer={
+        <>
+          {/* The step this deduction is waiting for comes first */}
+          {!locked && <Button disabled={save.isPending || !form.title.trim() || !projectId} onClick={() => save.mutate()}><Save className="w-4 h-4 mr-1" /> حفظ</Button>}
+          {row?.status === "waiver_requested" && ctx.perms.canApprove && (
+            <>
+              <Button disabled={waiver.isPending || ownWaiverRequest} title={ownWaiverRequest ? "لا يمكنك اعتماد طلب قدمته" : undefined} onClick={() => waiver.mutate({ action: "approve" })}>
+                <CheckCircle2 className="w-4 h-4 mr-1" /> اعتماد الإعفاء
+              </Button>
+              <Button variant="outline" disabled={waiver.isPending} onClick={() => { setWaiverNote(""); setWaiverPanel("reject"); }}>
+                <XCircle className="w-4 h-4 mr-1" /> رفض
+              </Button>
+            </>
+          )}
+          {canRequestPayment && <Button variant="outline" onClick={() => onRequestPayment(row.id)}><Banknote className="w-4 h-4 mr-1" /> أمر دفع للخصم</Button>}
+          {canRecover && <Button variant="outline" onClick={() => { setWaiverNote(""); setWaiverPanel("recover"); }}><CheckCircle2 className="w-4 h-4 mr-1" /> تسجيل الاسترداد</Button>}
+          {canRequestWaiver && <Button variant="outline" onClick={() => { setWaiverNote(""); setWaiverPanel("request"); }}><HandHelping className="w-4 h-4 mr-1" /> طلب إعفاء</Button>}
+          {row?.status === "waiver_requested" && (row.waiverRequestedBy === user?.id || ctx.perms.canApprove) && (
+            <Button variant="ghost" disabled={waiver.isPending} onClick={() => waiver.mutate({ action: "withdraw" })}>سحب الطلب</Button>
+          )}
+          {row && ctx.perms.isAccounting && !locked && (
+            <Button variant="ghost" className="text-destructive" disabled={remove.isPending} onClick={() => remove.mutate()}><Trash2 className="w-4 h-4 mr-1" /> حذف</Button>
+          )}
+        </>
+      }
+    >
         <div className="grid sm:grid-cols-2 gap-3">
           <div className="sm:col-span-2"><ProjectSelect ctx={ctx} value={projectId} onChange={setProjectId} disabled={!!row} /></div>
           <div className="space-y-1.5 sm:col-span-2"><Label>الخصم</Label><Input value={form.title} disabled={locked} onChange={(e) => set("title")(e.target.value)} placeholder="مثال: خصم تأخير، مخالفة سلامة موقع…" /></div>
@@ -438,65 +487,29 @@ export function FineDialog({ ctx, defaultProjectId, row, orders, onClose, onRequ
         </div>
         {locked && <p className="text-xs text-muted-foreground">هذا الخصم ضمن مسار السداد أو الإعفاء ولا يمكن تعديلها.</p>}
         {row?.waiverReason && ["waiver_requested", "waived"].includes(row.status) && (
-          <div className="rounded-xl border bg-violet-50 dark:bg-violet-900/10 p-3 text-sm">
+          <div className="rounded-md border bg-violet-50 dark:bg-violet-900/10 p-3 text-sm">
             <div className="font-bold mb-1">سبب طلب الإعفاء</div>
             {row.waiverReason}
           </div>
         )}
         {row?.status === "recovered" && (
-          <div className="rounded-xl border bg-emerald-50 dark:bg-emerald-900/10 p-3 text-sm">
+          <div className="rounded-md border bg-emerald-50 dark:bg-emerald-900/10 p-3 text-sm">
             <div className="font-bold mb-1">مُسترَد من المقاول{row.subcontractorName ? ` (${row.subcontractorName})` : ""}</div>
             {row.recoveredNote}
           </div>
         )}
         {row?.deductedCertificateId && row.status === "open" && (
-          <div className="rounded-xl border bg-violet-50 dark:bg-violet-900/10 p-3 text-sm">محجوز للخصم من مستخلص مقاول الباطن، ويُسجَّل مُستَرَدّاً عند اعتماد المستخلص.</div>
-        )}
-
-        {waiverPanel && (
-          <div className="space-y-2 rounded-xl border p-3">
-            <Label>{waiverPanel === "request" ? "لماذا يجب إعفاء هذا الخصم؟" : waiverPanel === "recover" ? "كيف استُرد هذا الخصم من المقاول؟" : "سبب رفض الإعفاء"}</Label>
-            <Textarea rows={2} value={waiverNote} onChange={(e) => setWaiverNote(e.target.value)} />
-            <div className="flex justify-end gap-2">
-              <Button variant="outline" size="sm" onClick={() => setWaiverPanel(null)}>تراجع</Button>
-              <Button size="sm" disabled={!waiverNote.trim() || waiver.isPending || recover.isPending} onClick={() => (waiverPanel === "recover" ? recover.mutate(waiverNote) : waiver.mutate({ action: waiverPanel, note: waiverNote }))}>
-                {waiverPanel === "request" ? "إرسال الطلب" : waiverPanel === "recover" ? "تسجيل الاسترداد" : "رفض الطلب"}
-              </Button>
-            </div>
-          </div>
+          <div className="rounded-md border bg-violet-50 dark:bg-violet-900/10 p-3 text-sm">محجوز للخصم من مستخلص مقاول الباطن، ويُسجَّل مُستَرَدّاً عند اعتماد المستخلص.</div>
         )}
 
         {row && (
           <>
-            <AttachmentsPanel entityType="fine" entityId={row.id} projectId={row.projectId} files={row.attachments} editable canRemove={(f) => f.uploadedBy === user?.id || ctx.perms.isAccounting} hint="أرفق إشعار الخصم وأي مراسلات اعتراض أو إيصال السداد." />
-            <ActivityTimeline entityType="fine" entityId={row.id} labels={FINE_LABELS} />
+            <LatestActivity entityType="fine" entityId={row.id} labels={FINE_LABELS} />
+            <div className="rounded-md border border-dashed border-primary/20 bg-primary/5 p-3">
+              <AttachmentsPanel entityType="fine" entityId={row.id} projectId={row.projectId} files={row.attachments} editable canRemove={(f) => f.uploadedBy === user?.id || ctx.perms.isAccounting} hint="أرفق إشعار الخصم وأي مراسلات اعتراض أو إيصال السداد." />
+            </div>
           </>
         )}
-
-        <DialogFooter className="gap-2 sm:gap-2 flex-wrap">
-          {row && ctx.perms.isAccounting && !locked && (
-            <Button variant="ghost" className="text-destructive me-auto" disabled={remove.isPending} onClick={() => remove.mutate()}><Trash2 className="w-4 h-4 mr-1" /> حذف</Button>
-          )}
-          {canRequestPayment && <Button variant="outline" onClick={() => onRequestPayment(row.id)}><Banknote className="w-4 h-4 mr-1" /> أمر دفع للخصم</Button>}
-          {canRecover && <Button variant="outline" onClick={() => { setWaiverNote(""); setWaiverPanel("recover"); }}><CheckCircle2 className="w-4 h-4 mr-1" /> تسجيل الاسترداد</Button>}
-          {canRequestWaiver && <Button variant="outline" onClick={() => { setWaiverNote(""); setWaiverPanel("request"); }}><HandHelping className="w-4 h-4 mr-1" /> طلب إعفاء</Button>}
-          {row?.status === "waiver_requested" && ctx.perms.canApprove && (
-            <>
-              <Button disabled={waiver.isPending || ownWaiverRequest} title={ownWaiverRequest ? "لا يمكنك اعتماد طلب قدمته" : undefined} onClick={() => waiver.mutate({ action: "approve" })}>
-                <CheckCircle2 className="w-4 h-4 mr-1" /> اعتماد الإعفاء
-              </Button>
-              <Button variant="outline" disabled={waiver.isPending} onClick={() => { setWaiverNote(""); setWaiverPanel("reject"); }}>
-                <XCircle className="w-4 h-4 mr-1" /> رفض
-              </Button>
-            </>
-          )}
-          {row?.status === "waiver_requested" && (row.waiverRequestedBy === user?.id || ctx.perms.canApprove) && (
-            <Button variant="ghost" disabled={waiver.isPending} onClick={() => waiver.mutate({ action: "withdraw" })}>سحب الطلب</Button>
-          )}
-          <Button variant="outline" onClick={onClose}>إغلاق</Button>
-          {!locked && <Button disabled={save.isPending || !form.title.trim() || !projectId} onClick={() => save.mutate()}><Save className="w-4 h-4 mr-1" /> حفظ</Button>}
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    </PaymentDialog>
   );
 }
