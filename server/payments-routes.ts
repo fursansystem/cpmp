@@ -54,9 +54,11 @@ import {
   type PaymentEntityType,
   type PaymentsPermissions,
   type PaymentsReport,
+  type PaymentMethod,
 } from "@shared/payments";
 import { notificationWss } from "./websocket";
 import { notificationService } from "./notification-service";
+import { webhookService } from "./webhook-service";
 
 type CurrentUser = { user: PermissionUser; orgId: string | null; teamMemberIds: string[] };
 
@@ -332,15 +334,16 @@ export function registerPaymentsRoutes(app: Express, deps: Deps) {
   const broadcast = (projectId: string, ctx: Ctx) =>
     notificationWss.broadcastPaymentsUpdate(projectId, ctx.cu.user.id);
 
-  const log = (
+  // Every logged step is also an outgoing webhook event: the payment entity types are webhook event types
+  const log = async (
     projectId: string,
     entityType: PaymentEntityType,
     entityId: string,
     action: string,
-    userId: string,
+    userId: string | null,
     extra: { from?: string | null; to?: string | null; note?: string | null } = {},
-  ) =>
-    db.insert(paymentActivity).values({
+  ) => {
+    await db.insert(paymentActivity).values({
       projectId,
       entityType,
       entityId,
@@ -350,6 +353,8 @@ export function registerPaymentsRoutes(app: Express, deps: Deps) {
       note: extra.note ?? null,
       userId,
     });
+    webhookService.emit({ event: entityType, action, projectId, recordId: entityId, actorId: userId, change: extra });
+  };
 
   // Numbers are per project. The unique index on (project_id, seq) is the real guard, so a
   // concurrent insert that picks the same number is retried rather than trusted.
@@ -907,6 +912,31 @@ export function registerPaymentsRoutes(app: Express, deps: Deps) {
   }));
 
   // ---- Payment orders ----
+  // Paying an order pays what it was raised for: the fine's balance, the clearance's fee, the certificate
+  const settlePaidSources = async (
+    tx: Parameters<Parameters<typeof db.transaction>[0]>[0],
+    order: typeof paymentOrders.$inferSelect,
+    now: Date,
+  ) => {
+    if (order.fineId) {
+      const [fine] = await tx.select().from(paymentFines).where(eq(paymentFines.id, order.fineId));
+      if (fine) {
+        const paid = n(fine.paidAmount) + n(order.amount);
+        await tx.update(paymentFines).set({
+          paidAmount: String(paid),
+          status: paid + 0.001 >= n(fine.amount) ? "paid" : "open",
+          updatedAt: now,
+        }).where(eq(paymentFines.id, fine.id));
+      }
+    }
+    if (order.clearanceId) {
+      await tx.update(paymentClearances).set({ feePaid: true, updatedAt: now }).where(eq(paymentClearances.id, order.clearanceId));
+    }
+    if (order.subcontractorCertificateId) {
+      await tx.update(paymentSubcontractorCertificates).set({ status: "paid", updatedAt: now }).where(eq(paymentSubcontractorCertificates.id, order.subcontractorCertificateId));
+    }
+  };
+
   const loadOrder = async (ctx: Ctx, id: string) => {
     const [row] = await db.select().from(paymentOrders).where(eq(paymentOrders.id, id));
     if (!row || !ctx.projectIds.has(row.projectId)) return fail(404, "Payment order not found");
@@ -1173,24 +1203,12 @@ export function registerPaymentsRoutes(app: Express, deps: Deps) {
         if (fine) {
           if (input.action === "submit") {
             await tx.update(paymentFines).set({ status: "payment_requested", updatedAt: now }).where(eq(paymentFines.id, fine.id));
-          } else if (input.action === "pay") {
-            const paid = n(fine.paidAmount) + n(order.amount);
-            await tx.update(paymentFines).set({
-              paidAmount: String(paid),
-              status: paid + 0.001 >= n(fine.amount) ? "paid" : "open",
-              updatedAt: now,
-            }).where(eq(paymentFines.id, fine.id));
           } else if (["reject", "cancel"].includes(input.action) && fine.status === "payment_requested") {
             await tx.update(paymentFines).set({ status: "open", updatedAt: now }).where(eq(paymentFines.id, fine.id));
           }
         }
       }
-      if (order.clearanceId && input.action === "pay") {
-        await tx.update(paymentClearances).set({ feePaid: true, updatedAt: now }).where(eq(paymentClearances.id, order.clearanceId));
-      }
-      if (order.subcontractorCertificateId && input.action === "pay") {
-        await tx.update(paymentSubcontractorCertificates).set({ status: "paid", updatedAt: now }).where(eq(paymentSubcontractorCertificates.id, order.subcontractorCertificateId));
-      }
+      if (input.action === "pay") await settlePaidSources(tx, order, now);
     });
 
     await log(order.projectId, "payment_order", order.id, input.action, ctx.cu.user.id, { from, to: patch.status as string, note: input.note });
@@ -2236,4 +2254,48 @@ export function registerPaymentsRoutes(app: Express, deps: Deps) {
     };
     res.json(result);
   }));
+
+  // ---- Payment confirmed in the ERP (ERPNext Payment Entry) ----
+  // Follows the same rules as the "pay" action: the order must already be approved here, so the
+  // approval chain is never skipped, and the amount must match.
+  async function markOrderPaidFromErp(
+    orderId: string,
+    orgProjectIds: Set<string>,
+    details: { paymentMethod: PaymentMethod; paymentReference: string | null; paidDate: string | null; amount: number; source: string },
+  ): Promise<{ ok: true; orderNo: string } | { ok: false; error: string }> {
+    const [order] = await db.select().from(paymentOrders).where(eq(paymentOrders.id, orderId));
+    if (!order || !orgProjectIds.has(order.projectId)) return { ok: false, error: "Payment order not found in this organization's projects" };
+    if (order.status === "paid") return { ok: false, error: `${order.orderNo} is already paid` };
+    if (order.status !== "approved") return { ok: false, error: `${order.orderNo} is "${order.status}"; only an approved order can be paid` };
+    if (Math.abs(details.amount - n(order.amount)) > 0.005) {
+      return { ok: false, error: `Paid amount ${details.amount} does not match ${order.orderNo}'s amount ${n(order.amount)}` };
+    }
+    const now = new Date();
+    await db.transaction(async (tx) => {
+      await tx.update(paymentOrders).set({
+        status: "paid",
+        paymentMethod: details.paymentMethod,
+        paymentReference: details.paymentReference,
+        paidDate: details.paidDate ?? today(),
+        paidAt: now,
+        updatedAt: now,
+      }).where(eq(paymentOrders.id, order.id));
+      await settlePaidSources(tx, order, now);
+    });
+    await log(order.projectId, "payment_order", order.id, "pay", null, { from: "approved", to: "paid", note: details.source });
+
+    // The ERP is not a user here: everyone who would normally hear about it does
+    const [project] = await db.select().from(projects).where(eq(projects.id, order.projectId));
+    const erpCtx: Ctx = {
+      cu: { user: { id: "erp", role: "user" } as PermissionUser, orgId: null, teamMemberIds: [] },
+      perms: { isAccounting: true, canApprove: false },
+      projects: project ? [project] : [],
+      projectIds: new Set([order.projectId]),
+    };
+    notifyOrderOwners(erpCtx, order, "تم صرف الدفعة (من نظام ERP)", `${order.orderNo} · ${order.payeeName} · ${amountText(order.amount)}`, "orders", order.id);
+    notificationWss.broadcastPaymentsUpdate(order.projectId, "erp");
+    return { ok: true, orderNo: order.orderNo };
+  }
+
+  return { markOrderPaidFromErp };
 }

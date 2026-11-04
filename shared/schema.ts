@@ -669,6 +669,7 @@ export const suppliers = pgTable("suppliers", {
   logoUrl: text("logo_url"), // شعار المورد
   category: text("category"), // فئة المورد (مثل: مدني، ميكانيكا، إلخ)
   experienceYears: integer("experience_years"), // سنوات الخبرة
+  erpSupplier: text("erp_supplier"), // معرّف المورد في ERPNext، يبقيه متزامناً معه
 });
 
 // Material Suppliers - Junction table for many-to-many relationship
@@ -2970,3 +2971,99 @@ export type PaymentAttachment = typeof paymentAttachments.$inferSelect;
 export type PaymentActivity = typeof paymentActivity.$inferSelect;
 
 
+
+// ==================== OUTGOING WEBHOOKS ====================
+// An organization registers a URL (its ERP, usually) and the event types it wants. Every matching
+// event becomes a delivery row that the webhook service signs and POSTs, retrying until it lands.
+export const webhooks = pgTable("webhooks", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  organizationId: varchar("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  url: text("url").notNull(),
+  // Kept in plain text because every delivery is signed with it; the API never returns it after creation
+  secret: text("secret").notNull(),
+  events: text("events").array().notNull().default(sql`ARRAY[]::text[]`),
+  active: boolean("active").notNull().default(true),
+  createdBy: varchar("created_by").references(() => users.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => ({
+  orgIdx: index("webhooks_org_idx").on(table.organizationId),
+}));
+
+export const webhookDeliveries = pgTable("webhook_deliveries", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  webhookId: varchar("webhook_id").notNull().references(() => webhooks.id, { onDelete: "cascade" }),
+  event: text("event").notNull(),
+  action: text("action"),
+  payload: jsonb("payload").$type<Record<string, unknown>>().notNull(),
+  // pending → success | failed (failed only once the retries run out)
+  status: text("status").notNull().default("pending"),
+  attempts: integer("attempts").notNull().default(0),
+  nextAttemptAt: timestamp("next_attempt_at").defaultNow(),
+  responseStatus: integer("response_status"),
+  responseBody: text("response_body"),
+  error: text("error"),
+  durationMs: integer("duration_ms"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  deliveredAt: timestamp("delivered_at"),
+}, (table) => ({
+  webhookIdx: index("webhook_deliveries_webhook_idx").on(table.webhookId, table.createdAt),
+  dueIdx: index("webhook_deliveries_due_idx").on(table.status, table.nextAttemptAt),
+}));
+
+export type Webhook = typeof webhooks.$inferSelect;
+export type WebhookDelivery = typeof webhookDeliveries.$inferSelect;
+
+// ==================== ERPNEXT (INCOMING) ====================
+// One ERPNext site per organization. ERPNext pushes Supplier and Payment Entry changes to us through its
+// own Webhook feature (signed with webhookSecret); supplier statements are pulled from its REST API
+// with the API key/secret.
+export const erpConnections = pgTable("erp_connections", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  organizationId: varchar("organization_id").notNull().unique().references(() => organizations.id, { onDelete: "cascade" }),
+  baseUrl: text("base_url").notNull(), // https://erp.example.com
+  company: text("company"), // the ERPNext Company the statements are for
+  apiKey: text("api_key"),
+  apiSecret: text("api_secret"),
+  webhookSecret: text("webhook_secret").notNull(),
+  active: boolean("active").notNull().default(true),
+  createdBy: varchar("created_by").references(() => users.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+// ERPNext's supplier list as last pushed to us. Project suppliers linked to an entry (by erpSupplier, or
+// matched on tax number) are kept in step with it.
+export const erpSuppliers = pgTable("erp_suppliers", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  organizationId: varchar("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  erpName: text("erp_name").notNull(), // ERPNext's Supplier ID (its "name")
+  supplierName: text("supplier_name").notNull(),
+  taxId: text("tax_id"),
+  email: text("email"),
+  phone: text("phone"),
+  supplierGroup: text("supplier_group"),
+  disabled: boolean("disabled").notNull().default(false),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => ({
+  erpNameUq: uniqueIndex("erp_suppliers_org_name_uq").on(table.organizationId, table.erpName),
+}));
+
+export const erpInboundLog = pgTable("erp_inbound_log", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  organizationId: varchar("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  doctype: text("doctype"),
+  docName: text("doc_name"),
+  event: text("event"),
+  status: text("status").notNull(), // applied | ignored | rejected
+  message: text("message"),
+  payload: jsonb("payload").$type<Record<string, unknown>>(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => ({
+  orgIdx: index("erp_inbound_log_org_idx").on(table.organizationId, table.createdAt),
+}));
+
+export type ErpConnection = typeof erpConnections.$inferSelect;
+export type ErpSupplier = typeof erpSuppliers.$inferSelect;
+export type ErpInboundLog = typeof erpInboundLog.$inferSelect;

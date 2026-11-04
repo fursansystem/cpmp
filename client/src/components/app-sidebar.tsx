@@ -66,6 +66,7 @@ export function AppSidebar() {
   const { user } = useAuth();
   const isViewOnlyUser = user?.role === "user";
   const isSuperAdmin = user?.role === "super_admin";
+  const canManageWebhooks = ["super_admin", "developer_admin", "org_admin"].includes(user?.role ?? "");
 
   const filteredMenuItems = menuItems.filter(item => {
     if (item.title === "Budget" && user?.organizationSectorType === "Consultant") {
@@ -141,6 +142,16 @@ export function AppSidebar() {
                             </Link>
                           </SidebarMenuSubButton>
                         </SidebarMenuSubItem>
+                        {canManageWebhooks && (
+                          <SidebarMenuSubItem>
+                            <SidebarMenuSubButton asChild isActive={location === "/settings/webhooks"} className="text-slate-500 hover:text-primary hover:bg-primary/5 data-[active=true]:text-primary data-[active=true]:bg-primary/5 font-bold rounded-lg transition-all h-10 group/sub">
+                              <Link href="/settings/webhooks" data-testid="link-settings-webhooks" className="flex items-center gap-2">
+                                <div className="w-1 h-1 rounded-full bg-current opacity-40 group-hover/sub:opacity-100 transition-opacity" />
+                                <span className="text-[11px] uppercase tracking-widest">Webhooks (ERP)</span>
+                              </Link>
+                            </SidebarMenuSubButton>
+                          </SidebarMenuSubItem>
+                        )}
                         <SidebarMenuSubItem>
                           <SidebarMenuSubButton asChild isActive={location === "/admin"} className="text-slate-500 hover:text-primary hover:bg-primary/5 data-[active=true]:text-primary data-[active=true]:bg-primary/5 font-bold rounded-lg transition-all h-10 group/sub">
                             <Link href="/admin" data-testid="link-admin" className="flex items-center gap-2">

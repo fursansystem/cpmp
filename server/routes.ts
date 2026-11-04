@@ -64,6 +64,9 @@ import { requests, requestRevisions, requestWorkLocations, requestPurposes, work
 import { Resend } from "resend";
 import { registerProgressMatrixRoutes } from "./progress-matrix-routes";
 import { registerPaymentsRoutes } from "./payments-routes";
+import { registerWebhookRoutes } from "./webhook-routes";
+import { webhookService } from "./webhook-service";
+import { registerErpRoutes } from "./erp-routes";
 import { applyApprovedWirRevision, countCertificatesByProject } from "./progress-matrix-service";
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
@@ -571,7 +574,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Progress Matrix & Payment Certificates (مصفوفة الإنجاز والمستخلصات)
   registerProgressMatrixRoutes(app, { getCurrentUserWithOrg, handleError });
-  registerPaymentsRoutes(app, { getCurrentUserWithOrg, handleError });
+  const { markOrderPaidFromErp } = registerPaymentsRoutes(app, { getCurrentUserWithOrg, handleError });
+
+  // Outgoing webhooks (ERP integration): endpoint management, and the worker that retries deliveries
+  registerWebhookRoutes(app, { getCurrentUserWithOrg, handleError });
+  webhookService.start();
+  // Incoming from ERPNext: suppliers, payment confirmations, supplier statements
+  registerErpRoutes(app, { getCurrentUserWithOrg, handleError, markOrderPaidFromErp });
 
   app.post("/api/deliveries/bulk", async (req, res) => {
     try {
@@ -3271,6 +3280,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         performedBy: ctx.currentUser.user.id,
       });
       res.status(201).json(movement);
+      webhookService.emit({ event: "stock_movement", action: "created", projectId: req.params.projectId, record: movement, actorId: ctx.currentUser.user.id });
 
       if (stockDirection(movement.movementType) === "out") {
         void alertLowStock(
@@ -3420,6 +3430,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         createdBy: ctx.currentUser.user.id,
       });
       res.status(201).json(transfer);
+      webhookService.emit({ event: "stock_transfer", action: "created", projectId: req.params.projectId, record: transfer, actorId: ctx.currentUser.user.id });
     } catch (error) {
       handleError(res, error);
     }
@@ -3484,6 +3495,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         createdBy: ctx.currentUser.user.id,
       });
       res.status(201).json(issue);
+      webhookService.emit({ event: "material_issue", action: "created", projectId: req.params.projectId, recordId: issue.id, actorId: ctx.currentUser.user.id });
 
       // A pending voucher has not moved any stock yet, so there is nothing to alert on.
       if (issue.status === "issued") {
@@ -3509,6 +3521,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ error: "منصبك لا يملك صلاحية اعتماد سندات الصرف في هذا المشروع" });
       }
       res.json(await storage.approveMaterialIssue(req.params.id, ctx.currentUser.user.id));
+      webhookService.emit({ event: "material_issue", action: "approved", projectId: issue.projectId, recordId: issue.id, actorId: ctx.currentUser.user.id });
 
       // Approval is where a pending voucher's stock actually leaves the warehouse.
       void alertLowStock(
@@ -3533,6 +3546,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       const { rejectionReason } = rejectMaterialIssueSchema.parse(req.body);
       res.json(await storage.rejectMaterialIssue(req.params.id, ctx.currentUser.user.id, rejectionReason));
+      webhookService.emit({ event: "material_issue", action: "rejected", projectId: issue.projectId, recordId: issue.id, actorId: ctx.currentUser.user.id, change: { note: rejectionReason } });
     } catch (error) {
       handleError(res, error);
     }
@@ -3549,6 +3563,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ error: "ليس لديك صلاحية إلغاء سندات الصرف" });
       }
       res.json(await storage.cancelMaterialIssue(req.params.id, ctx.currentUser.user.id));
+      webhookService.emit({ event: "material_issue", action: "cancelled", projectId: issue.projectId, recordId: issue.id, actorId: ctx.currentUser.user.id });
     } catch (error) {
       handleError(res, error);
     }
@@ -8632,6 +8647,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const assignments = Array.isArray(req.body?.assignments) ? req.body.assignments : [];
       const pos = await storage.createPurchaseOrdersFromAssignments(req.params.rfqId, assignments, user?.id);
       res.status(201).json(pos);
+      for (const po of pos) {
+        if (po) webhookService.emit({ event: "purchase_order", action: "created", projectId: po.projectId, record: po, actorId: user?.id });
+      }
     } catch (error: any) {
       if (error instanceof Error && !(error as any).code) {
         return res.status(400).json({ message: error.message });
@@ -8704,6 +8722,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const fullPo = await storage.getPurchaseOrder(po.id);
       res.status(201).json(fullPo);
+      webhookService.emit({ event: "purchase_order", action: "created", projectId, record: fullPo, actorId: user?.id });
     } catch (error) {
       handleError(res, error);
     }
@@ -8725,6 +8744,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       const po = await storage.approvePurchaseOrder(req.params.id, currentUser.user.id);
       res.json(po);
+      webhookService.emit({ event: "purchase_order", action: "approved", projectId: po.projectId, recordId: po.id, actorId: currentUser.user.id });
     } catch (error) {
       handleError(res, error);
     }
@@ -8753,6 +8773,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         performedBy: ctx.currentUser.user.id,
       });
       res.status(201).json(receipt);
+      // data is the order with its updated received quantities; the shipment itself rides along
+      webhookService.emit({ event: "purchase_order", action: "received", projectId: po.projectId, recordId: po.id, actorId: ctx.currentUser.user.id, extra: { receipt } });
     } catch (error) {
       handleError(res, error);
     }

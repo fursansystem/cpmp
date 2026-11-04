@@ -26,6 +26,7 @@ import Documents from "@/pages/documents";
 import AuditLog from "@/pages/audit-log";
 import Settings from "@/pages/settings";
 import About from "@/pages/about";
+import Webhooks from "@/pages/webhooks";
 import Admin from "@/pages/admin";
 import ListLibrary from "@/pages/list-library";
 import WorkList from "@/pages/work-list";
@@ -118,6 +119,7 @@ function ProtectedRoutes() {
       <Route path="/audit-log" component={AuditLog} />
       <Route path="/settings" component={Settings} />
       <Route path="/settings/about" component={About} />
+      <Route path="/settings/webhooks" component={Webhooks} />
       <Route path="/admin" component={Admin} />
       <Route path="/list-library" component={ListLibrary} />
       <Route path="/work-list" component={WorkList} />
