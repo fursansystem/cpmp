@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
+import { BackButton } from "@/components/back-button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Card } from "@/components/ui/card";
@@ -271,6 +272,7 @@ export default function ChecklistPage() {
 
   return (
     <div className="p-6 space-y-6">
+      <BackButton label="Back to List Library" to="/list-library" />
       <h1 className="text-2xl font-display font-bold">Checklist</h1>
       
       <Tabs 

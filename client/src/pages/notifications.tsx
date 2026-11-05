@@ -1,6 +1,7 @@
 import { Bell, Check, CheckCheck, Trash2, Info, AlertCircle, CheckCircle, AlertTriangle, FileText, UserPlus, RefreshCw, Hourglass } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { BackButton } from "@/components/back-button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useNotifications } from "@/hooks/use-notifications";
@@ -142,6 +143,7 @@ export default function Notifications() {
 
   return (
     <div className="p-6 lg:p-8 space-y-6">
+      <BackButton label="Back" />
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div className="flex items-center gap-3">
           <Bell className="w-8 h-8 text-primary" />

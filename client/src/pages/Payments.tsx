@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useLocation, useSearch } from "wouter";
-import { BarChart3, Wallet, Hourglass, FileText, Banknote, ShieldAlert } from "lucide-react";
+import { ArrowLeft, BarChart3, Wallet, Hourglass, FileText, Banknote, ShieldAlert } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { StatCard } from "@/components/stat-card";
@@ -54,6 +55,7 @@ function CountBadge({ n }: { n: number }) {
 export default function Payments() {
   const [tab, setTab] = useState(["reports", null, ""].includes(query("tab")) ? "dashboard" : (query("tab") as string)); // reports moved to /reports
   const [projectId, setProjectId] = useState(query("project") || "all");
+  const [, navigate] = useLocation();
   // A notification can point at another tab or project while this page is already open
   const search = useSearch();
   useEffect(() => {
@@ -120,6 +122,16 @@ export default function Payments() {
 
   return (
     <div className="p-6 lg:p-8 space-y-6" data-testid="page-payments">
+      <Button
+        variant="ghost"
+        size="sm"
+        className="-ml-2 h-8 w-8 p-0 md:h-auto md:w-auto md:px-3 md:py-2 text-muted-foreground hover:text-foreground shrink-0 shadow-sm"
+        onClick={() => navigate(projectId === "all" ? "/projects" : `/projects/${projectId}`)}
+        data-testid="button-back-to-project"
+      >
+        <ArrowLeft className="w-5 h-5 md:mr-2" />
+        <span className="hidden md:inline font-semibold">{projectId === "all" ? "Back to Projects" : "Back to Project"}</span>
+      </Button>
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div>
           <h1 className="text-3xl font-bold font-display mb-2">المدفوعات</h1>

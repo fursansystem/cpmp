@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { BackButton } from "@/components/back-button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ReportsLibraryTab, isReportId, type ReportId } from "@/components/payments/reports-library-tab";
@@ -34,6 +35,7 @@ export default function Reports() {
 
   return (
     <div className="p-6 lg:p-8 space-y-6" data-testid="page-reports">
+      <BackButton label="Back to Payments" to={projectId === "all" ? "/payments" : `/payments?project=${projectId}`} />
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div>
           <h1 className="text-3xl font-bold font-display mb-2">التقارير</h1>

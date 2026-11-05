@@ -12,8 +12,10 @@ import {
   SidebarMenuSubItem,
   SidebarMenuSubButton,
   SidebarHeader,
+  useSidebar,
 } from "@/components/ui/sidebar";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { useState } from "react";
 import { Link, useLocation } from "wouter";
 import { useAuth } from "@/lib/auth";
 import { cn } from "@/lib/utils";
@@ -61,8 +63,15 @@ const menuItems = [
   },
 ];
 
+// On the collapsed rail a menu button is a centered square holding only its icon
+const RAIL_BUTTON = "group-data-[collapsible=icon]:!size-11 group-data-[collapsible=icon]:!p-0 group-data-[collapsible=icon]:mx-auto group-data-[collapsible=icon]:justify-center";
+const RAIL_HIDDEN = "group-data-[collapsible=icon]:hidden";
+
 export function AppSidebar() {
   const [location] = useLocation();
+  const { state, isMobile, setOpen } = useSidebar();
+  const [settingsOpen, setSettingsOpen] = useState(true);
+  const isRail = state === "collapsed" && !isMobile;
   const { user } = useAuth();
   const isViewOnlyUser = user?.role === "user";
   const isSuperAdmin = user?.role === "super_admin";
@@ -79,27 +88,27 @@ export function AppSidebar() {
   });
 
   return (
-    <Sidebar className="bg-white dark:bg-sidebar border-r border-slate-200 dark:border-white/5">
-      <SidebarHeader className="p-8 pb-6 border-none">
-        <div className="flex items-center gap-2">
-          <img src="/favicon.png" alt="Fursan Logo" className="w-16 h-16 " />
-          <div>
+    <Sidebar collapsible="icon" className="bg-white dark:bg-sidebar border-r border-slate-200 dark:border-white/5">
+      <SidebarHeader className="p-8 pb-6 border-none group-data-[collapsible=icon]:p-3">
+        <div className="flex items-center gap-2 group-data-[collapsible=icon]:justify-center">
+          <img src="/favicon.png" alt="Fursan Logo" className="w-16 h-16 group-data-[collapsible=icon]:w-12 group-data-[collapsible=icon]:h-12" />
+          <div className={RAIL_HIDDEN}>
             <h1 className="font-display font-bold text-lg text-slate-900 dark:text-white tracking-tight">ProjectManager</h1>
             <p className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest">Pro Contracting</p>
           </div>
         </div>
       </SidebarHeader>
-      <SidebarContent>
+      <SidebarContent className="group-data-[collapsible=icon]:!overflow-y-auto">
         <SidebarGroup>
-          <SidebarGroupLabel className="text-slate-400 font-bold text-[10px] uppercase tracking-[0.15em] mb-2">Navigation System</SidebarGroupLabel>
+          <SidebarGroupLabel className={cn("text-slate-400 font-bold text-[10px] uppercase tracking-[0.15em] mb-2", RAIL_HIDDEN)}>Navigation System</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               {filteredMenuItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton asChild isActive={location === item.url} className="text-slate-600 dark:text-slate-400 hover:text-primary hover:bg-primary/5 data-[active=true]:bg-primary/10 data-[active=true]:text-primary font-black rounded-xl transition-all h-11 group">
+                  <SidebarMenuButton asChild tooltip={item.title} isActive={location === item.url} className={cn("text-slate-600 dark:text-slate-400 hover:text-primary hover:bg-primary/5 data-[active=true]:bg-primary/10 data-[active=true]:text-primary font-black rounded-xl transition-all h-11 group", RAIL_BUTTON)}>
                     <Link href={item.url} data-testid={`link-${item.title.toLowerCase()}`}>
                       <item.icon className="w-4 h-4 transition-transform group-hover:scale-110" />
-                      <span className="text-xs uppercase tracking-[0.15em]">{item.title}</span>
+                      <span className={cn("text-xs uppercase tracking-[0.15em]", RAIL_HIDDEN)}>{item.title}</span>
                     </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
@@ -112,16 +121,29 @@ export function AppSidebar() {
           <SidebarGroup>
             <SidebarGroupContent>
               <SidebarMenu>
-                <Collapsible defaultOpen className="group/collapsible">
+                <Collapsible
+                  open={settingsOpen}
+                  // The rail has no room for the sub-links, so Settings opens the full sidebar there
+                  onOpenChange={(next) => {
+                    if (isRail) {
+                      setOpen(true);
+                      setSettingsOpen(true);
+                    } else {
+                      setSettingsOpen(next);
+                    }
+                  }}
+                  className="group/collapsible"
+                >
                   <SidebarMenuItem>
                     <CollapsibleTrigger asChild>
-                      <SidebarMenuButton 
+                      <SidebarMenuButton
+                        tooltip="Settings"
                         isActive={location.startsWith("/settings") || location === "/admin" || location === "/list-library"}
-                        className="text-slate-600 dark:text-slate-400 hover:text-primary hover:bg-primary/5 data-[active=true]:bg-primary/10 data-[active=true]:text-primary font-black rounded-xl transition-all h-11 group"
+                        className={cn("text-slate-600 dark:text-slate-400 hover:text-primary hover:bg-primary/5 data-[active=true]:bg-primary/10 data-[active=true]:text-primary font-black rounded-xl transition-all h-11 group", RAIL_BUTTON)}
                       >
                         <Settings className="w-4 h-4 transition-transform group-hover:rotate-45" />
-                        <span className="text-xs uppercase tracking-[0.15em]">Settings</span>
-                        <ChevronDown className="ml-auto h-4 w-4 transition-transform group-data-[state=open]/collapsible:rotate-180" />
+                        <span className={cn("text-xs uppercase tracking-[0.15em]", RAIL_HIDDEN)}>Settings</span>
+                        <ChevronDown className={cn("ml-auto h-4 w-4 transition-transform group-data-[state=open]/collapsible:rotate-180", RAIL_HIDDEN)} />
                       </SidebarMenuButton>
                     </CollapsibleTrigger>
                     <CollapsibleContent>
