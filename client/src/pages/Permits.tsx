@@ -37,7 +37,8 @@ import {
   usePermitsContext,
   type PermitRow,
 } from "@/components/permits/permits-common";
-import { NewTransactionDialog, ServiceCatalogTab, useCatalog } from "@/components/permits/service-catalog";
+import { NewTransactionDialog, useCatalog } from "@/components/permits/service-catalog";
+import { ServicesBrowser, ServicesHero } from "@/pages/Services";
 
 const query = (key: string) => {
   try {
@@ -52,9 +53,12 @@ const isOpen = (s: string) => (OPEN_PERMIT as readonly string[]).includes(s);
 export default function Permits() {
   const [, navigate] = useLocation();
   const search = useSearch();
-  const [tab, setTab] = useState(query("tab") || "transactions");
+  const [tab, setTab] = useState(query("tab") || "catalog");
   const [projectId, setProjectId] = useState(query("project") || "all");
   const { data: ctx, isLoading: ctxLoading } = usePermitsContext();
+  const [q, setQ] = useState("");
+  // typing in the directory search shows the directory
+  const onSearch = (v: string) => { setQ(v); if (v) setTab("catalog"); };
 
   useEffect(() => {
     const params = new URLSearchParams(search);
@@ -93,40 +97,24 @@ export default function Permits() {
     expiring: rows.filter((r) => r.attention === "expiring").length,
     expired: rows.filter((r) => r.attention === "expired").length,
   };
-  const isDeveloperSomewhere = ctx.projects.some((p) => p.isDeveloper);
 
   return (
     <div className="p-6 lg:p-8 space-y-6" dir="rtl" data-testid="page-permits">
-      <div className="flex items-center justify-between flex-wrap gap-4">
-        <div>
-          <h1 className="text-3xl font-bold font-display mb-2">الرخص والمعاملات</h1>
-          <p className="text-muted-foreground">
-            {isDeveloperSomewhere
-              ? "متابعة إجراءات المشاريع لدى الجهات الحكومية وغيرها: الخطوات والمتطلبات والمستندات والرسوم وتواريخ الانتهاء"
-              : "المعاملات والخطوات المُسندة إليك في مشاريعك"}
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-        <Button variant="outline" asChild><Link href="/services"><Landmark className="w-4 h-4 me-1" /> دليل الخدمات</Link></Button>
+      <ServicesHero ctx={ctx} q={q} onSearch={onSearch}>
         {ctx.projects.length > 0 && (
           <Select value={projectId} onValueChange={setProjectId}>
-            <SelectTrigger className="w-[260px]" data-testid="select-permits-project"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="w-[240px] bg-background" data-testid="select-permits-project"><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">كل المشاريع</SelectItem>
               {ctx.projects.map((p) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
             </SelectContent>
           </Select>
         )}
-        </div>
-      </div>
+      </ServicesHero>
 
       {ctx.projects.length === 0 ? (
-        <Card>
-          <div className="p-12 flex flex-col items-center text-center gap-3">
-            <div className="w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center"><Landmark className="w-7 h-7 text-primary" /></div>
-            <h3 className="font-semibold font-display">لا توجد مشاريع متاحة لك</h3>
-          </div>
-        </Card>
+        // no projects yet: the directory is still worth browsing
+        <ServicesBrowser ctx={ctx} projectId={projectId} q={q} setQ={setQ} />
       ) : (
         <>
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -138,10 +126,10 @@ export default function Permits() {
 
           <Tabs value={tab} onValueChange={setTab} className="space-y-4">
             <TabsList className="h-auto flex-wrap justify-start">
+              <TabsTrigger value="catalog">دليل الخدمات</TabsTrigger>
               <TabsTrigger value="transactions">المعاملات</TabsTrigger>
               <TabsTrigger value="mine">مهامي</TabsTrigger>
               <TabsTrigger value="licences">الرخص وتواريخ الانتهاء{stats.expiring + stats.expired > 0 && <Badge variant="secondary" className="ms-2 h-5 px-1.5 rounded-full bg-destructive/15 text-destructive">{stats.expiring + stats.expired}</Badge>}</TabsTrigger>
-              <TabsTrigger value="catalog">دليل الخدمات</TabsTrigger>
             </TabsList>
             <TabsContent value="transactions">
               {isLoading ? <Skeleton className="h-96 rounded-2xl" /> : <TransactionsTab ctx={ctx} projectId={projectId} rows={rows} />}
@@ -150,7 +138,7 @@ export default function Permits() {
             <TabsContent value="licences">
               {isLoading ? <Skeleton className="h-96 rounded-2xl" /> : <LicencesTab projectId={projectId} rows={rows} />}
             </TabsContent>
-            <TabsContent value="catalog"><ServiceCatalogTab ctx={ctx} projectId={projectId} /></TabsContent>
+            <TabsContent value="catalog"><ServicesBrowser ctx={ctx} projectId={projectId} q={q} setQ={setQ} /></TabsContent>
           </Tabs>
         </>
       )}

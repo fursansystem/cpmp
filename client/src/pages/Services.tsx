@@ -1,8 +1,8 @@
 // دليل الخدمات — the landing page of the service directory, in the spirit of the national portal's services page:
 // a search hero, the categories with their counts, the authorities, then the services themselves. Opening a service
 // shows its steps, requirements, documents, fee and duration, and the developer can start a transaction from it.
-import { useMemo, useState } from "react";
-import { Link } from "wouter";
+import { useEffect, useMemo, useState } from "react";
+import { useLocation } from "wouter";
 import {
   ArrowLeft, Building2, Clock, Droplets, FileText, Flame, Home, Landmark, Leaf, ListChecks, Plus, Search, ShieldCheck, Sparkles, Zap, type LucideIcon,
 } from "lucide-react";
@@ -13,7 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { PERMIT_CATEGORIES, PERMIT_CATEGORY_LABELS, type PermitCategory } from "@shared/permits";
-import { usePermitsContext } from "@/components/permits/permits-common";
+import type { PermitsContext } from "@shared/permits";
 import {
   NewTransactionDialog, ServiceDetailDialog, ServiceEditorDialog, feeText, useCatalog, type CatalogService,
 } from "@/components/permits/service-catalog";
@@ -29,16 +29,67 @@ const CATEGORY_ICON: Record<PermitCategory, LucideIcon> = {
   other: Sparkles,
 };
 
+// /services used to be its own page; the directory is now the top of الرخص والمعاملات
 export default function Services() {
-  const { data: ctx } = usePermitsContext();
+  const [, navigate] = useLocation();
+  useEffect(() => { navigate("/permits?tab=catalog", { replace: true }); }, [navigate]);
+  return null;
+}
+
+// The top of الرخص والمعاملات: what the section is, the big search over the service directory, and its counts
+export function ServicesHero({ ctx, q, onSearch, children }: { ctx: PermitsContext; q: string; onSearch: (v: string) => void; children?: React.ReactNode }) {
+  const { data } = useCatalog();
+  const [starting, setStarting] = useState<null | undefined>(undefined);
+  const [editing, setEditing] = useState(false);
+  const services = (data?.services ?? []).filter((s) => s.active || s.canEdit);
+  const authorities = (data?.authorities ?? []).filter((a) => services.some((s) => s.authorityId === a.id));
+  const canStart = ctx.projects.some((p) => p.isDeveloper);
+  const canAdd = ctx.canManageOrgCatalog || ctx.canManageSystemCatalog;
+  return (
+    <section className="relative overflow-hidden rounded-[1.5rem] bg-gradient-to-bl from-primary/15 via-primary/5 to-background border">
+      <div className="absolute -top-24 -left-24 w-80 h-80 rounded-full bg-primary/10 blur-3xl pointer-events-none" />
+      <div className="relative px-5 sm:px-8 py-8 sm:py-10 space-y-5">
+        <div className="flex items-center gap-2 text-sm text-primary font-bold"><Landmark className="w-4 h-4" /> دليل الخدمات</div>
+        <h1 className="text-3xl sm:text-5xl font-black font-display leading-tight">الرخص والمعاملات</h1>
+        <p className="text-muted-foreground max-w-2xl text-base sm:text-lg">
+          خدمات الجهات الحكومية والخدمية التي يمر بها المشروع الإنشائي: الخطوات، المتطلبات، المستندات المطلوبة، الرسوم ومدة التنفيذ — ابدأ المعاملة لمشروعك وتابعها حتى صدور الرخصة وتجديدها.
+        </p>
+        <div className="relative max-w-2xl">
+          <Search className="absolute start-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+          <Input
+            className="h-14 ps-12 text-base rounded-2xl shadow-lg bg-background"
+            placeholder="ابحث عن خدمة، جهة أو مستند…"
+            value={q}
+            onChange={(e) => onSearch(e.target.value)}
+            data-testid="input-services-search"
+          />
+        </div>
+        <div className="flex flex-wrap items-center gap-x-6 gap-y-3 text-sm">
+          <Stat value={services.length} label="خدمة" />
+          <Stat value={authorities.length} label="جهة" />
+          <Stat value={services.filter((s) => s.isLicense).length} label="رخصة بتاريخ انتهاء" />
+          <div className="w-full sm:w-auto sm:ms-auto flex flex-wrap items-center gap-2">
+            {children}
+            {canStart && <Button variant="outline" onClick={() => setStarting(null)}><Plus className="w-4 h-4 me-1" /> معاملة حرة</Button>}
+            {canAdd && <Button onClick={() => setEditing(true)}><Plus className="w-4 h-4 me-1" /> خدمة جديدة</Button>}
+          </div>
+        </div>
+      </div>
+      {starting !== undefined && <NewTransactionDialog ctx={ctx} services={services} defaultProjectId="all" serviceId={null} onClose={() => setStarting(undefined)} />}
+      {editing && <ServiceEditorDialog ctx={ctx} service={null} authorities={data?.authorities ?? []} onClose={() => setEditing(false)} />}
+    </section>
+  );
+}
+
+// The directory itself: categories, authorities and the service cards, filtered by the hero's search
+export function ServicesBrowser({ ctx, projectId, q, setQ }: { ctx: PermitsContext; projectId: string; q: string; setQ: (v: string) => void }) {
   const { data, isLoading } = useCatalog();
-  const [q, setQ] = useState("");
   const [category, setCategory] = useState<string>("all");
   const [authority, setAuthority] = useState<string>("all");
   const [kind, setKind] = useState<"all" | "license" | "transaction">("all");
   const [open, setOpen] = useState<CatalogService | null>(null);
-  const [starting, setStarting] = useState<string | null | undefined>(undefined);
-  const [editing, setEditing] = useState<CatalogService | "new" | null>(null);
+  const [starting, setStarting] = useState<string | undefined>(undefined);
+  const [editing, setEditing] = useState<CatalogService | null>(null);
 
   const services = (data?.services ?? []).filter((s) => s.active || s.canEdit);
   const authorities = (data?.authorities ?? []).filter((a) => services.some((s) => s.authorityId === a.id));
@@ -53,45 +104,10 @@ export default function Services() {
   }, [services, q, category, authority, kind]);
 
   const countBy = (c: string) => services.filter((s) => s.category === c).length;
-  const canStart = !!ctx?.projects.some((p) => p.isDeveloper);
-  const canAdd = !!ctx && (ctx.canManageOrgCatalog || ctx.canManageSystemCatalog);
   const filtering = q || category !== "all" || authority !== "all" || kind !== "all";
 
   return (
-    <div className="min-h-full" dir="rtl" data-testid="page-services">
-      {/* Hero */}
-      <section className="relative overflow-hidden bg-gradient-to-bl from-primary/15 via-primary/5 to-background border-b">
-        <div className="absolute -top-24 -left-24 w-80 h-80 rounded-full bg-primary/10 blur-3xl" />
-        <div className="relative px-4 sm:px-8 py-10 sm:py-14 max-w-6xl mx-auto space-y-6">
-          <div className="flex items-center gap-2 text-sm text-primary font-bold"><Landmark className="w-4 h-4" /> الرخص والمعاملات</div>
-          <h1 className="text-3xl sm:text-5xl font-black font-display leading-tight">دليل الخدمات</h1>
-          <p className="text-muted-foreground max-w-2xl text-base sm:text-lg">
-            خدمات الجهات الحكومية والخدمية التي يمر بها المشروع الإنشائي: الخطوات، المتطلبات، المستندات المطلوبة، الرسوم ومدة التنفيذ — وابدأ المعاملة لمشروعك مباشرة.
-          </p>
-          <div className="relative max-w-2xl">
-            <Search className="absolute start-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
-            <Input
-              className="h-14 ps-12 text-base rounded-2xl shadow-lg bg-background"
-              placeholder="ابحث عن خدمة، جهة أو مستند…"
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-              data-testid="input-services-search"
-            />
-          </div>
-          <div className="flex flex-wrap gap-6 text-sm">
-            <Stat value={services.length} label="خدمة" />
-            <Stat value={authorities.length} label="جهة" />
-            <Stat value={services.filter((s) => s.isLicense).length} label="رخصة بتاريخ انتهاء" />
-            <div className="w-full sm:w-auto sm:ms-auto flex flex-wrap gap-2">
-              <Button variant="outline" asChild><Link href="/permits"><ArrowLeft className="w-4 h-4 me-1" /> معاملاتي</Link></Button>
-              {canStart && <Button variant="outline" onClick={() => setStarting(null)}><Plus className="w-4 h-4 me-1" /> معاملة حرة</Button>}
-              {canAdd && <Button onClick={() => setEditing("new")}><Plus className="w-4 h-4 me-1" /> خدمة جديدة</Button>}
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <div className="px-4 sm:px-8 py-8 max-w-6xl mx-auto space-y-10">
+    <div className="space-y-10" data-testid="page-services">
         {isLoading && <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">{Array.from({ length: 8 }).map((_, i) => <Skeleton key={i} className="h-28 rounded-2xl" />)}</div>}
 
         {!isLoading && services.length === 0 && (
@@ -187,9 +203,8 @@ export default function Services() {
             </p>
           </section>
         )}
-      </div>
 
-      {open && ctx && (
+      {open && (
         <ServiceDetailDialog
           ctx={ctx}
           service={services.find((s) => s.id === open.id) ?? open}
@@ -198,12 +213,8 @@ export default function Services() {
           onEdit={() => { setEditing(open); setOpen(null); }}
         />
       )}
-      {starting !== undefined && ctx && (
-        <NewTransactionDialog ctx={ctx} services={services} defaultProjectId="all" serviceId={starting} onClose={() => setStarting(undefined)} />
-      )}
-      {editing && ctx && (
-        <ServiceEditorDialog ctx={ctx} service={editing === "new" ? null : editing} authorities={data?.authorities ?? []} onClose={() => setEditing(null)} />
-      )}
+      {starting !== undefined && <NewTransactionDialog ctx={ctx} services={services} defaultProjectId={projectId} serviceId={starting} onClose={() => setStarting(undefined)} />}
+      {editing && <ServiceEditorDialog ctx={ctx} service={editing} authorities={data?.authorities ?? []} onClose={() => setEditing(null)} />}
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import { Home, Wallet, Landmark, LayoutGrid, FolderKanban, CheckSquare, Users, DollarSign, Building2, LogsIcon, Settings, ShieldCheck, Library, ChevronDown } from "lucide-react";
+import { Home, Wallet, Landmark, FolderKanban, CheckSquare, Users, DollarSign, Building2, LogsIcon, Settings, ShieldCheck, Library, ChevronDown } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -39,11 +39,7 @@ const menuItems = [
     url: "/permits",
     icon: Landmark,
   },
-  {
-    title: "دليل الخدمات",
-    url: "/services",
-    icon: LayoutGrid,
-  },
+
   {
     title: "Activity",
     url: "/tasks",
