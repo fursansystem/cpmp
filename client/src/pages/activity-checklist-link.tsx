@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { BackButton } from "@/components/back-button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -282,6 +283,7 @@ export default function ActivityChecklistLinkPage() {
 
   return (
     <div className="p-6 space-y-6">
+      <BackButton label="Back to List Library" to="/list-library" />
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-display font-bold flex items-center gap-2">

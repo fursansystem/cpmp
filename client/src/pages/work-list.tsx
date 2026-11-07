@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
+import { BackButton } from "@/components/back-button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
@@ -534,6 +535,7 @@ export default function WorkListPage() {
 
   return (
     <div className="p-6 space-y-6">
+      <BackButton label="Back to List Library" to="/list-library" />
       <h1 className="text-2xl font-display font-bold">Work List</h1>
       
       <Tabs defaultValue="request-type" className="w-full">
