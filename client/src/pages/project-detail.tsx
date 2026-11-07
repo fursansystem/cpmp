@@ -89,7 +89,13 @@ export default function ProjectDetail() {
     };
   }>({
     queryKey: ["payments", "project-card", projectId],
-    queryFn: async () => (await fetch(`/api/payments/reports?projectId=${projectId}`, { credentials: "include" })).json(),
+    queryFn: async () => {
+      // A failing report must not take the project page down with it: the card just shows its default text
+      const res = await fetch(`/api/payments/reports?projectId=${projectId}`, { credentials: "include" });
+      if (!res.ok) return null;
+      const body = await res.json();
+      return body?.totals && body?.monitoring ? body : null;
+    },
     enabled: !!projectId,
     meta: { persist: false },
   });
