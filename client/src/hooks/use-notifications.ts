@@ -213,8 +213,14 @@ export function useNotifications() {
             });
           }
         } else if (message.type === "payments_updated") {
-          // Another user changed a bill request, payment order, clearance or fine
+          // Another user changed a bill request, payment order or fine (a licence fee paid shows in الرخص too)
           queryClient.invalidateQueries({ queryKey: ["payments"] });
+          queryClient.invalidateQueries({ queryKey: ["permits"] });
+        } else if (message.type === "permits_updated") {
+          // A licence or transaction changed: its page, the lists, the fee rows in Payments and the mirrored activity
+          queryClient.invalidateQueries({ queryKey: ["permits"] });
+          queryClient.invalidateQueries({ queryKey: ["payments"] });
+          queryClient.invalidateQueries({ queryKey: ["/api/tasks"] });
         } else if (message.type === "progress_matrix_updated") {
           // Progress matrix / payment certificates changed: refresh the project, its matrix and certificates
           const projectId = message.data?.projectId;

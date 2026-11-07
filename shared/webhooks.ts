@@ -9,7 +9,7 @@ export const WEBHOOK_EVENTS = [
   "subcontractor_certificate",
   "chargeback",
   "fine",
-  "clearance",
+  "permit",
   "purchase_order",
   "material_issue",
   "stock_movement",
@@ -47,10 +47,10 @@ export const WEBHOOK_EVENT_INFO: Record<WebhookEvent, { label: string; descripti
     description: "Fines, waivers, recoveries and certificate deductions",
     actions: ["created", "edited", "status_changed", "recovered", "reserved", "released", "waiver_requested", "waiver_approved", "waiver_rejected", "waiver_withdrawn"],
   },
-  clearance: {
-    label: "التصاريح (Clearances)",
-    description: "Permits and clearances with their fees",
-    actions: ["created", "edited", "status_changed"],
+  permit: {
+    label: "الرخص والمعاملات (Permits & transactions)",
+    description: "Licences and government transactions: steps, documents, fees and expiry",
+    actions: ["created", "edited", "status_changed", "step_completed", "step_reopened", "assigned", "payment_requested", "fee_paid", "expired", "renewed", "file_added", "file_removed", "deleted"],
   },
   purchase_order: {
     label: "أوامر الشراء (Purchase orders)",

@@ -46,7 +46,7 @@ import {
 export interface OrderDraft {
   billRequestId?: string;
   fineId?: string;
-  clearanceId?: string;
+  permitTransactionId?: string;
   subcontractorCertificateId?: string;
   // A page that starts a standalone payment (an advance on a purchase order, say) hands over what it knows
   prefill?: {
@@ -174,7 +174,10 @@ function sourceLabel(o: any, data: PaymentsOverview): string {
     return `فواتير ${b?.requestNo ?? ""}${nos ? ` (${nos})` : ""}`.trim();
   }
   if (o.fineId) return `خصم: ${data.fines.find((f) => f.id === o.fineId)?.title ?? ""}`;
-  if (o.clearanceId) return `رسوم: ${data.clearances.find((c) => c.id === o.clearanceId)?.title ?? ""}`;
+  if (o.permitTransactionId) {
+    const p = data.permits.find((c) => c.id === o.permitTransactionId);
+    return `رسوم: ${p ? `${p.transactionNo} · ${p.title}` : ""}`;
+  }
   if (o.subcontractorCertificateId) return `مستخلص باطن ${data.subcontractorCertificates.find((c) => c.id === o.subcontractorCertificateId)?.certNo ?? ""}`.trim();
   if (o.purpose === "advance") return o.reason && o.reason !== ADVANCE_REASON ? `${ADVANCE_REASON}: ${o.reason}` : ADVANCE_REASON;
   return o.reason ?? "—";
@@ -193,15 +196,15 @@ export function CreateOrderDialog({ ctx, defaultProjectId, data, draft, onClose 
   const draftProject =
     data.billRequests.find((b) => b.id === draft.billRequestId)?.projectId ??
     data.fines.find((f) => f.id === draft.fineId)?.projectId ??
-    data.clearances.find((c) => c.id === draft.clearanceId)?.projectId ??
+    data.permits.find((c) => c.id === draft.permitTransactionId)?.projectId ??
     data.subcontractorCertificates.find((c) => c.id === draft.subcontractorCertificateId)?.projectId;
 
   const pre = draft.prefill;
   const [projectId, setProjectId] = useState(draftProject ?? pre?.projectId ?? (defaultProjectId === "all" ? "" : defaultProjectId));
   const [kind, setKind] = useState<SourceKind>(
-    pre?.kind ?? (draft.billRequestId ? "bill" : draft.fineId ? "fine" : draft.clearanceId ? "clearance" : draft.subcontractorCertificateId ? "subcontractor" : "bill"),
+    pre?.kind ?? (draft.billRequestId ? "bill" : draft.fineId ? "fine" : draft.permitTransactionId ? "clearance" : draft.subcontractorCertificateId ? "subcontractor" : "bill"),
   );
-  const [sourceId, setSourceId] = useState(draft.billRequestId ?? draft.fineId ?? draft.clearanceId ?? draft.subcontractorCertificateId ?? "");
+  const [sourceId, setSourceId] = useState(draft.billRequestId ?? draft.fineId ?? draft.permitTransactionId ?? draft.subcontractorCertificateId ?? "");
   const [payeeName, setPayeeName] = useState(pre?.payeeName ?? "");
   const [amount, setAmount] = useState(pre?.amount !== undefined ? String(pre.amount) : "");
   const [reason, setReason] = useState(pre?.reason ?? (pre?.kind === "advance" ? ADVANCE_REASON : ""));
@@ -215,7 +218,7 @@ export function CreateOrderDialog({ ctx, defaultProjectId, data, draft, onClose 
     meta: paymentsQuery,
   });
 
-  const hasLive = (key: "billRequestId" | "fineId" | "clearanceId" | "subcontractorCertificateId", id: string) =>
+  const hasLive = (key: "billRequestId" | "fineId" | "permitTransactionId" | "subcontractorCertificateId", id: string) =>
     data.orders.some((o) => o[key] === id && LIVE.includes(o.status));
 
   const options = useMemo(() => {
@@ -223,7 +226,9 @@ export function CreateOrderDialog({ ctx, defaultProjectId, data, draft, onClose 
     return {
       bill: data.billRequests.filter((b) => inProject(b) && b.status === "received" && !hasLive("billRequestId", b.id)),
       fine: data.fines.filter((f) => inProject(f) && ["open", "under_appeal"].includes(f.status) && !hasLive("fineId", f.id)),
-      clearance: data.clearances.filter((c) => inProject(c) && !c.feePaid && Number(c.feeAmount) > 0 && !hasLive("clearanceId", c.id)),
+      // licence / transaction fees from الرخص والمعاملات; a transfer request already raised for one counts as its order
+      clearance: data.permits.filter((c) => inProject(c) && !c.feePaid && Number(c.feeAmount) > 0 && !["cancelled", "rejected"].includes(c.status) &&
+        !data.orders.some((o) => o.permitTransactionId === c.id && !["rejected", "cancelled"].includes(o.status))),
       subcontractor: data.subcontractorCertificates.filter((c) => inProject(c) && c.status === "approved" && !hasLive("subcontractorCertificateId", c.id)),
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -248,8 +253,8 @@ export function CreateOrderDialog({ ctx, defaultProjectId, data, draft, onClose 
       const c = data.subcontractorCertificates.find((x) => x.id === sourceId);
       if (c) { setPayeeName(c.subcontractorName); setAmount(String(c.netPayable)); setReason(`مستخلص ${c.certNo} — ${c.subcontractorName}`); }
     } else {
-      const c = data.clearances.find((x) => x.id === sourceId);
-      if (c) { setPayeeName(c.authority ?? ""); setAmount(String(c.feeAmount)); setReason(`رسوم: ${c.title}`); }
+      const c = data.permits.find((x) => x.id === sourceId);
+      if (c) { setPayeeName(c.authorityName ?? ""); setAmount(String(c.feeAmount)); setReason(`رسوم: ${c.transactionNo} · ${c.title}`); }
     }
   }, [kind, sourceId, data]);
 
@@ -259,7 +264,7 @@ export function CreateOrderDialog({ ctx, defaultProjectId, data, draft, onClose 
         projectId,
         billRequestId: kind === "bill" ? sourceId || null : null,
         fineId: kind === "fine" ? sourceId || null : null,
-        clearanceId: kind === "clearance" ? sourceId || null : null,
+        permitTransactionId: kind === "clearance" ? sourceId || null : null,
         subcontractorCertificateId: kind === "subcontractor" ? sourceId || null : null,
         // a bill request brings its own supplier and PO; anything else can name them
         supplierId: kind === "bill" ? null : supplierId || null,
@@ -295,7 +300,7 @@ export function CreateOrderDialog({ ctx, defaultProjectId, data, draft, onClose 
     kind === "bill" ? `${r.requestNo} · ${r.payeeName} · ${money(r.invoiceTotal > 0 ? r.invoiceTotal : r.amount)}`
     : kind === "fine" ? `${r.title} · ${money(Number(r.amount) - Number(r.paidAmount))}`
     : kind === "subcontractor" ? `${r.certNo} · ${r.subcontractorName} · ${money(r.netPayable)}`
-    : `${r.title} · ${money(r.feeAmount)}`;
+    : `${r.transactionNo} · ${r.title} · ${money(r.feeAmount)}`;
 
   return (
     <PaymentDialog
@@ -332,7 +337,7 @@ export function CreateOrderDialog({ ctx, defaultProjectId, data, draft, onClose 
               <SelectContent>
                 <SelectItem value="bill">فواتير تم استلام أصولها</SelectItem>
                 <SelectItem value="fine">سداد خصم</SelectItem>
-                <SelectItem value="clearance">رسوم رخصة</SelectItem>
+                <SelectItem value="clearance">رسوم رخصة / معاملة</SelectItem>
                 <SelectItem value="subcontractor">مستخلص مقاول باطن</SelectItem>
                 <SelectItem value="advance">دفعة مقدمة</SelectItem>
                 <SelectItem value="other">أخرى (مع بيان السبب)</SelectItem>

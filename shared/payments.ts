@@ -7,9 +7,6 @@ export type BillRequestStatus = (typeof BILL_REQUEST_STATUSES)[number];
 export const PAYMENT_ORDER_STATUSES = ["requested", "request_approved", "draft", "pending_approval", "approved", "paid", "rejected", "cancelled"] as const;
 export type PaymentOrderStatus = (typeof PAYMENT_ORDER_STATUSES)[number];
 
-export const CLEARANCE_STATUSES = ["pending", "in_progress", "obtained", "rejected", "expired"] as const;
-export type ClearanceStatus = (typeof CLEARANCE_STATUSES)[number];
-
 export const FINE_STATUSES = ["open", "under_appeal", "waiver_requested", "payment_requested", "paid", "waived", "recovered", "cancelled"] as const;
 export type FineStatus = (typeof FINE_STATUSES)[number];
 
@@ -19,7 +16,8 @@ export type LiableParty = (typeof LIABLE_PARTIES)[number];
 export const PAYMENT_METHODS = ["bank_transfer", "cheque", "cash"] as const;
 export type PaymentMethod = (typeof PAYMENT_METHODS)[number];
 
-export const PAYMENT_ENTITY_TYPES = ["bill_request", "payment_order", "clearance", "fine", "subcontractor_certificate", "chargeback"] as const;
+// Licence and transaction fees are paid by orders too, but the records themselves live in الرخص والمعاملات (shared/permits.ts)
+export const PAYMENT_ENTITY_TYPES = ["bill_request", "payment_order", "fine", "subcontractor_certificate", "chargeback"] as const;
 export type PaymentEntityType = (typeof PAYMENT_ENTITY_TYPES)[number];
 
 // مستخلصات مقاولي الباطن: raised on the project side, approved by a project manager,
@@ -91,14 +89,6 @@ export const PAYMENT_ORDER_LABELS: Record<PaymentOrderStatus, string> = {
   cancelled: "ملغي (Cancelled)",
 };
 
-export const CLEARANCE_LABELS: Record<ClearanceStatus, string> = {
-  pending: "لم يبدأ (Pending)",
-  in_progress: "قيد المعالجة (In progress)",
-  obtained: "تم الحصول عليه (Obtained)",
-  rejected: "مرفوض (Rejected)",
-  expired: "منتهي (Expired)",
-};
-
 export const FINE_LABELS: Record<FineStatus, string> = {
   open: "مفتوح (Open)",
   under_appeal: "قيد الاعتراض (Under appeal)",
@@ -137,11 +127,7 @@ export interface PaymentsPermissions {
 // Statuses that still need somebody to act, used by the reports and the "open" counters.
 export const OPEN_BILL_REQUEST = ["requested", "submitted", "returned"] as const;
 export const OPEN_PAYMENT_ORDER = ["draft", "pending_approval", "approved"] as const;
-export const OPEN_CLEARANCE = ["pending", "in_progress"] as const;
 export const OPEN_FINE = ["open", "under_appeal", "waiver_requested", "payment_requested"] as const;
-
-// How many days before expiry a clearance starts showing as "expiring soon"
-export const CLEARANCE_EXPIRY_WARNING_DAYS = 30;
 
 export interface PaymentsProjectSummary {
   projectId: string;
@@ -151,6 +137,7 @@ export interface PaymentsProjectSummary {
   pendingOrdersAmount: number;
   approvedUnpaidAmount: number;
   paidAmount: number;
+  // licences and transactions (الرخص والمعاملات) of the project
   openClearances: number;
   clearancesAttention: number; // expired, or expiring soon, or overdue
   openFinesAmount: number;

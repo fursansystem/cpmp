@@ -64,6 +64,8 @@ import { requests, requestRevisions, requestWorkLocations, requestPurposes, work
 import { Resend } from "resend";
 import { registerProgressMatrixRoutes } from "./progress-matrix-routes";
 import { registerPaymentsRoutes } from "./payments-routes";
+import { registerPermitsRoutes } from "./permits-routes";
+import { permitsService } from "./permits-service";
 import { registerWebhookRoutes } from "./webhook-routes";
 import { webhookService } from "./webhook-service";
 import { registerErpRoutes } from "./erp-routes";
@@ -575,6 +577,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Progress Matrix & Payment Certificates (مصفوفة الإنجاز والمستخلصات)
   registerProgressMatrixRoutes(app, { getCurrentUserWithOrg, handleError });
   const { markOrderPaidFromErp } = registerPaymentsRoutes(app, { getCurrentUserWithOrg, handleError });
+  // Licences and government transactions (الرخص والمعاملات), and the hourly expiry / overdue sweep
+  registerPermitsRoutes(app, { getCurrentUserWithOrg, handleError });
+  permitsService.start();
 
   // Outgoing webhooks (ERP integration): endpoint management, and the worker that retries deliveries
   registerWebhookRoutes(app, { getCurrentUserWithOrg, handleError });
@@ -1757,6 +1762,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
           userName: "System",
         });
         broadcastActivityUpdate(statusActivity);
+      }
+      // A task mirroring a licence/transaction step moves the step with it
+      if (task.sourceType === "permit_step") {
+        await permitsService.applyTaskStatus(task, (req.user as User | undefined)?.id ?? null);
       }
 
       res.json(task);
@@ -7627,14 +7636,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const user = req.user as User;
       const unread = (await storage.getNotificationsByUser(user.id)).filter((n) => !n.isRead);
       const paymentTabs: Record<string, string> = {
-        bills: "أصول الفواتير", orders: "أوامر الدفع", subcontractors: "مستخلصات الباطن", clearances: "الرخص", fines: "الخصومات",
+        bills: "أصول الفواتير", orders: "أوامر الدفع", subcontractors: "مستخلصات الباطن", fines: "الخصومات",
       };
       type Group = { key: string; label: string; count: number; latestTitle: string; latestMessage: string; link: string | null; payments: boolean };
       const groups = new Map<string, Group>();
       for (const n of unread) {
         const tab = /^\/payments\?tab=([a-z]+)/.exec(n.link ?? "")?.[1];
-        const key = tab ? `payments:${tab}` : ["message", "mention"].includes(n.type) ? "messages" : "other";
-        const label = tab ? `المدفوعات · ${paymentTabs[tab] ?? tab}` : key === "messages" ? "الرسائل والإشارات" : "تنبيهات أخرى";
+        const permit = !tab && (n.link ?? "").startsWith("/permits");
+        const key = tab ? `payments:${tab}` : permit ? "permits" : ["message", "mention"].includes(n.type) ? "messages" : "other";
+        const label = tab ? `المدفوعات · ${paymentTabs[tab] ?? tab}` : permit ? "الرخص والمعاملات" : key === "messages" ? "الرسائل والإشارات" : "تنبيهات أخرى";
         const existing = groups.get(key);
         if (existing) existing.count += 1;
         // the list is newest first, so the first one seen in a group is its latest

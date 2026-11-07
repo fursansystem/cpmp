@@ -28,7 +28,8 @@ import {
   Boxes,
   Grid3X3,
   Receipt,
-  Wallet
+  Wallet,
+  Landmark,
 } from "lucide-react";
 import { format, differenceInDays, startOfDay } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -64,6 +65,19 @@ export default function ProjectDetail() {
     queryKey: ["/api/projects", projectId, "progress-matrix", "summary"],
     enabled: !!projectId,
   });
+
+  // Live figures for the licences card (الرخص والمعاملات)
+  const { data: permitsOverview } = useQuery<{ transactions: { status: string; attention: string | null }[] }>({
+    queryKey: ["permits", "overview", projectId],
+    queryFn: async () => {
+      const res = await fetch(`/api/permits/overview?projectId=${projectId}`, { credentials: "include" });
+      return res.ok ? res.json() : { transactions: [] };
+    },
+    enabled: !!projectId,
+    meta: { persist: false },
+  });
+  const permitsOpen = permitsOverview?.transactions.filter((t) => ["not_started", "in_progress", "submitted", "returned"].includes(t.status)).length ?? 0;
+  const permitsAttention = permitsOverview?.transactions.filter((t) => t.attention).length ?? 0;
 
   // Live figures for the Payments card: what is open, and what is late
   const { data: paymentsReport } = useQuery<{
@@ -159,6 +173,18 @@ export default function ProjectDetail() {
       link: `/payments?project=${projectId}`,
       color: "text-teal-600",
       bg: "bg-teal-50 dark:bg-teal-900/10",
+      active: true
+    },
+    {
+      title: "الرخص والمعاملات (Permits)",
+      description: permitsOverview
+        ? `${permitsOpen} معاملات مفتوحة · ${permitsAttention} تحتاج انتباه (انتهاء، تأخير، رسوم)`
+        : "إجراءات المشروع لدى الجهات الحكومية: الخطوات والمستندات والرسوم وتواريخ الانتهاء.",
+      icon: Landmark,
+      count: permitsOverview ? permitsOpen : "—",
+      link: `/permits?project=${projectId}`,
+      color: "text-sky-600",
+      bg: "bg-sky-50 dark:bg-sky-900/10",
       active: true
     },
     {

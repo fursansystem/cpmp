@@ -122,7 +122,8 @@ export default function Tasks() {
       return {
         id: task.id,
         title: task.title,
-        type: (task as any).type as "general" | "inspection_request" | "permission_request" | "approval_request",
+        type: (task as any).type as "general" | "inspection_request" | "permission_request" | "approval_request" | "permit_step",
+        href: task.sourceType === "permit_step" && task.sourceId ? `/permits?step=${task.sourceId}` : undefined,
         priority: task.priority as "low" | "medium" | "high" | "urgent",
         status: task.status as "todo" | "in-progress" | "completed",
         assignedTo: teamMember?.name || "Unassigned",
@@ -193,8 +194,10 @@ export default function Tasks() {
             title={task.title}
             priority={task.priority}
             status={task.status}
+            type={task.type}
             assignedTo={task.assignedTo}
             dueDate={task.dueDate}
+            href={task.href}
             onToggle={() => handleToggleTask(task)}
             onEdit={() => console.log('Edit task:', task.id)}
             onDelete={() => handleDeleteTask(task.id)}

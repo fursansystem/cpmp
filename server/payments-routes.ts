@@ -3,9 +3,9 @@
 // Four kinds of record, all scoped to a project the caller can see:
 //   bill requests   accounting asks the project side for the original bills/attachments
 //   payment orders  accounting's instruction to pay, approved by an administrator
-//   clearances      permits/clearances tracked with their fees
 //   fines           fines tracked until they are paid, appealed or waived (waivers need a project manager)
-// Payment orders close the loop: paying one marks its fine paid / its clearance fee paid.
+// Payment orders close the loop: paying one marks its fine paid / its licence or transaction fee paid
+// (the licences themselves live in الرخص والمعاملات, see permits-routes.ts).
 import type { Express, Request, Response } from "express";
 import { z } from "zod";
 import { and, desc, eq, inArray, isNotNull, sql } from "drizzle-orm";
@@ -23,7 +23,7 @@ import {
   projectSubcontractors,
   paymentOrders,
   paymentSubcontractorCertificates,
-  paymentClearances,
+  permitTransactions,
   paymentFines,
   paymentAttachments,
   paymentActivity,
@@ -40,13 +40,10 @@ import {
   isPoOver,
   poCommitted,
   type PoSummary,
-  CLEARANCE_EXPIRY_WARNING_DAYS,
-  CLEARANCE_STATUSES,
   SOURCE_TYPES,
   FINE_STATUSES,
   LIABLE_PARTIES,
   OPEN_BILL_REQUEST,
-  OPEN_CLEARANCE,
   OPEN_FINE,
   OPEN_PAYMENT_ORDER,
   PAYMENT_ENTITY_TYPES,
@@ -59,6 +56,8 @@ import {
 import { notificationWss } from "./websocket";
 import { notificationService } from "./notification-service";
 import { webhookService } from "./webhook-service";
+import { permitsService } from "./permits-service";
+import { OPEN_PERMIT, permitAttention, type PermitFeeRow } from "@shared/permits";
 
 type CurrentUser = { user: PermissionUser; orgId: string | null; teamMemberIds: string[] };
 
@@ -114,7 +113,7 @@ const orderSchema = z.object({
   supplierId: z.string().nullish().transform((v) => v || null),
   billRequestId: z.string().nullish().transform((v) => v || null),
   fineId: z.string().nullish().transform((v) => v || null),
-  clearanceId: z.string().nullish().transform((v) => v || null),
+  permitTransactionId: z.string().nullish().transform((v) => v || null),
   subcontractorCertificateId: z.string().nullish().transform((v) => v || null),
   purchaseOrderId: z.string().nullish().transform((v) => v || null),
   certificateId: z.string().nullish().transform((v) => v || null),
@@ -122,7 +121,7 @@ const orderSchema = z.object({
   amount: z.coerce.number().gt(0, "Amount must be greater than zero").max(1e12),
   sourceType: z.enum(SOURCE_TYPES as unknown as [string, ...string[]]).nullish().transform((v) => v || null),
   sourceId: z.string().nullish().transform((v) => v || null),
-  // Only meaningful when there is no bill/fine/clearance behind the order
+  // Only meaningful when there is no bill/fine/licence fee behind the order
   purpose: z.enum(["advance", "other"]).optional(),
   reason: optText(),
 });
@@ -132,21 +131,6 @@ const orderUpdateSchema = z.object({
   amount: z.coerce.number().gt(0).max(1e12).optional(),
   reason: optText(),
 });
-
-const clearanceBase = {
-  title: z.string().trim().min(1, "Title is required").max(300),
-  authority: optText(300),
-  referenceNo: optText(100),
-  status: z.enum(CLEARANCE_STATUSES as unknown as [string, ...string[]]).default("pending"),
-  responsibleName: optText(200),
-  dueDate: optDate,
-  issueDate: optDate,
-  expiryDate: optDate,
-  feeAmount: money.default(0),
-  notes: optText(),
-};
-const clearanceCreateSchema = z.object({ projectId: z.string().min(1), ...clearanceBase });
-const clearanceUpdateSchema = z.object(clearanceBase).partial();
 
 const fineBase = {
   title: z.string().trim().min(1, "Title is required").max(300),
@@ -247,6 +231,8 @@ const transferRequestSchema = z.object({
   reason: z.string().trim().min(1, "State what the transfer is for").max(2000),
   supplierId: z.string().nullish().transform((v) => v || null),
   purchaseOrderId: z.string().nullish().transform((v) => v || null),
+  // asking for a licence / transaction fee to be paid (الرخص والمعاملات)
+  permitTransactionId: z.string().nullish().transform((v) => v || null),
   ...sourceFields,
 });
 
@@ -651,17 +637,17 @@ export function registerPaymentsRoutes(app: Express, deps: Deps) {
   // ---- Everything the page shows, in one round trip ----
   app.get(`${base}/overview`, route(async (req, res, ctx) => {
     const ids = scopedIds(ctx, req.query.projectId);
-    if (ids.length === 0) return res.json({ billRequests: [], orders: [], subcontractorCertificates: [], subcontractors: [], chargebacks: [], clearances: [], fines: [], purchaseOrders: [], suppliers: [] });
+    if (ids.length === 0) return res.json({ billRequests: [], orders: [], subcontractorCertificates: [], subcontractors: [], chargebacks: [], permits: [], fines: [], purchaseOrders: [], suppliers: [] });
 
     const supplierRows = await db
       .select({ id: suppliers.id, projectId: suppliers.projectId, name: suppliers.supplierName, taxNumber: suppliers.taxNumber })
       .from(suppliers)
       .where(inArray(suppliers.projectId, ids));
-    const [bills, allOrders, allSubCerts, clearances, fines, userRows, chargebackRows, subcontractorRows] = await Promise.all([
+    const [bills, allOrders, allSubCerts, permitRows, fines, userRows, chargebackRows, subcontractorRows] = await Promise.all([
       db.select().from(paymentBillRequests).where(inArray(paymentBillRequests.projectId, ids)).orderBy(desc(paymentBillRequests.createdAt)),
       db.select().from(paymentOrders).where(inArray(paymentOrders.projectId, ids)).orderBy(desc(paymentOrders.createdAt)),
       db.select().from(paymentSubcontractorCertificates).where(inArray(paymentSubcontractorCertificates.projectId, ids)).orderBy(desc(paymentSubcontractorCertificates.createdAt)),
-      db.select().from(paymentClearances).where(inArray(paymentClearances.projectId, ids)).orderBy(desc(paymentClearances.createdAt)),
+      db.select().from(permitTransactions).where(inArray(permitTransactions.projectId, ids)).orderBy(desc(permitTransactions.createdAt)),
       db.select().from(paymentFines).where(inArray(paymentFines.projectId, ids)).orderBy(desc(paymentFines.createdAt)),
       db.select({ id: users.id, name: users.username }).from(users),
       db.select().from(paymentChargebacks).where(inArray(paymentChargebacks.projectId, ids)).orderBy(desc(paymentChargebacks.createdAt)),
@@ -717,7 +703,22 @@ export function registerPaymentsRoutes(app: Express, deps: Deps) {
           approvedByName: userName.get(c.approvedBy ?? "") ?? null,
         };
       }),
-      clearances: await withAttachments("clearance", decorate(clearances)),
+      // Licence and transaction fees (الرخص والمعاملات): what an order can be raised for, and the licence reports
+      permits: decorate(permitRows).map((t): PermitFeeRow => ({
+        id: t.id,
+        projectId: t.projectId,
+        projectName: t.projectName,
+        transactionNo: t.transactionNo,
+        title: t.title,
+        authorityName: t.authorityName,
+        kind: t.kind,
+        status: t.status,
+        dueDate: t.dueDate,
+        expiryDate: t.expiryDate,
+        feeAmount: t.feeAmount,
+        feePaid: t.feePaid,
+        renewalLeadDays: t.renewalLeadDays,
+      })),
       fines: (await withAttachments("fine", decorate(fines))).map((f) => ({
         ...f,
         subcontractorName: subcontractorRows.find((s) => s.id === f.subcontractorId)?.name ?? null,
@@ -912,7 +913,7 @@ export function registerPaymentsRoutes(app: Express, deps: Deps) {
   }));
 
   // ---- Payment orders ----
-  // Paying an order pays what it was raised for: the fine's balance, the clearance's fee, the certificate
+  // Paying an order pays what it was raised for: the fine's balance, the licence/transaction fee, the certificate
   const settlePaidSources = async (
     tx: Parameters<Parameters<typeof db.transaction>[0]>[0],
     order: typeof paymentOrders.$inferSelect,
@@ -929,9 +930,7 @@ export function registerPaymentsRoutes(app: Express, deps: Deps) {
         }).where(eq(paymentFines.id, fine.id));
       }
     }
-    if (order.clearanceId) {
-      await tx.update(paymentClearances).set({ feePaid: true, updatedAt: now }).where(eq(paymentClearances.id, order.clearanceId));
-    }
+    if (order.permitTransactionId) await permitsService.markFeePaid(tx, order, now);
     if (order.subcontractorCertificateId) {
       await tx.update(paymentSubcontractorCertificates).set({ status: "paid", updatedAt: now }).where(eq(paymentSubcontractorCertificates.id, order.subcontractorCertificateId));
     }
@@ -943,8 +942,8 @@ export function registerPaymentsRoutes(app: Express, deps: Deps) {
     return row;
   };
 
-  // A source (bill / fine / clearance) can back only one live payment order at a time
-  const hasLiveOrder = async (column: "billRequestId" | "fineId" | "clearanceId" | "subcontractorCertificateId", id: string, exceptOrderId?: string) => {
+  // A source (bill / fine / licence fee) can back only one live payment order at a time
+  const hasLiveOrder = async (column: "billRequestId" | "fineId" | "permitTransactionId" | "subcontractorCertificateId", id: string, exceptOrderId?: string) => {
     const rows = await db
       .select({ id: paymentOrders.id })
       .from(paymentOrders)
@@ -952,12 +951,25 @@ export function registerPaymentsRoutes(app: Express, deps: Deps) {
     return rows.some((r) => r.id !== exceptOrderId);
   };
 
+  // A licence / transaction fee can be paid once: one standing order (a transfer request included) at a time
+  const requirePayablePermit = async (projectId: string, permitTransactionId: string) => {
+    const [permit] = await db.select().from(permitTransactions).where(and(eq(permitTransactions.id, permitTransactionId), eq(permitTransactions.projectId, projectId)));
+    if (!permit) return fail(400, "Licence / transaction not found in this project");
+    if (n(permit.feeAmount) <= 0) return fail(409, "This transaction has no fee to pay");
+    if (permit.feePaid) return fail(409, "This transaction's fee is already paid");
+    if (["cancelled", "rejected"].includes(permit.status)) return fail(409, "This transaction is closed");
+    const standing = await db.select({ id: paymentOrders.id }).from(paymentOrders)
+      .where(and(eq(paymentOrders.permitTransactionId, permit.id), sql`${paymentOrders.status} NOT IN ('rejected', 'cancelled')`));
+    if (standing.length) return fail(409, "This transaction's fee already has a payment order");
+    return permit;
+  };
+
   app.post(`${base}/orders`, route(async (req, res, ctx) => {
     requireAccounting(ctx);
     const data = orderSchema.parse(req.body);
     requireProject(ctx, data.projectId);
 
-    const sources = [data.billRequestId, data.fineId, data.clearanceId, data.subcontractorCertificateId].filter(Boolean);
+    const sources = [data.billRequestId, data.fineId, data.permitTransactionId, data.subcontractorCertificateId].filter(Boolean);
     if (sources.length > 1) return fail(400, "A payment order can have only one source");
     if (sources.length === 0 && !data.reason) return fail(400, "State what this payment is for");
 
@@ -990,12 +1002,7 @@ export function registerPaymentsRoutes(app: Express, deps: Deps) {
       if (await hasLiveOrder("fineId", fine.id)) return fail(409, "This fine already has a payment order");
       if (data.amount > n(fine.amount) - n(fine.paidAmount) + 0.001) return fail(400, "Amount exceeds the fine's outstanding balance");
     }
-    if (data.clearanceId) {
-      const [clearance] = await db.select().from(paymentClearances).where(and(eq(paymentClearances.id, data.clearanceId), eq(paymentClearances.projectId, data.projectId)));
-      if (!clearance) return fail(400, "Clearance not found in this project");
-      if (clearance.feePaid) return fail(409, "This clearance's fee is already paid");
-      if (await hasLiveOrder("clearanceId", clearance.id)) return fail(409, "This clearance already has a payment order");
-    }
+    if (data.permitTransactionId) await requirePayablePermit(data.projectId, data.permitTransactionId);
     if (data.subcontractorCertificateId) {
       const [cert] = await db.select().from(paymentSubcontractorCertificates).where(and(eq(paymentSubcontractorCertificates.id, data.subcontractorCertificateId), eq(paymentSubcontractorCertificates.projectId, data.projectId)));
       if (!cert) return fail(400, "Subcontractor certificate not found in this project");
@@ -1021,13 +1028,13 @@ export function registerPaymentsRoutes(app: Express, deps: Deps) {
         orderNo: pad("PAY", seq),
         billRequestId: data.billRequestId,
         fineId: data.fineId,
-        clearanceId: data.clearanceId,
+        permitTransactionId: data.permitTransactionId,
         subcontractorCertificateId: data.subcontractorCertificateId,
         supplierId,
         purchaseOrderId,
         certificateId: data.certificateId,
         payeeName: data.payeeName,
-        purpose: data.billRequestId ? "bill" : data.fineId ? "fine" : data.clearanceId ? "clearance" : data.subcontractorCertificateId ? "subcontractor" : data.purpose ?? "other",
+        purpose: data.billRequestId ? "bill" : data.fineId ? "fine" : data.permitTransactionId ? "clearance" : data.subcontractorCertificateId ? "subcontractor" : data.purpose ?? "other",
         reason: data.reason,
         amount: String(data.amount),
         sourceType: data.sourceType,
@@ -1037,6 +1044,7 @@ export function registerPaymentsRoutes(app: Express, deps: Deps) {
       return row;
     });
     await log(data.projectId, "payment_order", created.id, "created", ctx.cu.user.id, { to: "draft" });
+    void permitsService.afterOrderEvent(created, "requested", ctx.cu.user.id);
     broadcast(data.projectId, ctx);
     res.status(201).json(created);
   }));
@@ -1069,6 +1077,8 @@ export function registerPaymentsRoutes(app: Express, deps: Deps) {
       supplierId = supplierId ?? po.supplierId;
     }
 
+    if (data.permitTransactionId) await requirePayablePermit(data.projectId, data.permitTransactionId);
+
     // A project manager's own request has already had a manager's eyes on it
     const status = ctx.perms.canApprove ? "request_approved" : "requested";
     const created = await insertNumbered(paymentOrders, data.projectId, async (seq) => {
@@ -1079,7 +1089,8 @@ export function registerPaymentsRoutes(app: Express, deps: Deps) {
         supplierId,
         purchaseOrderId: data.purchaseOrderId,
         payeeName: data.payeeName,
-        purpose: data.purpose,
+        purpose: data.permitTransactionId ? "clearance" : data.purpose,
+        permitTransactionId: data.permitTransactionId,
         reason: data.reason,
         amount: String(data.amount),
         status,
@@ -1090,6 +1101,7 @@ export function registerPaymentsRoutes(app: Express, deps: Deps) {
       return row;
     });
     await log(data.projectId, "payment_order", created.id, "requested", ctx.cu.user.id, { to: status, note: data.reason });
+    void permitsService.afterOrderEvent(created, "requested", ctx.cu.user.id);
     notify(ctx, data.projectId, status === "requested" ? "approvers" : "accounting", status === "requested" ? "طلب تحويل بانتظار اعتمادك" : "طلب تحويل بانتظار المحاسبة", `${created.orderNo} · ${data.payeeName} · ${amountText(data.amount)}`, "orders", created.id);
     broadcast(data.projectId, ctx);
     res.status(201).json(created);
@@ -1197,7 +1209,7 @@ export function registerPaymentsRoutes(app: Express, deps: Deps) {
 
     await db.transaction(async (tx) => {
       await tx.update(paymentOrders).set({ ...patch, updatedAt: now }).where(eq(paymentOrders.id, order.id));
-      // Keep the fine / clearance this order pays for in step with it
+      // Keep the fine this order pays for in step with it (a licence fee follows in permitsService.afterOrderEvent)
       if (order.fineId) {
         const [fine] = await tx.select().from(paymentFines).where(eq(paymentFines.id, order.fineId));
         if (fine) {
@@ -1212,6 +1224,10 @@ export function registerPaymentsRoutes(app: Express, deps: Deps) {
     });
 
     await log(order.projectId, "payment_order", order.id, input.action, ctx.cu.user.id, { from, to: patch.status as string, note: input.note });
+    if (order.permitTransactionId) {
+      if (input.action === "pay") void permitsService.afterOrderEvent({ ...order, paidBy: ctx.cu.user.id }, "paid", ctx.cu.user.id);
+      else if (["rejected", "cancelled"].includes(patch.status as string)) void permitsService.afterOrderEvent(order, "reverted", ctx.cu.user.id);
+    }
     const orderText = `${order.orderNo} · ${order.payeeName} · ${amountText(order.amount)}`;
     switch (input.action) {
       case "approve_request":
@@ -1669,55 +1685,6 @@ export function registerPaymentsRoutes(app: Express, deps: Deps) {
     res.json({ ok: true, chargebackDeductions: total, netPayable: Number(figures.netPayable) });
   }));
 
-  // ---- Clearances ----
-  const loadClearance = async (ctx: Ctx, id: string) => {
-    const [row] = await db.select().from(paymentClearances).where(eq(paymentClearances.id, id));
-    if (!row || !ctx.projectIds.has(row.projectId)) return fail(404, "Clearance not found");
-    return row;
-  };
-
-  app.post(`${base}/clearances`, route(async (req, res, ctx) => {
-    const data = clearanceCreateSchema.parse(req.body);
-    requireProject(ctx, data.projectId);
-    const [row] = await db.insert(paymentClearances).values({
-      ...data,
-      feeAmount: String(data.feeAmount),
-      createdBy: ctx.cu.user.id,
-    }).returning();
-    await log(data.projectId, "clearance", row.id, "created", ctx.cu.user.id, { to: row.status });
-    broadcast(data.projectId, ctx);
-    res.status(201).json(row);
-  }));
-
-  app.patch(`${base}/clearances/:id`, route(async (req, res, ctx) => {
-    const row = await loadClearance(ctx, req.params.id);
-    const data = clearanceUpdateSchema.parse(req.body);
-    // The fee can't be rewritten once money has been paid against it, or the books stop matching
-    if (data.feeAmount !== undefined && row.feePaid && data.feeAmount !== n(row.feeAmount)) {
-      return fail(409, "The fee has been paid and can no longer be changed");
-    }
-    const { feeAmount, ...rest } = data;
-    await db.update(paymentClearances).set({
-      ...rest,
-      ...(feeAmount !== undefined ? { feeAmount: String(feeAmount) } : {}),
-      updatedAt: new Date(),
-    }).where(eq(paymentClearances.id, row.id));
-    const statusChanged = data.status && data.status !== row.status;
-    await log(row.projectId, "clearance", row.id, statusChanged ? "status_changed" : "edited", ctx.cu.user.id, statusChanged ? { from: row.status, to: data.status } : {});
-    broadcast(row.projectId, ctx);
-    res.json({ ok: true });
-  }));
-
-  app.delete(`${base}/clearances/:id`, route(async (req, res, ctx) => {
-    requireAccounting(ctx);
-    const row = await loadClearance(ctx, req.params.id);
-    if (await hasLiveOrder("clearanceId", row.id)) return fail(409, "A payment order exists for this clearance");
-    await db.delete(paymentClearances).where(eq(paymentClearances.id, row.id));
-    await db.delete(paymentAttachments).where(and(eq(paymentAttachments.entityType, "clearance"), eq(paymentAttachments.entityId, row.id)));
-    broadcast(row.projectId, ctx);
-    res.status(204).send();
-  }));
-
   // ---- Fines ----
   const loadFine = async (ctx: Ctx, id: string) => {
     const [row] = await db.select().from(paymentFines).where(eq(paymentFines.id, id));
@@ -1843,7 +1810,6 @@ export function registerPaymentsRoutes(app: Express, deps: Deps) {
     switch (type) {
       case "bill_request": return loadBill(ctx, id);
       case "payment_order": return loadOrder(ctx, id);
-      case "clearance": return loadClearance(ctx, id);
       case "fine": return loadFine(ctx, id);
       case "subcontractor_certificate": return loadSubCert(ctx, id);
       case "chargeback": return loadChargeback(ctx, id);
@@ -1900,11 +1866,11 @@ export function registerPaymentsRoutes(app: Express, deps: Deps) {
 
     const poSummaries = await buildPoSummaries(ctx, ids);
     const [bills, orders, clearances, fines, subCerts, chargebacks] = empty
-      ? [[], [], [], [], [], []] as [typeof paymentBillRequests.$inferSelect[], typeof paymentOrders.$inferSelect[], typeof paymentClearances.$inferSelect[], typeof paymentFines.$inferSelect[], typeof paymentSubcontractorCertificates.$inferSelect[], typeof paymentChargebacks.$inferSelect[]]
+      ? [[], [], [], [], [], []] as [typeof paymentBillRequests.$inferSelect[], typeof paymentOrders.$inferSelect[], typeof permitTransactions.$inferSelect[], typeof paymentFines.$inferSelect[], typeof paymentSubcontractorCertificates.$inferSelect[], typeof paymentChargebacks.$inferSelect[]]
       : await Promise.all([
           db.select().from(paymentBillRequests).where(inArray(paymentBillRequests.projectId, ids)),
           db.select().from(paymentOrders).where(inArray(paymentOrders.projectId, ids)),
-          db.select().from(paymentClearances).where(inArray(paymentClearances.projectId, ids)),
+          db.select().from(permitTransactions).where(inArray(permitTransactions.projectId, ids)),
           db.select().from(paymentFines).where(inArray(paymentFines.projectId, ids)),
           db.select().from(paymentSubcontractorCertificates).where(inArray(paymentSubcontractorCertificates.projectId, ids)),
           db.select().from(paymentChargebacks).where(inArray(paymentChargebacks.projectId, ids)),
@@ -1930,16 +1896,13 @@ export function registerPaymentsRoutes(app: Express, deps: Deps) {
     const now = new Date();
     const todayIso = today();
     const monthKey = todayIso.slice(0, 7);
-    const warnUntil = new Date(now.getTime() + CLEARANCE_EXPIRY_WARNING_DAYS * 86_400_000).toISOString().slice(0, 10);
     const isOpen = <T extends readonly string[]>(set: T, status: string) => (set as readonly string[]).includes(status);
 
     const billOverdue = (b: typeof bills[number]) => isOpen(OPEN_BILL_REQUEST, b.status) && !!b.dueDate && b.dueDate < todayIso;
-    // Why a clearance needs a manager's eye, if it does
+    // Why a licence or transaction (الرخص والمعاملات) needs a manager's eye, if it does
     const attention = (c: typeof clearances[number]): "expired" | "expiring" | "overdue" | null => {
-      if (c.status === "expired" || (c.status === "obtained" && c.expiryDate && c.expiryDate < todayIso)) return "expired";
-      if (c.status === "obtained" && c.expiryDate && c.expiryDate <= warnUntil) return "expiring";
-      if (isOpen(OPEN_CLEARANCE, c.status) && c.dueDate && c.dueDate < todayIso) return "overdue";
-      return null;
+      const why = permitAttention(c, todayIso);
+      return why === "awaiting_payment" ? null : why;
     };
 
     const byProject = scope.map((p) => {
@@ -1956,7 +1919,7 @@ export function registerPaymentsRoutes(app: Express, deps: Deps) {
         pendingOrdersAmount: po.filter((o) => o.status === "pending_approval").reduce((s, o) => s + n(o.amount), 0),
         approvedUnpaidAmount: po.filter((o) => o.status === "approved").reduce((s, o) => s + n(o.amount), 0),
         paidAmount: po.filter((o) => o.status === "paid").reduce((s, o) => s + n(o.amount), 0),
-        openClearances: pc.filter((c) => isOpen(OPEN_CLEARANCE, c.status)).length,
+        openClearances: pc.filter((c) => isOpen(OPEN_PERMIT, c.status)).length,
         clearancesAttention: pc.filter((c) => attention(c)).length,
         openFinesAmount: openFines.reduce((s, f) => s + Math.max(0, n(f.amount) - n(f.paidAmount)), 0),
         openFinesCount: openFines.length,
@@ -1978,7 +1941,7 @@ export function registerPaymentsRoutes(app: Express, deps: Deps) {
     // Orders already paid whose original invoice has not arrived (or was never asked for)
     const liveRequestForOrder = new Map(bills.filter((b) => b.paymentOrderId && b.status !== "cancelled").map((b) => [b.paymentOrderId as string, b]));
     const noOriginals = orders
-      .filter((o) => o.status === "paid" && !o.billRequestId && !o.fineId && !o.clearanceId)
+      .filter((o) => o.status === "paid" && !o.billRequestId && !o.fineId && !o.permitTransactionId)
       .map((o) => ({ o, req: liveRequestForOrder.get(o.id) }))
       .filter(({ req }) => req?.status !== "received");
     const sumAmount = (list: { o: typeof orders[number] }[]) => list.reduce((s, x) => s + n(x.o.amount), 0);
@@ -2165,8 +2128,8 @@ export function registerPaymentsRoutes(app: Express, deps: Deps) {
         const reason = attention(c);
         return reason ? [{
           projectName: name.get(c.projectId) ?? "",
-          title: c.title,
-          authority: c.authority,
+          title: `${c.transactionNo} · ${c.title}`,
+          authority: c.authorityName,
           status: c.status,
           expiryDate: c.expiryDate,
           dueDate: c.dueDate,
@@ -2283,6 +2246,7 @@ export function registerPaymentsRoutes(app: Express, deps: Deps) {
       await settlePaidSources(tx, order, now);
     });
     await log(order.projectId, "payment_order", order.id, "pay", null, { from: "approved", to: "paid", note: details.source });
+    if (order.permitTransactionId) void permitsService.afterOrderEvent(order, "paid", null);
 
     // The ERP is not a user here: everyone who would normally hear about it does
     const [project] = await db.select().from(projects).where(eq(projects.id, order.projectId));

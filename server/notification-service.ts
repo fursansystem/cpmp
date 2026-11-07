@@ -72,6 +72,13 @@ class NotificationService {
     }
   }
 
+  // الرخص والمعاملات: a transaction or step was assigned, paid, is overdue or about to expire. The link opens it.
+  async notifyPermits(params: { userIds: string[]; title: string; message: string; projectId?: string; link: string; type?: NotificationType }) {
+    for (const userId of Array.from(new Set(params.userIds))) {
+      await this.createAndSend({ userId, type: params.type ?? "assignment", title: params.title, message: params.message, projectId: params.projectId, link: params.link });
+    }
+  }
+
   // A developer has offered this organization a role on one of its projects. Until the
   // invitation is answered the project itself is not visible to them, so the
   // notification carries everything needed to decide, and links to the answer screen.

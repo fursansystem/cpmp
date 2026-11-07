@@ -72,6 +72,9 @@ export const tasks = pgTable("tasks", {
   priority: text("priority").notNull(),
   status: text("status").notNull(),
   dueDate: date("due_date"),
+  // Set when the task mirrors a step of another section (permit_step: a step of a permit transaction)
+  sourceType: text("source_type"),
+  sourceId: varchar("source_id"),
 });
 
 export const documents = pgTable("documents", {
@@ -1244,7 +1247,7 @@ export type AcceptOrganizationInvitation = z.infer<typeof acceptOrganizationInvi
 export const insertTaskSchema = createInsertSchema(tasks).extend({
   priority: z.enum(["low", "medium", "high", "urgent"]),
   status: z.enum(["todo", "in-progress", "completed"]),
-  type: z.enum(["general", "inspection_request", "permission_request", "approval_request"]),
+  type: z.enum(["general", "inspection_request", "permission_request", "approval_request", "permit_step"]),
   id: z.string().optional(),
 });
 
@@ -2700,7 +2703,7 @@ export type ProgressPaymentCertificate = typeof progressPaymentCertificates.$inf
 export type ProgressPaymentCertificateLine = typeof progressPaymentCertificateLines.$inferSelect;
 
 // ---------------------------------------------------------------------------
-// Payments (المدفوعات): bill-attachment requests, payment orders, clearances and fines.
+// Payments (المدفوعات): bill-attachment requests, payment orders and fines (licence fees live in الرخص والمعاملات).
 // The status vocabularies live in shared/payments.ts.
 // ---------------------------------------------------------------------------
 
@@ -2796,7 +2799,7 @@ export const paymentChargebacks = pgTable("payment_chargebacks", {
 }));
 
 // A payment order is the instruction to pay. It has one source: a received bill request, a
-// fine, a clearance fee, or none, in which case `reason` explains what it is for.
+// fine, a permit/transaction fee, or none, in which case `reason` explains what it is for.
 export const paymentOrders = pgTable("payment_orders", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   projectId: varchar("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
@@ -2804,7 +2807,8 @@ export const paymentOrders = pgTable("payment_orders", {
   orderNo: text("order_no").notNull(), // PO-... is taken by purchase orders, so payment orders are PAY-0001
   billRequestId: varchar("bill_request_id").references(() => paymentBillRequests.id, { onDelete: "set null" }),
   fineId: varchar("fine_id"),
-  clearanceId: varchar("clearance_id"),
+  // The permit/transaction (الرخص والمعاملات) whose fee this order pays
+  permitTransactionId: varchar("permit_transaction_id"),
   subcontractorCertificateId: varchar("subcontractor_certificate_id"),
   // The page this order was started from (a purchase order, a delivery...)
   sourceType: text("source_type"),
@@ -2813,7 +2817,7 @@ export const paymentOrders = pgTable("payment_orders", {
   purchaseOrderId: varchar("purchase_order_id").references(() => purchaseOrders.id, { onDelete: "set null" }),
   certificateId: varchar("certificate_id").references(() => progressPaymentCertificates.id, { onDelete: "set null" }),
   payeeName: text("payee_name").notNull(),
-  purpose: text("purpose"), // bill, fine, clearance, advance, other (null on rows made before this column existed)
+  purpose: text("purpose"), // bill, fine, clearance (a permit/transaction fee), subcontractor, advance, other (null on rows made before this column existed)
   reason: text("reason"),
   amount: decimal("amount", { precision: 14, scale: 2 }).notNull(),
   status: text("status").notNull().default("draft"), // draft, pending_approval, approved, paid, rejected, cancelled
@@ -2871,28 +2875,6 @@ export const paymentSubcontractorCertificates = pgTable("payment_subcontractor_c
   projectIdx: index("payment_sub_certs_project_idx").on(table.projectId),
 }));
 
-// Permits and clearances (authority approvals, handover/utility clearances...) tracked per project
-export const paymentClearances = pgTable("payment_clearances", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  projectId: varchar("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
-  title: text("title").notNull(),
-  authority: text("authority"),
-  referenceNo: text("reference_no"),
-  status: text("status").notNull().default("pending"), // pending, in_progress, obtained, rejected, expired
-  responsibleName: text("responsible_name"),
-  dueDate: date("due_date"),
-  issueDate: date("issue_date"),
-  expiryDate: date("expiry_date"),
-  feeAmount: decimal("fee_amount", { precision: 14, scale: 2 }).notNull().default("0"),
-  feePaid: boolean("fee_paid").notNull().default(false),
-  notes: text("notes"),
-  createdBy: varchar("created_by").references(() => users.id, { onDelete: "set null" }),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-  updatedAt: timestamp("updated_at").notNull().defaultNow(),
-}, (table) => ({
-  projectIdx: index("payment_clearances_project_idx").on(table.projectId),
-}));
-
 export const paymentFines = pgTable("payment_fines", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   projectId: varchar("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
@@ -2927,11 +2909,11 @@ export const paymentFines = pgTable("payment_fines", {
   projectIdx: index("payment_fines_project_idx").on(table.projectId),
 }));
 
-// Files attached to any of the four records above (original bills, clearance copies, fine notices...)
+// Files attached to any of the four records above (original bills, payment receipts, fine notices...)
 export const paymentAttachments = pgTable("payment_attachments", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   projectId: varchar("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
-  entityType: text("entity_type").notNull(), // bill_request, payment_order, clearance, fine
+  entityType: text("entity_type").notNull(), // bill_request, payment_order, fine, ...
   entityId: varchar("entity_id").notNull(),
   fileName: text("file_name").notNull(),
   objectPath: text("object_path").notNull(),
@@ -2965,11 +2947,192 @@ export type PaymentChargeback = typeof paymentChargebacks.$inferSelect;
 export type ProjectSubcontractor = typeof projectSubcontractors.$inferSelect;
 export type PaymentOrder = typeof paymentOrders.$inferSelect;
 export type PaymentSubcontractorCertificate = typeof paymentSubcontractorCertificates.$inferSelect;
-export type PaymentClearance = typeof paymentClearances.$inferSelect;
 export type PaymentFine = typeof paymentFines.$inferSelect;
 export type PaymentAttachment = typeof paymentAttachments.$inferSelect;
 export type PaymentActivity = typeof paymentActivity.$inferSelect;
 
+
+
+// ==================== PERMITS & TRANSACTIONS (الرخص والمعاملات) ====================
+// A catalogue of government (and other) services modelled on the national portal's service cards, and the
+// transactions a developer runs from it for each project. Status vocabularies live in shared/permits.ts.
+
+// The authority a service belongs to. organization_id null = built-in, shared by everyone.
+export const permitAuthorities = pgTable("permit_authorities", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  organizationId: varchar("organization_id").references(() => organizations.id, { onDelete: "cascade" }),
+  code: text("code"), // stable key of built-in authorities (seeded)
+  name: text("name").notNull(),
+  nameEn: text("name_en"),
+  portalUrl: text("portal_url"),
+  active: boolean("active").notNull().default(true),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+// A service template. organization_id null = built-in catalogue (edited by a super admin).
+export const permitServices = pgTable("permit_services", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  organizationId: varchar("organization_id").references(() => organizations.id, { onDelete: "cascade" }),
+  code: text("code"), // stable key of built-in services (seeded)
+  authorityId: varchar("authority_id").references(() => permitAuthorities.id, { onDelete: "set null" }),
+  name: text("name").notNull(),
+  category: text("category").notNull().default("other"),
+  description: text("description"),
+  serviceUrl: text("service_url"),
+  channels: text("channels"),
+  isLicense: boolean("is_license").notNull().default(false),
+  validityMonths: integer("validity_months"),
+  renewalLeadDays: integer("renewal_lead_days").notNull().default(30),
+  feeAmount: decimal("fee_amount", { precision: 14, scale: 2 }).notNull().default("0"),
+  feeNote: text("fee_note"),
+  slaDays: integer("sla_days"),
+  active: boolean("active").notNull().default(true),
+  createdBy: varchar("created_by").references(() => users.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => ({
+  orgIdx: index("permit_services_org_idx").on(table.organizationId),
+}));
+
+export const permitServiceSteps = pgTable("permit_service_steps", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  serviceId: varchar("service_id").notNull().references(() => permitServices.id, { onDelete: "cascade" }),
+  seq: integer("seq").notNull(),
+  title: text("title").notNull(),
+  description: text("description"),
+  party: text("party").notNull().default("any"), // developer | contractor | consultant | any
+  slaDays: integer("sla_days"),
+  isPaymentStep: boolean("is_payment_step").notNull().default(false),
+}, (table) => ({
+  serviceIdx: index("permit_service_steps_service_idx").on(table.serviceId),
+}));
+
+export const permitServiceRequirements = pgTable("permit_service_requirements", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  serviceId: varchar("service_id").notNull().references(() => permitServices.id, { onDelete: "cascade" }),
+  seq: integer("seq").notNull(),
+  kind: text("kind").notNull().default("document"), // document | condition
+  title: text("title").notNull(),
+  description: text("description"),
+  mandatory: boolean("mandatory").notNull().default(true),
+}, (table) => ({
+  serviceIdx: index("permit_service_requirements_service_idx").on(table.serviceId),
+}));
+
+// One run of a service for one project
+export const permitTransactions = pgTable("permit_transactions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  projectId: varchar("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
+  seq: integer("seq").notNull(),
+  transactionNo: text("transaction_no").notNull(), // TR-0001, numbered per project
+  serviceId: varchar("service_id").references(() => permitServices.id, { onDelete: "set null" }),
+  kind: text("kind").notNull().default("transaction"), // license | transaction
+  title: text("title").notNull(),
+  category: text("category").notNull().default("other"),
+  authorityName: text("authority_name"),
+  portalUrl: text("portal_url"),
+  status: text("status").notNull().default("not_started"),
+  assigneeUserId: varchar("assignee_user_id").references(() => users.id, { onDelete: "set null" }),
+  responsibleName: text("responsible_name"), // free text, kept from records made before assignees existed
+  referenceNo: text("reference_no"), // the request number at the authority
+  licenseNo: text("license_no"),
+  startDate: date("start_date"),
+  dueDate: date("due_date"),
+  submittedAt: timestamp("submitted_at"),
+  issueDate: date("issue_date"),
+  expiryDate: date("expiry_date"),
+  renewalLeadDays: integer("renewal_lead_days"),
+  feeAmount: decimal("fee_amount", { precision: 14, scale: 2 }).notNull().default("0"),
+  feePaid: boolean("fee_paid").notNull().default(false),
+  feePaidAt: timestamp("fee_paid_at"),
+  renewalOfId: varchar("renewal_of_id"),
+  // The smallest "days before expiry" notice already sent, so the hourly sweep never repeats one
+  expiryNoticeLevel: integer("expiry_notice_level"),
+  notes: text("notes"),
+  createdBy: varchar("created_by").references(() => users.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => ({
+  seqUq: uniqueIndex("permit_transactions_seq_uq").on(table.projectId, table.seq),
+  projectIdx: index("permit_transactions_project_idx").on(table.projectId),
+}));
+
+export const permitTransactionSteps = pgTable("permit_transaction_steps", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  transactionId: varchar("transaction_id").notNull().references(() => permitTransactions.id, { onDelete: "cascade" }),
+  projectId: varchar("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
+  seq: integer("seq").notNull(),
+  title: text("title").notNull(),
+  description: text("description"),
+  party: text("party").notNull().default("any"),
+  isPaymentStep: boolean("is_payment_step").notNull().default(false),
+  assigneeUserId: varchar("assignee_user_id").references(() => users.id, { onDelete: "set null" }),
+  dueDate: date("due_date"),
+  status: text("status").notNull().default("pending"), // pending | in_progress | done | skipped
+  completedBy: varchar("completed_by").references(() => users.id, { onDelete: "set null" }),
+  completedAt: timestamp("completed_at"),
+  note: text("note"),
+  overdueNotifiedAt: timestamp("overdue_notified_at"),
+}, (table) => ({
+  transactionIdx: index("permit_transaction_steps_tx_idx").on(table.transactionId),
+  assigneeIdx: index("permit_transaction_steps_assignee_idx").on(table.assigneeUserId),
+}));
+
+export const permitTransactionRequirements = pgTable("permit_transaction_requirements", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  transactionId: varchar("transaction_id").notNull().references(() => permitTransactions.id, { onDelete: "cascade" }),
+  projectId: varchar("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
+  seq: integer("seq").notNull(),
+  kind: text("kind").notNull().default("document"),
+  title: text("title").notNull(),
+  description: text("description"),
+  mandatory: boolean("mandatory").notNull().default(true),
+  status: text("status").notNull().default("missing"), // missing | provided | not_applicable
+  updatedBy: varchar("updated_by").references(() => users.id, { onDelete: "set null" }),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => ({
+  transactionIdx: index("permit_transaction_requirements_tx_idx").on(table.transactionId),
+}));
+
+export const permitAttachments = pgTable("permit_attachments", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  projectId: varchar("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
+  transactionId: varchar("transaction_id").notNull().references(() => permitTransactions.id, { onDelete: "cascade" }),
+  requirementId: varchar("requirement_id"),
+  stepId: varchar("step_id"),
+  fileName: text("file_name").notNull(),
+  objectPath: text("object_path").notNull(),
+  contentType: text("content_type"),
+  size: integer("size"),
+  uploadedBy: varchar("uploaded_by").references(() => users.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => ({
+  transactionIdx: index("permit_attachments_tx_idx").on(table.transactionId),
+}));
+
+export const permitActivity = pgTable("permit_activity", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  projectId: varchar("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
+  transactionId: varchar("transaction_id").notNull().references(() => permitTransactions.id, { onDelete: "cascade" }),
+  action: text("action").notNull(),
+  fromStatus: text("from_status"),
+  toStatus: text("to_status"),
+  note: text("note"),
+  userId: varchar("user_id").references(() => users.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => ({
+  transactionIdx: index("permit_activity_tx_idx").on(table.transactionId),
+}));
+
+export type PermitAuthority = typeof permitAuthorities.$inferSelect;
+export type PermitService = typeof permitServices.$inferSelect;
+export type PermitServiceStep = typeof permitServiceSteps.$inferSelect;
+export type PermitServiceRequirement = typeof permitServiceRequirements.$inferSelect;
+export type PermitTransaction = typeof permitTransactions.$inferSelect;
+export type PermitTransactionStep = typeof permitTransactionSteps.$inferSelect;
+export type PermitTransactionRequirement = typeof permitTransactionRequirements.$inferSelect;
+export type PermitAttachment = typeof permitAttachments.$inferSelect;
+export type PermitActivity = typeof permitActivity.$inferSelect;
 
 
 // ==================== OUTGOING WEBHOOKS ====================

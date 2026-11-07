@@ -1,3 +1,4 @@
+import type { PermitFeeRow } from "@shared/permits";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link, useSearch } from "wouter";
@@ -88,8 +89,9 @@ export const STATUS_TONE: Record<string, string> = {
   requested: "amber", submitted: "blue", received: "emerald", returned: "red",
   // payment orders
   draft: "muted", pending_approval: "amber", approved: "blue", paid: "emerald", rejected: "red", cancelled: "muted", request_approved: "violet",
-  // clearances
-  pending: "muted", in_progress: "blue", obtained: "emerald", expired: "red",
+  // licences & transactions (الرخص والمعاملات), their steps and requirements
+  pending: "muted", in_progress: "blue", expired: "red", not_started: "muted", completed: "emerald",
+  done: "emerald", skipped: "muted", missing: "amber", provided: "emerald", not_applicable: "muted",
   // fines
   open: "amber", under_appeal: "violet", payment_requested: "blue", waiver_requested: "violet", waived: "muted", recovered: "emerald",
   // invoice charge-backs
@@ -569,7 +571,8 @@ export interface PaymentsOverview {
   subcontractorCertificates: any[];
   chargebacks: any[];
   subcontractors: any[];
-  clearances: any[];
+  // licence and transaction fees from الرخص والمعاملات
+  permits: PermitFeeRow[];
   fines: any[];
   purchaseOrders: PoSummary[];
   suppliers: { id: string; projectId: string; name: string; taxNumber: string | null }[];
