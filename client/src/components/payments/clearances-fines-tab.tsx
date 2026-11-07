@@ -13,11 +13,8 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/lib/auth";
 import { apiRequest } from "@/lib/queryClient";
 import {
-  CLEARANCE_EXPIRY_WARNING_DAYS,
-  CLEARANCE_LABELS,
   FINE_LABELS,
   LIABLE_PARTY_LABELS,
-  OPEN_CLEARANCE,
   OPEN_PAYMENT_ORDER,
 } from "@shared/payments";
 import {
@@ -36,27 +33,6 @@ import {
 import { SubcontractorSelect } from "./subcontractor-select";
 
 const todayIso = () => new Date().toISOString().slice(0, 10);
-
-// Mirrors the server's report logic so the table and the manager report agree
-export function clearanceAttention(c: any): "expired" | "expiring" | "overdue" | null {
-  const today = todayIso();
-  const warnUntil = new Date(Date.now() + CLEARANCE_EXPIRY_WARNING_DAYS * 86_400_000).toISOString().slice(0, 10);
-  if (c.status === "expired" || (c.status === "obtained" && c.expiryDate && c.expiryDate < today)) return "expired";
-  if (c.status === "obtained" && c.expiryDate && c.expiryDate <= warnUntil) return "expiring";
-  if ((OPEN_CLEARANCE as readonly string[]).includes(c.status) && c.dueDate && c.dueDate < today) return "overdue";
-  return null;
-}
-
-const ATTENTION_LABEL = { expired: "منتهي", expiring: "ينتهي قريباً", overdue: "متأخر" } as const;
-
-function AttentionBadge({ kind }: { kind: keyof typeof ATTENTION_LABEL | null }) {
-  if (!kind) return null;
-  return (
-    <Badge variant="secondary" className="border-none bg-destructive/10 text-destructive font-semibold gap-1">
-      <AlertTriangle className="w-3 h-3" /> {ATTENTION_LABEL[kind]}
-    </Badge>
-  );
-}
 
 function ProjectSelect({ ctx, value, onChange, disabled }: { ctx: PaymentsContext; value: string; onChange: (v: string) => void; disabled?: boolean }) {
   return (
@@ -92,175 +68,12 @@ function Toolbar({ search, setSearch, status, setStatus, labels, onNew, newLabel
   );
 }
 
-// ---------------------------------------------------------------- Clearances
-
 interface TabProps {
   ctx: PaymentsContext;
   projectId: string;
   rows: any[];
   orders: any[];
   onRequestPayment: (id: string) => void;
-}
-
-const emptyClearance = { title: "", authority: "", referenceNo: "", status: "pending", responsibleName: "", dueDate: "", issueDate: "", expiryDate: "", feeAmount: "", notes: "" };
-
-export function ClearancesTab({ ctx, projectId, rows, orders, onRequestPayment }: TabProps) {
-  const [status, setStatus] = useState("all");
-  const [search, setSearch] = useState("");
-  const [editing, setEditing] = useState<any | "new" | null>(null);
-
-  const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    return rows.filter((r) => (status === "all" || r.status === status) && (!q || [r.title, r.authority, r.referenceNo, r.projectName, r.responsibleName].some((s) => String(s ?? "").toLowerCase().includes(q))));
-  }, [rows, status, search]);
-
-  const current = editing && editing !== "new" ? rows.find((r) => r.id === editing.id) ?? null : null;
-
-  return (
-    <div className="space-y-4">
-      <Toolbar search={search} setSearch={setSearch} status={status} setStatus={setStatus} labels={CLEARANCE_LABELS} onNew={() => setEditing("new")} newLabel="رخصة / تصريح جديد" />
-      <Card className="rounded-2xl">
-        <CardContent className="p-0 overflow-x-auto">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>البند</TableHead>
-                {projectId === "all" && <TableHead>المشروع</TableHead>}
-                <TableHead>الجهة</TableHead>
-                <TableHead>المسؤول</TableHead>
-                <TableHead>الاستحقاق</TableHead>
-                <TableHead>الانتهاء</TableHead>
-                <TableHead className="text-end">الرسوم</TableHead>
-                <TableHead>الحالة</TableHead>
-                <TableHead />
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filtered.length === 0 && <TableRow><TableCell colSpan={9} className="text-center text-muted-foreground py-10">لا توجد بنود</TableCell></TableRow>}
-              {filtered.map((r) => (
-                <TableRow key={r.id} className="cursor-pointer" onClick={() => setEditing(r)}>
-                  <TableCell className="font-semibold">{r.title}{r.referenceNo && <div className="text-xs font-normal text-muted-foreground">{r.referenceNo}</div>}</TableCell>
-                  {projectId === "all" && <TableCell>{r.projectName}</TableCell>}
-                  <TableCell>{r.authority ?? "—"}</TableCell>
-                  <TableCell>{r.responsibleName ?? "—"}</TableCell>
-                  <TableCell>{fmtDate(r.dueDate)}</TableCell>
-                  <TableCell>{fmtDate(r.expiryDate)}</TableCell>
-                  <TableCell className="text-end tabular-nums">
-                    {Number(r.feeAmount) > 0 ? money(r.feeAmount) : "—"}
-                    {Number(r.feeAmount) > 0 && <div className="text-xs text-muted-foreground">{r.feePaid ? "مدفوعة" : "غير مدفوعة"}</div>}
-                  </TableCell>
-                  <TableCell className="space-y-1">
-                    <StatusBadge status={r.status} labels={CLEARANCE_LABELS} />
-                    <div><AttentionBadge kind={clearanceAttention(r)} /></div>
-                  </TableCell>
-                  <TableCell className="text-muted-foreground text-xs whitespace-nowrap"><Paperclip className="w-3.5 h-3.5 inline mr-1" />{r.attachments.length}</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
-      {editing && (
-        <ClearanceDialog ctx={ctx} defaultProjectId={projectId} row={current} orders={orders} onClose={() => setEditing(null)} onRequestPayment={(id) => { setEditing(null); onRequestPayment(id); }} />
-      )}
-    </div>
-  );
-}
-
-function ClearanceDialog({ ctx, defaultProjectId, row, orders, onClose, onRequestPayment }: { ctx: PaymentsContext; defaultProjectId: string; row: any | null; orders: any[]; onClose: () => void; onRequestPayment: (id: string) => void }) {
-  const { toast } = useToast();
-  const { user } = useAuth();
-  const queryClient = useQueryClient();
-  const [projectId, setProjectId] = useState(row?.projectId ?? (defaultProjectId === "all" ? "" : defaultProjectId));
-  const [form, setForm] = useState(
-    row
-      ? { title: row.title, authority: row.authority ?? "", referenceNo: row.referenceNo ?? "", status: row.status, responsibleName: row.responsibleName ?? "", dueDate: row.dueDate ?? "", issueDate: row.issueDate ?? "", expiryDate: row.expiryDate ?? "", feeAmount: String(Number(row.feeAmount) || ""), notes: row.notes ?? "" }
-      : emptyClearance,
-  );
-  const set = (k: keyof typeof form) => (v: string) => setForm((f) => ({ ...f, [k]: v }));
-
-  const body = () => ({
-    ...form,
-    authority: form.authority || null,
-    referenceNo: form.referenceNo || null,
-    responsibleName: form.responsibleName || null,
-    dueDate: form.dueDate || null,
-    issueDate: form.issueDate || null,
-    expiryDate: form.expiryDate || null,
-    feeAmount: form.feeAmount || 0,
-    notes: form.notes || null,
-  });
-
-  const save = useMutation({
-    mutationFn: async () => row
-      ? apiRequest("PATCH", `/api/payments/clearances/${row.id}`, body())
-      : apiRequest("POST", "/api/payments/clearances", { projectId, ...body() }),
-    onSuccess: () => { invalidatePayments(queryClient); toast({ title: row ? "تم الحفظ" : "تمت الإضافة" }); onClose(); },
-    onError: (e) => toast({ title: "تعذّر الحفظ", description: errorMessage(e), variant: "destructive" }),
-  });
-  const remove = useMutation({
-    mutationFn: async () => apiRequest("DELETE", `/api/payments/clearances/${row.id}`),
-    onSuccess: () => { invalidatePayments(queryClient); onClose(); },
-    onError: (e) => toast({ title: "تعذّر الحذف", description: errorMessage(e), variant: "destructive" }),
-  });
-
-  const hasLiveOrder = row ? orders.some((o) => o.clearanceId === row.id && ([...OPEN_PAYMENT_ORDER, "paid"] as string[]).includes(o.status)) : false;
-  const canRequestPayment = ctx.perms.isAccounting && row && Number(row.feeAmount) > 0 && !row.feePaid && !hasLiveOrder;
-
-  return (
-    <PaymentDialog
-      onClose={onClose}
-      icon={FileBadge}
-      kind="رخصة / تصريح"
-      title={row ? row.title : "رخصة / تصريح جديد"}
-      badge={row ? <StatusBadge status={row.status} labels={CLEARANCE_LABELS} /> : undefined}
-      description={row ? row.projectName : "تتبّع الرخص ورسومها مع المشروع والمالية"}
-      amount={Number(form.feeAmount) > 0 ? money(form.feeAmount) : undefined}
-      amountLabel={row?.feePaid ? "الرسوم (مسددة)" : "الرسوم"}
-      footer={
-        <>
-          <Button disabled={save.isPending || !form.title.trim() || !projectId} onClick={() => save.mutate()}><Save className="w-4 h-4 mr-1" /> حفظ</Button>
-          {canRequestPayment && <Button variant="outline" onClick={() => onRequestPayment(row.id)}><Banknote className="w-4 h-4 mr-1" /> أمر دفع للرسوم</Button>}
-          {row && ctx.perms.isAccounting && (
-            <Button variant="ghost" className="text-destructive" disabled={remove.isPending} onClick={() => remove.mutate()}><Trash2 className="w-4 h-4 mr-1" /> حذف</Button>
-          )}
-        </>
-      }
-    >
-        <div className="grid sm:grid-cols-2 gap-3">
-          <div className="sm:col-span-2"><ProjectSelect ctx={ctx} value={projectId} onChange={setProjectId} disabled={!!row} /></div>
-          <div className="space-y-1.5 sm:col-span-2"><Label>البند</Label><Input value={form.title} onChange={(e) => set("title")(e.target.value)} placeholder="مثال: رخصة الدفاع المدني، شهادة إتمام البناء…" /></div>
-          <div className="space-y-1.5"><Label>الجهة</Label><Input value={form.authority} onChange={(e) => set("authority")(e.target.value)} /></div>
-          <div className="space-y-1.5"><Label>رقم المرجع</Label><Input value={form.referenceNo} onChange={(e) => set("referenceNo")(e.target.value)} /></div>
-          <div className="space-y-1.5">
-            <Label>الحالة</Label>
-            <Select value={form.status} onValueChange={set("status")}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>{Object.entries(CLEARANCE_LABELS).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}</SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-1.5"><Label>المسؤول عن المتابعة</Label><Input value={form.responsibleName} onChange={(e) => set("responsibleName")(e.target.value)} /></div>
-          <div className="space-y-1.5"><Label>مطلوب الحصول عليه قبل</Label><Input type="date" value={form.dueDate} onChange={(e) => set("dueDate")(e.target.value)} /></div>
-          <div className="space-y-1.5"><Label>تاريخ الإصدار</Label><Input type="date" value={form.issueDate} onChange={(e) => set("issueDate")(e.target.value)} /></div>
-          <div className="space-y-1.5"><Label>تاريخ الانتهاء</Label><Input type="date" value={form.expiryDate} onChange={(e) => set("expiryDate")(e.target.value)} /></div>
-          <div className="space-y-1.5">
-            <Label>الرسوم</Label>
-            <Input type="number" min="0" step="0.01" value={form.feeAmount} onChange={(e) => set("feeAmount")(e.target.value)} disabled={!!row?.feePaid} />
-            {row?.feePaid && <p className="text-xs text-muted-foreground">تم سداد الرسوم.</p>}
-          </div>
-          <div className="space-y-1.5 sm:col-span-2"><Label>ملاحظات</Label><Textarea rows={2} value={form.notes} onChange={(e) => set("notes")(e.target.value)} /></div>
-        </div>
-
-        {row && (
-          <>
-            <LatestActivity entityType="clearance" entityId={row.id} labels={CLEARANCE_LABELS} />
-            <div className="rounded-md border border-dashed border-primary/20 bg-primary/5 p-3">
-              <AttachmentsPanel entityType="clearance" entityId={row.id} projectId={row.projectId} files={row.attachments} editable canRemove={(f) => f.uploadedBy === user?.id || ctx.perms.isAccounting} hint="أرفق صورة الرخصة أو إيصال الرسوم." />
-            </div>
-          </>
-        )}
-    </PaymentDialog>
-  );
 }
 
 // --------------------------------------------------------------------- Fines

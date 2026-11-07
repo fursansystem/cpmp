@@ -10,7 +10,8 @@
     "check": "tsc",
     "db:push": "drizzle-kit push",
     "db:migrate-payments": "tsx --env-file=.env migrate_payments_tables.ts",
-    "db:migrate-webhooks": "tsx --env-file=.env migrate_webhooks_tables.ts"
+    "db:migrate-webhooks": "tsx --env-file=.env migrate_webhooks_tables.ts",
+    "db:migrate-permits": "tsx --env-file=.env migrate_permits_tables.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1006.0",

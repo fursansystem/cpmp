@@ -5,7 +5,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
-import { BILL_REQUEST_LABELS, CLEARANCE_LABELS, FINE_LABELS, LIABLE_PARTY_LABELS, type PaymentsReport } from "@shared/payments";
+import { BILL_REQUEST_LABELS, FINE_LABELS, LIABLE_PARTY_LABELS, type PaymentsReport } from "@shared/payments";
+import { PERMIT_STATUS_LABELS } from "@shared/permits";
 import { fmtDate, fmtDateTime, getJson, money, paymentsQuery } from "./payments-common";
 
 const PURPOSE_LABEL: Record<string, string> = { advance: "دفعة مقدمة", other: "أخرى", subcontractor: "مستخلص باطن" };
@@ -77,7 +78,7 @@ export function ReportsTab({ projectId, projectName }: { projectId: string; proj
     })));
     add("رخص تحتاج انتباه", data.clearancesAttention.map((c) => ({
       المشروع: c.projectName, البند: c.title, الجهة: c.authority ?? "",
-      الحالة: CLEARANCE_LABELS[c.status as keyof typeof CLEARANCE_LABELS] ?? c.status,
+      الحالة: PERMIT_STATUS_LABELS[c.status as keyof typeof PERMIT_STATUS_LABELS] ?? c.status,
       الانتهاء: c.expiryDate ?? "", الاستحقاق: c.dueDate ?? "", السبب: REASON_LABEL[c.reason],
     })));
     add("خصومات مفتوحة", data.openFines.map((f) => ({

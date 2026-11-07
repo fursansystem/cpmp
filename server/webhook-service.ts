@@ -24,7 +24,7 @@ import {
   webhookDeliveries,
   paymentBillRequests,
   paymentOrders,
-  paymentClearances,
+  permitTransactions,
   paymentFines,
   paymentSubcontractorCertificates,
   paymentChargebacks,
@@ -165,7 +165,7 @@ const paymentTables = {
   subcontractor_certificate: paymentSubcontractorCertificates,
   chargeback: paymentChargebacks,
   fine: paymentFines,
-  clearance: paymentClearances,
+  permit: permitTransactions,
 } as const;
 
 async function loadRecord(event: WebhookEvent, id: string): Promise<unknown> {

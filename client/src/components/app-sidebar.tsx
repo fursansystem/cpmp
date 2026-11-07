@@ -1,4 +1,4 @@
-import { Home, Wallet, FolderKanban, CheckSquare, Users, DollarSign, Building2, LogsIcon, Settings, ShieldCheck, Library, ChevronDown } from "lucide-react";
+import { Home, Wallet, Landmark, FolderKanban, CheckSquare, Users, DollarSign, Building2, LogsIcon, Settings, ShieldCheck, Library, ChevronDown } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -33,6 +33,11 @@ const menuItems = [
     title: "Payments",
     url: "/payments",
     icon: Wallet,
+  },
+  {
+    title: "الرخص والمعاملات",
+    url: "/permits",
+    icon: Landmark,
   },
   {
     title: "Activity",

@@ -1,3 +1,4 @@
+import { OPEN_PERMIT, PERMIT_STATUS_LABELS, type PermitFeeRow } from "@shared/permits";
 import { useMemo, useRef, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Printer, FileSpreadsheet } from "lucide-react";
@@ -9,7 +10,6 @@ import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@
 import { cn } from "@/lib/utils";
 import {
   CHARGEBACK_LABELS,
-  CLEARANCE_LABELS,
   LIABLE_PARTY_LABELS,
   OPEN_FINE,
   SUB_CERT_LABELS,
@@ -366,11 +366,11 @@ function LicencesTimeline({ data, projectName }: { data: PaymentsOverview; proje
   const rows = useMemo(() => {
     const today = todayIso();
     const horizon = addDaysIso(92);
-    const out: { c: any; date: string; what: "انتهاء" | "استحقاق"; group: string }[] = [];
-    for (const c of data.clearances) {
-      // an obtained licence matters by its expiry; one still being chased matters by its due date
-      const open = ["pending", "in_progress"].includes(c.status);
-      const date = open ? c.dueDate : c.status === "obtained" || c.status === "expired" ? c.expiryDate : null;
+    const out: { c: PermitFeeRow; date: string; what: "انتهاء" | "استحقاق"; group: string }[] = [];
+    for (const c of data.permits) {
+      // an issued licence matters by its expiry; one still being chased matters by its due date
+      const open = (OPEN_PERMIT as readonly string[]).includes(c.status);
+      const date = open ? c.dueDate : c.status === "completed" || c.status === "expired" ? c.expiryDate : null;
       if (!date || date > horizon) continue;
       const month = date.slice(0, 7);
       const group = date < today ? "منتهية / متأخرة" : month;
@@ -383,7 +383,7 @@ function LicencesTimeline({ data, projectName }: { data: PaymentsOverview; proje
   const groups = Array.from(new Set(rows.map((r) => r.group)));
   const sheet: Sheet = {
     name: "متابعة الرخص",
-    rows: rows.map((r) => ({ الفترة: r.group, الرخصة: r.c.title, المشروع: r.c.projectName, الجهة: r.c.authority ?? "", الحالة: CLEARANCE_LABELS[r.c.status as keyof typeof CLEARANCE_LABELS] ?? r.c.status, النوع: r.what, التاريخ: r.date, الرسوم: num(r.c.feeAmount), "الرسوم مدفوعة": r.c.feePaid ? "نعم" : "لا" })),
+    rows: rows.map((r) => ({ الفترة: r.group, الرقم: r.c.transactionNo, الرخصة: r.c.title, المشروع: r.c.projectName, الجهة: r.c.authorityName ?? "", الحالة: PERMIT_STATUS_LABELS[r.c.status as keyof typeof PERMIT_STATUS_LABELS] ?? r.c.status, النوع: r.what, التاريخ: r.date, الرسوم: num(r.c.feeAmount), "الرسوم مدفوعة": r.c.feePaid ? "نعم" : "لا" })),
   };
 
   return (
@@ -403,10 +403,10 @@ function LicencesTimeline({ data, projectName }: { data: PaymentsOverview; proje
             <TableBody>
               {rows.filter((r) => r.group === g).map((r) => (
                 <TableRow key={r.c.id}>
-                  <TableCell className="font-semibold">{r.c.title}</TableCell>
+                  <TableCell className="font-semibold"><a className="hover:underline" href={`/permits/${r.c.id}`}>{r.c.title}</a><div className="text-xs font-normal text-muted-foreground">{r.c.transactionNo}</div></TableCell>
                   <TableCell>{r.c.projectName}</TableCell>
-                  <TableCell>{r.c.authority ?? "—"}</TableCell>
-                  <TableCell>{CLEARANCE_LABELS[r.c.status as keyof typeof CLEARANCE_LABELS] ?? r.c.status}</TableCell>
+                  <TableCell>{r.c.authorityName ?? "—"}</TableCell>
+                  <TableCell>{PERMIT_STATUS_LABELS[r.c.status as keyof typeof PERMIT_STATUS_LABELS] ?? r.c.status}</TableCell>
                   <TableCell>{r.what}</TableCell>
                   <TableCell>{fmtDate(r.date)}</TableCell>
                   <TableCell className="text-end tabular-nums">{num(r.c.feeAmount) > 0 ? `${money(r.c.feeAmount)}${r.c.feePaid ? " ✓" : ""}` : "—"}</TableCell>
@@ -570,8 +570,8 @@ function CashFlowForecast({ data, projectName }: { data: PaymentsOverview; proje
       if (c.status === "submitted") add(c.projectId, c.projectName, "awaitingApproval", num(c.netPayable));
       if (c.status === "approved" && !data.orders.some((o) => o.subcontractorCertificateId === c.id && live.includes(o.status))) add(c.projectId, c.projectName, "awaitingOrder", num(c.netPayable));
     }
-    for (const c of data.clearances) {
-      if (!c.feePaid && num(c.feeAmount) > 0 && ["pending", "in_progress"].includes(c.status) && c.dueDate && c.dueDate <= horizon) add(c.projectId, c.projectName, "licences", num(c.feeAmount));
+    for (const c of data.permits) {
+      if (!c.feePaid && num(c.feeAmount) > 0 && (OPEN_PERMIT as readonly string[]).includes(c.status) && c.dueDate && c.dueDate <= horizon) add(c.projectId, c.projectName, "licences", num(c.feeAmount));
     }
     for (const f of data.fines) {
       if ((OPEN_FINE as readonly string[]).includes(f.status) && f.dueDate && f.dueDate <= horizon) add(f.projectId, f.projectName, "deductions", Math.max(0, num(f.amount) - num(f.paidAmount)));
