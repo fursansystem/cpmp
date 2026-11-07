@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { useLocation, useSearch } from "wouter";
-import { ArrowLeft, BarChart3, Wallet, Hourglass, FileText, Banknote, ShieldAlert } from "lucide-react";
+import { Link, useLocation, useSearch } from "wouter";
+import { ArrowLeft, BarChart3, Wallet, Hourglass, FileText, Banknote, ShieldAlert, Landmark } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -61,7 +61,6 @@ export default function Payments() {
   }, []);
   const [tab, setTab] = useState(["reports", null, ""].includes(query("tab")) ? "dashboard" : (query("tab") as string)); // reports moved to /reports
   const [projectId, setProjectId] = useState(query("project") || "all");
-  const [, navigate] = useLocation();
   // A notification can point at another tab or project while this page is already open
   const search = useSearch();
   useEffect(() => {
