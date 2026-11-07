@@ -2,6 +2,8 @@
 // through with government authorities and utilities in Saudi Arabia. Each entry points at the authority's
 // own portal. Fees, durations and validity differ by city, project type and over time, so they are left for
 // the user to fill in from the authority; the steps and documents are the usual ones and can be edited.
+// Entries with a `source` were checked against the authority's own service page on that date
+// (steps, requirements, fee and duration as published there); the rest are the usual ones.
 
 export interface SeedAuthority {
   code: string;
@@ -20,6 +22,10 @@ export interface SeedService {
   channels: string;
   isLicense: boolean;
   feeNote: string;
+  /** Service duration published by the authority, in days (permit_services.sla_days) */
+  slaDays?: number;
+  /** Where the details were taken from, and when they were last checked */
+  source?: { url: string; checkedAt: string };
   steps: { title: string; party: "developer" | "contractor" | "consultant" | "any"; isPaymentStep?: boolean; description?: string }[];
   requirements: { kind: "document" | "condition"; title: string; mandatory?: boolean }[];
 }
@@ -66,26 +72,36 @@ export const SEED_SERVICES: SeedService[] = [
     authority: "balady",
     category: "municipal",
     name: "إصدار رخصة بناء",
-    description: "الترخيص بإنشاء المبنى وفق المخططات المعتمدة. يفوّض المالك مكتب التصميم الذي يعدّ المخططات المعمارية والإنشائية على المنصة.",
-    serviceUrl: "https://balady.gov.sa/ar/services/issuing-building-permit",
-    channels: BALADY,
+    description: "خدمة إلكترونية في منصة بلدي تمكّن المستفيد من البدء في أعمال البناء بشكل نظامي، بعد استيفاء واعتماد المخططات الهندسية والوثائق المطلوبة من المكاتب الهندسية المعتمدة والجهات ذات العلاقة، دون الحاجة لمراجعة الجهة.",
+    serviceUrl: "https://balady.gov.sa/ar/services/%D8%A5%D8%B5%D8%AF%D8%A7%D8%B1-%D8%B1%D8%AE%D8%B5%D8%A9-%D8%A8%D9%86%D8%A7%D8%A1",
+    channels: "إلكترونياً فقط عبر لوحة التحكم في بوابة بلدي وتطبيق الجوال",
     isLicense: true,
-    feeNote: FEE_NOTE,
+    feeNote: "تُحسب من حاسبة الرسوم في منصة بلدي، إضافة إلى قسط وثيقة التأمين ضد العيوب الخفية. طرق الدفع: سداد، فيزا، ماستر كارد، مدى، Apple Pay",
+    slaDays: 10,
+    source: { url: "https://balady.gov.sa/ar/services/%D8%A5%D8%B5%D8%AF%D8%A7%D8%B1-%D8%B1%D8%AE%D8%B5%D8%A9-%D8%A8%D9%86%D8%A7%D8%A1", checkedAt: "2026-11-07" },
     steps: [
-      { title: "تفويض مكتب التصميم الهندسي على منصة بلدي", party: "developer" },
-      { title: "قبول التفويض وإعداد المخططات المعمارية والإنشائية", party: "consultant" },
-      { title: "إصدار وثيقة التأمين على العيوب الخفية (عند انطباقها)", party: "developer" },
-      { title: "تدقيق الأمانة / البلدية واعتماد المخططات", party: "any" },
-      { title: "سداد رسوم الرخصة", party: "developer", isPaymentStep: true },
-      { title: "طباعة الرخصة وتعليق لوحة المشروع في الموقع", party: "contractor" },
+      { title: "تفويض مكتب هندسي مصمم لإصدار رخصة البناء", party: "developer", description: "يدخل المالك أو من يمثله لوحة التحكم ويختار صفة المستخدم ثم يفوّض المكتب المصمم." },
+      { title: "قبول التفويض واختيار التقرير المساحي للأرض", party: "consultant", description: "عبر منصة بلدي أعمال." },
+      { title: "إعداد التصاميم المعمارية والإنشائية وإرفاق الملفات والموافقة على التعهدات البلدية", party: "consultant" },
+      { title: "تدقيق شركة الفحص الفني للتصاميم وفق كود البناء السعودي", party: "any", description: "تُسند شركة التأمين الطلب آلياً لشركة الفحص الفني؛ الملاحظات تُعاد للمكتب المصمم لمعالجتها." },
+      { title: "مراجعة الأمانة / البلدية وإصدار شهادة اعتماد التصاميم", party: "any" },
+      { title: "تحديد المكتب المشرف وموافقته على إسناد الرخصة", party: "consultant" },
+      { title: "تحديد مقاول البناء وموافقته وإرفاق بياناته ومرفقاته", party: "contractor" },
+      { title: "سداد وثيقة التأمين ضد العيوب الخفية", party: "developer", isPaymentStep: true, description: "يرسل نظام بلدي طلب الوثيقة آلياً لشركة التأمين ويصل رابط السداد للمقاول والمستفيد." },
+      { title: "اعتماد الرسوم البلدية وإصدار الفاتورة", party: "consultant" },
+      { title: "سداد رسوم الرخصة", party: "developer", isPaymentStep: true, description: "لا تُعد الرخصة سارية إلا بعد سداد رسوم الرخصة ووثيقة التأمين." },
+      { title: "إصدار الرخصة وإشعار الجهات المرتبطة (الكهرباء، المياه، الدفاع المدني، السجل العيني…)", party: "any" },
     ],
     requirements: [
-      { kind: "document", title: "صك الملكية" },
-      { kind: "document", title: "القرار المساحي" },
-      { kind: "document", title: "المخططات المعمارية والإنشائية" },
-      { kind: "document", title: "تقرير فحص التربة" },
-      { kind: "document", title: "عقد الإشراف الهندسي" },
-      { kind: "condition", title: "التعاقد مع مكتب إشراف هندسي معتمد" },
+      { kind: "document", title: "صك إلكتروني محدّث من وزارة العدل أو عقد إسكان أو عقد استثماري" },
+      { kind: "document", title: "قرار مساحي (بغرض البناء)" },
+      { kind: "condition", title: "التعاقد مع مكتب هندسي مصمم لتصميم المخططات الهندسية" },
+      { kind: "condition", title: "التعاقد مع مكتب هندسي مشرف ومقاول بناء" },
+      { kind: "document", title: "وثيقة التأمين ضد العيوب الخفية للمبنى" },
+      { kind: "document", title: "تقرير دراسة التربة" },
+      { kind: "document", title: "الدراسة المرورية للمشروع (إذا تطلّب النشاط ذلك)", mandatory: false },
+      { kind: "condition", title: "الإقرارات والتعهدات البلدية" },
+      { kind: "condition", title: "سداد رسوم الخدمة" },
     ],
   },
   {
@@ -224,23 +240,34 @@ export const SEED_SERVICES: SeedService[] = [
     code: "cd_safety_license",
     authority: "civil_defense",
     category: "civil_defense",
-    name: "ترخيص / شهادة السلامة للمبنى",
-    description: "شهادة الدفاع المدني بأن أنظمة السلامة منفّذة ومطابقة، وتُطلب لإتمام البناء والإشغال.",
-    serviceUrl: "https://998.gov.sa",
-    channels: "إلكترونياً عبر منصة سلامة",
+    name: "إصدار رخصة سلامة (بوابة سلامة)",
+    description: "خدمة إلكترونية تتيح للمنشآت التي تمتلك سجلات تجارية سارية المفعول إصدار رخصة سلامة من الدفاع المدني.",
+    serviceUrl: "https://998.gov.sa/ar/Page/Services/1/",
+    channels: "إلكترونياً عبر بوابة سلامة (موقع الويب)",
     isLicense: true,
-    feeNote: FEE_NOTE,
+    feeNote: "صفحة الخدمة تذكر التكلفة 0، لكن خطوات الخدمة تتضمن سداد فاتورة عبر سداد — تُحدَّد عند تقديم الطلب",
+    slaDays: 1,
+    source: { url: "https://998.gov.sa/ar/Page/Services/1/", checkedAt: "2026-11-07" },
     steps: [
-      { title: "تقديم الطلب على منصة سلامة", party: "developer" },
-      { title: "تجهيز الموقع للمعاينة", party: "contractor" },
-      { title: "المعاينة الميدانية", party: "any" },
-      { title: "سداد الرسوم", party: "developer", isPaymentStep: true },
-      { title: "إصدار الشهادة", party: "developer" },
+      { title: "التسجيل في خدمة سلامة كطالب ترخيص", party: "developer" },
+      { title: "تعبئة الحقول المطلوبة بعد تحديد نوع النشاط", party: "developer" },
+      { title: "إرفاق المستندات المطلوبة حسب نوع النشاط", party: "developer" },
+      { title: "سداد فاتورة سداد", party: "developer", isPaymentStep: true },
+      { title: "انتظار موافقة المختص على الطلب", party: "any" },
+      { title: "طباعة الترخيص", party: "developer" },
     ],
     requirements: [
-      { kind: "document", title: "اعتماد مخططات السلامة" },
-      { kind: "document", title: "شهادات تركيب واختبار أنظمة السلامة" },
-      { kind: "condition", title: "عقد صيانة أنظمة السلامة مع شركة معتمدة" },
+      { kind: "document", title: "الهوية الوطنية" },
+      { kind: "document", title: "صورة من السجل التجاري أو الصناعي" },
+      { kind: "document", title: "خطاب رسمي من الجهة الحكومية المختصة", mandatory: false },
+      { kind: "document", title: "صورة من رخصة البناء" },
+      { kind: "document", title: "رسم كروكي للموقع" },
+      { kind: "document", title: "صورة من عقد الإيجار أو إثبات الملكية" },
+      { kind: "document", title: "عقد صيانة لأنظمة السلامة ساري المفعول" },
+      { kind: "document", title: "عقد صيانة المصاعد (إن وجد)", mandatory: false },
+      { kind: "document", title: "وثيقة التأمين على المنشأة" },
+      { kind: "document", title: "تصريح الدفاع المدني السابق (إن وجد)", mandatory: false },
+      { kind: "condition", title: "سجل تجاري ساري المفعول" },
     ],
   },
   {

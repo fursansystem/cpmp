@@ -205,8 +205,8 @@ async function seedCatalogue() {
   for (const s of SEED_SERVICES) {
     // Only services the catalogue does not have yet: an administrator's edits to a built-in service are kept
     const inserted = await db.execute(sql`
-      INSERT INTO permit_services (code, authority_id, name, category, description, service_url, channels, is_license, fee_note)
-      SELECT ${s.code}, a.id, ${s.name}, ${s.category}, ${s.description}, ${s.serviceUrl}, ${s.channels}, ${s.isLicense}, ${s.feeNote}
+      INSERT INTO permit_services (code, authority_id, name, category, description, service_url, channels, is_license, fee_note, sla_days)
+      SELECT ${s.code}, a.id, ${s.name}, ${s.category}, ${s.description}, ${s.serviceUrl}, ${s.channels}, ${s.isLicense}, ${s.feeNote}, ${s.slaDays ?? null}
       FROM permit_authorities a WHERE a.code = ${s.authority} AND a.organization_id IS NULL
       ON CONFLICT (code) WHERE organization_id IS NULL DO NOTHING
       RETURNING id
