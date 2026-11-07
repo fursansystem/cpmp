@@ -47,6 +47,7 @@ import ProjectSnagList from "@/pages/ProjectSnagList";
 import ProjectProgressMatrix from "@/pages/ProjectProgressMatrix";
 import Payments from "@/pages/Payments";
 import Permits from "@/pages/Permits";
+import Services from "@/pages/Services";
 import PermitDetail from "@/pages/PermitDetail";
 import Reports from "@/pages/Reports";
 import Login from "@/pages/login";
@@ -113,6 +114,7 @@ function ProtectedRoutes() {
       <Route path="/payments" component={Payments} />
       <Route path="/permits/:id" component={PermitDetail} />
       <Route path="/permits" component={Permits} />
+      <Route path="/services" component={Services} />
       <Route path="/reports" component={Reports} />
       <Route path="/tasks" component={Tasks} />
       <Route path="/organizations" component={Organizations} />

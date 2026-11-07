@@ -21,6 +21,7 @@ import {
 } from "@shared/schema";
 import { EXPIRY_FINAL_NOTICE_DAYS, DEFAULT_RENEWAL_LEAD_DAYS, daysUntil, type PermitUserRef } from "@shared/permits";
 import { notificationService } from "./notification-service";
+import { seedPermitCatalogue } from "./permit-catalog-seed";
 import { notificationWss } from "./websocket";
 import { webhookService } from "./webhook-service";
 
@@ -222,6 +223,10 @@ class PermitsService {
   // ---- Expiry and overdue sweep ----
   start(intervalMs = 60 * 60 * 1000) {
     if (this.timer) return;
+    // The built-in service directory: filled in here too, so it is there even if the migration's seed did not run
+    void seedPermitCatalogue()
+      .then((added) => added && console.log(`[Permits] added ${added} built-in services to the catalogue`))
+      .catch((error) => console.error("[Permits] could not seed the service catalogue (run npm run db:migrate-permits):", error?.message ?? error));
     // first run shortly after start-up, then hourly
     setTimeout(() => void this.sweep(), 30_000);
     this.timer = setInterval(() => void this.sweep(), intervalMs);

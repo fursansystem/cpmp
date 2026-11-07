@@ -106,6 +106,8 @@ export default function Permits() {
               : "المعاملات والخطوات المُسندة إليك في مشاريعك"}
           </p>
         </div>
+        <div className="flex flex-wrap items-center gap-2">
+        <Button variant="outline" asChild><Link href="/services"><Landmark className="w-4 h-4 me-1" /> دليل الخدمات</Link></Button>
         {ctx.projects.length > 0 && (
           <Select value={projectId} onValueChange={setProjectId}>
             <SelectTrigger className="w-[260px]" data-testid="select-permits-project"><SelectValue /></SelectTrigger>
@@ -115,6 +117,7 @@ export default function Permits() {
             </SelectContent>
           </Select>
         )}
+        </div>
       </div>
 
       {ctx.projects.length === 0 ? (

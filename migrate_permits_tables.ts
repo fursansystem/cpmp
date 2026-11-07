@@ -1,6 +1,6 @@
 import { db } from "./server/db";
 import { sql } from "drizzle-orm";
-import { SEED_AUTHORITIES, SEED_SERVICES } from "./server/permit-catalog-seed";
+import { seedPermitCatalogue } from "./server/permit-catalog-seed";
 
 // الرخص والمعاملات (Permits & transactions): the service catalogue, the transactions run from it, their steps,
 // requirements, files and activity. Safe to run again: tables and columns are created only when missing, the
@@ -194,39 +194,7 @@ async function createTables() {
 }
 
 async function seedCatalogue() {
-  for (const a of SEED_AUTHORITIES) {
-    await db.execute(sql`
-      INSERT INTO permit_authorities (code, name, name_en, portal_url)
-      VALUES (${a.code}, ${a.name}, ${a.nameEn}, ${a.portalUrl})
-      ON CONFLICT (code) WHERE organization_id IS NULL DO NOTHING
-    `);
-  }
-  let added = 0;
-  for (const s of SEED_SERVICES) {
-    // Only services the catalogue does not have yet: an administrator's edits to a built-in service are kept
-    const inserted = await db.execute(sql`
-      INSERT INTO permit_services (code, authority_id, name, category, description, service_url, channels, is_license, fee_note, sla_days)
-      SELECT ${s.code}, a.id, ${s.name}, ${s.category}, ${s.description}, ${s.serviceUrl}, ${s.channels}, ${s.isLicense}, ${s.feeNote}, ${s.slaDays ?? null}
-      FROM permit_authorities a WHERE a.code = ${s.authority} AND a.organization_id IS NULL
-      ON CONFLICT (code) WHERE organization_id IS NULL DO NOTHING
-      RETURNING id
-    `);
-    const id = (inserted.rows[0] as { id?: string } | undefined)?.id;
-    if (!id) continue;
-    added += 1;
-    for (const [i, step] of s.steps.entries()) {
-      await db.execute(sql`
-        INSERT INTO permit_service_steps (service_id, seq, title, description, party, is_payment_step)
-        VALUES (${id}, ${i + 1}, ${step.title}, ${step.description ?? null}, ${step.party}, ${!!step.isPaymentStep})
-      `);
-    }
-    for (const [i, r] of s.requirements.entries()) {
-      await db.execute(sql`
-        INSERT INTO permit_service_requirements (service_id, seq, kind, title, mandatory)
-        VALUES (${id}, ${i + 1}, ${r.kind}, ${r.title}, ${r.mandatory ?? true})
-      `);
-    }
-  }
+  const added = await seedPermitCatalogue();
   console.log(`Built-in catalogue ready (${added} new services).`);
 }
 

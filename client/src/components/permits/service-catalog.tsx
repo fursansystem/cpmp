@@ -63,7 +63,7 @@ export function useCatalog() {
   });
 }
 
-const feeText = (s: CatalogService) => (Number(s.feeAmount) > 0 ? money(s.feeAmount) : s.feeNote ?? "تُحدَّد من الجهة");
+export const feeText = (s: CatalogService) => (Number(s.feeAmount) > 0 ? money(s.feeAmount) : s.feeNote ?? "تُحدَّد من الجهة");
 
 // ------------------------------------------------------------------ catalogue tab
 
@@ -190,7 +190,7 @@ function CategoryChip({ active, onClick, label, count }: { active: boolean; onCl
 
 // ------------------------------------------------------------------ one service
 
-function ServiceDetailDialog({ ctx, service: s, onClose, onStart, onEdit }: { ctx: PermitsContext; service: CatalogService; onClose: () => void; onStart: () => void; onEdit: () => void }) {
+export function ServiceDetailDialog({ ctx, service: s, onClose, onStart, onEdit }: { ctx: PermitsContext; service: CatalogService; onClose: () => void; onStart: () => void; onEdit: () => void }) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const duplicate = useMutation({
@@ -396,7 +396,7 @@ export function NewTransactionDialog({ ctx, services, defaultProjectId, serviceI
 
 // ------------------------------------------------------------------ edit a service
 
-function ServiceEditorDialog({ ctx, service, authorities, onClose }: { ctx: PermitsContext; service: CatalogService | null; authorities: CatalogAuthority[]; onClose: () => void }) {
+export function ServiceEditorDialog({ ctx, service, authorities, onClose }: { ctx: PermitsContext; service: CatalogService | null; authorities: CatalogAuthority[]; onClose: () => void }) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [scope, setScope] = useState<"system" | "org">(service ? (service.isSystem ? "system" : "org") : ctx.canManageOrgCatalog ? "org" : "system");

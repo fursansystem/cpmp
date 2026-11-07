@@ -5,6 +5,9 @@
 // Entries with a `source` were checked against the authority's own service page on that date
 // (steps, requirements, fee and duration as published there); the rest are the usual ones.
 
+import { sql } from "drizzle-orm";
+import { db } from "./db";
+
 export interface SeedAuthority {
   code: string;
   name: string;
@@ -406,3 +409,44 @@ export const SEED_SERVICES: SeedService[] = [
     ],
   },
 ];
+
+// Adds the built-in authorities and services the database does not have yet. Safe to run any number of times:
+// services already there (and an administrator's edits to them) are left alone. Returns how many were added.
+// Run by migrate_permits_tables.ts and again when the server starts, so the catalogue is never left empty.
+export async function seedPermitCatalogue(): Promise<number> {
+  for (const a of SEED_AUTHORITIES) {
+    await db.execute(sql`
+      INSERT INTO permit_authorities (code, name, name_en, portal_url)
+      VALUES (${a.code}, ${a.name}, ${a.nameEn}, ${a.portalUrl})
+      ON CONFLICT (code) WHERE organization_id IS NULL DO NOTHING
+    `);
+  }
+  let added = 0;
+  for (const s of SEED_SERVICES) {
+    const inserted = await db.execute(sql`
+      INSERT INTO permit_services (code, authority_id, name, category, description, service_url, channels, is_license, fee_note, sla_days)
+      SELECT ${s.code}, a.id, ${s.name}, ${s.category}, ${s.description}, ${s.serviceUrl}, ${s.channels}, ${s.isLicense}, ${s.feeNote}, ${s.slaDays ?? null}
+      FROM permit_authorities a WHERE a.code = ${s.authority} AND a.organization_id IS NULL
+      ON CONFLICT (code) WHERE organization_id IS NULL DO NOTHING
+      RETURNING id
+    `);
+    const id = (inserted.rows[0] as { id?: string } | undefined)?.id;
+    if (!id) continue;
+    added += 1;
+    for (let i = 0; i < s.steps.length; i++) {
+      const step = s.steps[i];
+      await db.execute(sql`
+        INSERT INTO permit_service_steps (service_id, seq, title, description, party, is_payment_step)
+        VALUES (${id}, ${i + 1}, ${step.title}, ${step.description ?? null}, ${step.party}, ${!!step.isPaymentStep})
+      `);
+    }
+    for (let i = 0; i < s.requirements.length; i++) {
+      const r = s.requirements[i];
+      await db.execute(sql`
+        INSERT INTO permit_service_requirements (service_id, seq, kind, title, mandatory)
+        VALUES (${id}, ${i + 1}, ${r.kind}, ${r.title}, ${r.mandatory ?? true})
+      `);
+    }
+  }
+  return added;
+}
