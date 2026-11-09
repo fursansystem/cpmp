@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useTranslation, Trans } from "react-i18next";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ShieldCheck, AlertTriangle, Users, UserX } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -24,6 +25,7 @@ interface ApproverSettingsDialogProps {
 }
 
 export function ApproverSettingsDialog({ open, onOpenChange, projectId }: ApproverSettingsDialogProps) {
+  const { t } = useTranslation("warehouse");
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [selected, setSelected] = useState<string[]>([]);
@@ -52,11 +54,11 @@ export function ApproverSettingsDialog({ open, onOpenChange, projectId }: Approv
       queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "inventory-approvers"] });
       queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "inventory-permissions"] });
       queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "material-issues"] });
-      toast({ title: "تم حفظ المناصب المعتمدة" });
+      toast({ title: t("approvers_dialog.toasts.saved") });
       onOpenChange(false);
     },
     onError: (e: any) =>
-      toast({ title: "تعذّر الحفظ", description: e?.message || "حدث خطأ", variant: "destructive" }),
+      toast({ title: t("approvers_dialog.toasts.failed"), description: e?.message || t("approvers_dialog.toasts.failed"), variant: "destructive" }),
   });
 
   const coverage: any[] = data?.coverage ?? [];
@@ -69,14 +71,14 @@ export function ApproverSettingsDialog({ open, onOpenChange, projectId }: Approv
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent dir="rtl" className="max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl">
-        <DialogHeader className="text-right">
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl">
+        <DialogHeader className="text-end">
           <DialogTitle className="flex items-center gap-2 text-lg font-black">
             <ShieldCheck className="w-5 h-5 text-primary" />
-            المناصب المعتمدة لسندات الصرف
+            {t("approvers_dialog.title")}
           </DialogTitle>
           <DialogDescription className="text-xs">
-            من يحمل أحد هذه المناصب في المشروع يستطيع اعتماد سندات الصرف وتسجيل التسويات
+            {t("approvers_dialog.description")}
           </DialogDescription>
         </DialogHeader>
 
@@ -89,9 +91,9 @@ export function ApproverSettingsDialog({ open, onOpenChange, projectId }: Approv
         ) : coverage.length === 0 ? (
           <div className="rounded-xl border border-dashed border-border py-10 flex flex-col items-center gap-2 text-center px-4">
             <Users className="w-8 h-8 text-muted-foreground/40" />
-            <p className="text-xs font-bold">لا توجد مناصب مشغولة في هذا المشروع</p>
+            <p className="text-xs font-bold">{t("approvers_dialog.empty_title")}</p>
             <p className="text-[11px] text-muted-foreground">
-              أضف أعضاء الفريق وحدّد مناصبهم أولًا، ثم عُد لضبط المعتمدين.
+              {t("approvers_dialog.empty_desc")}
             </p>
           </div>
         ) : (
@@ -121,16 +123,16 @@ export function ApproverSettingsDialog({ open, onOpenChange, projectId }: Approv
                   </div>
                   <div className="flex items-center gap-1.5 shrink-0">
                     <Badge variant="secondary" className="rounded-full text-[10px] font-bold">
-                      {c.memberCount} عضو
+                      {t("approvers_dialog.member_count", { count: c.memberCount })}
                     </Badge>
                     {noUsers ? (
                       <Badge className="rounded-full border-none bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300 text-[10px] font-bold gap-1">
                         <UserX className="w-3 h-3" />
-                        بلا حساب
+                        {t("approvers_dialog.no_account")}
                       </Badge>
                     ) : (
                       <Badge className="rounded-full border-none bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300 text-[10px] font-bold">
-                        {c.userCount} مستخدم
+                        {t("approvers_dialog.user_count", { count: c.userCount })}
                       </Badge>
                     )}
                   </div>
@@ -144,8 +146,7 @@ export function ApproverSettingsDialog({ open, onOpenChange, projectId }: Approv
           <div className="rounded-xl border border-amber-500/40 bg-amber-50 dark:bg-amber-900/10 p-3 flex items-start gap-2">
             <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
             <p className="text-xs text-amber-800 dark:text-amber-300">
-              بلا مناصب معتمدة، <span className="font-black">لن يستطيع أحد اعتماد سندات الصرف</span> عدا
-              مدير النظام — وستبقى السندات التي تحتوي مواد تحتاج اعتمادًا معلّقة.
+              <Trans i18nKey="approvers_dialog.no_approvers_warning" t={t} components={[<span key="0" className="font-black" />]} />
             </p>
           </div>
         )}
@@ -155,9 +156,9 @@ export function ApproverSettingsDialog({ open, onOpenChange, projectId }: Approv
             <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
             <p className="text-xs text-amber-800 dark:text-amber-300">
               <span className="font-black">
-                {selectedWithoutUsers.map((c) => c.position.titleArabic || c.position.titleEnglish).join("، ")}
+                {selectedWithoutUsers.map((c) => c.position.titleArabic || c.position.titleEnglish).join(", ")}
               </span>{" "}
-              — لا يملك شاغلوها حسابات دخول، فلن يتمكنوا من الاعتماد فعليًا حتى تُربط حساباتهم.
+              {t("approvers_dialog.no_account_warning")}
             </p>
           </div>
         )}
@@ -168,10 +169,10 @@ export function ApproverSettingsDialog({ open, onOpenChange, projectId }: Approv
             disabled={save.isPending || !canManage || isLoading}
             className="rounded-xl font-bold"
           >
-            {save.isPending ? "جارٍ الحفظ..." : "حفظ"}
+            {save.isPending ? t("approvers_dialog.saving") : t("approvers_dialog.save")}
           </Button>
           <Button variant="outline" onClick={() => onOpenChange(false)} className="rounded-xl font-bold">
-            إلغاء
+            {t("approvers_dialog.cancel")}
           </Button>
         </DialogFooter>
       </DialogContent>

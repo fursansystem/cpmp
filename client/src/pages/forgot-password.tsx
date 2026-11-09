@@ -30,7 +30,7 @@ export default function ForgotPasswordPage() {
 
   if (isSubmitted) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background p-4" dir="rtl">
+      <div className="min-h-screen flex items-center justify-center bg-background p-4">
         <Card className="w-full max-w-md">
           <CardHeader className="text-center space-y-2">
             <div className="mx-auto w-16 h-16 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center mb-4">
@@ -47,7 +47,7 @@ export default function ForgotPasswordPage() {
             </p>
             <Link href="/login">
               <Button variant="outline" className="w-full" data-testid="button-back-to-login">
-                <ArrowRight className="w-4 h-4 ml-2" />
+                <ArrowRight className="w-4 h-4 ms-2 rtl:rotate-180" />
                 العودة لتسجيل الدخول
               </Button>
             </Link>
@@ -58,7 +58,7 @@ export default function ForgotPasswordPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-4" dir="rtl">
+    <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center space-y-2">
           <div className="mx-auto w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mb-4">
@@ -99,12 +99,12 @@ export default function ForgotPasswordPage() {
             >
               {isLoading ? (
                 <>
-                  <Loader2 className="w-4 h-4 ml-2 animate-spin" />
+                  <Loader2 className="w-4 h-4 ms-2 animate-spin" />
                   جاري الإرسال...
                 </>
               ) : (
                 <>
-                  <Mail className="w-4 h-4 ml-2" />
+                  <Mail className="w-4 h-4 ms-2" />
                   إرسال رابط الاسترجاع
                 </>
               )}

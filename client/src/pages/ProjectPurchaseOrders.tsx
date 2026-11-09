@@ -1,5 +1,6 @@
 import { PaymentActionButtons } from "@/components/payments/payment-actions";
 import { useState, useMemo, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useParams, useLocation } from "wouter";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -123,6 +124,7 @@ const PO_STATUS_STYLES: Record<string, string> = {
 };
 
 export default function ProjectPurchaseOrders() {
+  const { t } = useTranslation(["procurement", "common"]);
   const { projectId } = useParams();
   const [location, navigate] = useLocation();
   const [searchQuery, setSearchQuery] = useState("");
@@ -242,10 +244,10 @@ export default function ProjectPurchaseOrders() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "rfqs"] });
-      toast({ title: "نجاح", description: "تم حذف طلب عرض السعر بنجاح" });
+      toast({ title: t("orders.toasts.delete_rfq_success_title"), description: t("orders.toasts.delete_rfq_success_desc") });
     },
     onError: (error: Error) => {
-      toast({ title: "خطأ", description: error.message, variant: "destructive" });
+      toast({ title: t("orders.toasts.error_title"), description: error.message, variant: "destructive" });
     },
   });
 
@@ -257,10 +259,10 @@ export default function ProjectPurchaseOrders() {
       queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "purchase-orders"] });
       queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "rfqs"] });
       queryClient.invalidateQueries({ queryKey: ["/api/rfqs"] });
-      toast({ title: "نجاح", description: "تم حذف أمر الشراء بنجاح" });
+      toast({ title: t("orders.toasts.delete_po_success_title"), description: t("orders.toasts.delete_po_success_desc") });
     },
     onError: (error: Error) => {
-      toast({ title: "خطأ", description: error.message, variant: "destructive" });
+      toast({ title: t("orders.toasts.error_title"), description: error.message, variant: "destructive" });
     },
   });
 
@@ -302,7 +304,7 @@ export default function ProjectPurchaseOrders() {
   return (
     <div className="min-h-screen bg-transparent px-6 lg:px-10 pt-2 pb-8 space-y-4 relative overflow-hidden">
       {/* Background Decorative Elements */}
-      <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none -z-10">
+      <div className="absolute top-0 start-0 w-full h-full overflow-hidden pointer-events-none -z-10">
         <div className="absolute top-[-10%] right-[-10%] w-[40%] h-[40%] bg-primary/5 rounded-full blur-[120px]" />
         <div className="absolute bottom-[-10%] left-[-10%] w-[40%] h-[40%] bg-blue-500/5 rounded-full blur-[120px]" />
       </div>
@@ -312,19 +314,19 @@ export default function ProjectPurchaseOrders() {
           <Button
             variant="ghost"
             size="sm"
-            className="-ml-2 h-8 w-8 p-0 md:h-auto md:w-auto md:px-3 md:py-2 text-muted-foreground hover:text-foreground shrink-0 shadow-sm z-10"
+            className="-ms-2 h-8 w-8 p-0 md:h-auto md:w-auto md:px-3 md:py-2 text-muted-foreground hover:text-foreground shrink-0 shadow-sm z-10"
             onClick={() => navigate(`/projects/${projectId}`)}
           >
-            <ArrowLeft className="w-5 h-5 md:mr-2" />
-            <span className="hidden md:inline font-semibold">Back to Project</span>
+            <ArrowLeft className="w-5 h-5 md:me-2 rtl:rotate-180" />
+            <span className="hidden md:inline font-semibold">{t("orders.back_to_project")}</span>
           </Button>
         </div>
 
         {/* Absolute Centered Title Badge */}
         <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none flex items-center gap-2 lg:gap-3 w-full justify-center px-12 lg:px-0">
           <Badge variant="secondary" className="px-4 py-1.5 lg:px-8 lg:py-2 border-none bg-primary/10 text-primary rounded-full shadow-sm lg:shadow-md">
-            <ShoppingCart className="w-4 h-4 lg:w-6 lg:h-6 mr-2 lg:mr-3 text-primary" />
-            <span className="text-sm lg:text-xl font-bold tracking-tight uppercase truncate max-w-[200px] sm:max-w-none">Purchase Orders & Suppliers</span>
+            <ShoppingCart className="w-4 h-4 lg:w-6 lg:h-6 me-2 lg:me-3 text-primary" />
+            <span className="text-sm lg:text-xl font-bold tracking-tight uppercase truncate max-w-[200px] sm:max-w-none">{t("orders.header_title")}</span>
           </Badge>
         </div>
 
@@ -334,8 +336,8 @@ export default function ProjectPurchaseOrders() {
               onClick={handleAddSupplier} 
               className="shadow-lg rounded-full font-black text-[10px] uppercase tracking-widest px-6 h-9 lg:h-11 bg-primary hover:bg-primary/90 text-primary-foreground transition-all active:scale-95"
             >
-              <Plus className="w-4 h-4 mr-2" />
-              Add Supplier
+              <Plus className="w-4 h-4 me-2" />
+              {t("orders.actions.add_supplier")}
             </Button>
           )}
           {activeTab === "rfqs" && (
@@ -343,8 +345,8 @@ export default function ProjectPurchaseOrders() {
               onClick={() => navigate(`/projects/${projectId}/rfqs/new`)} 
               className="shadow-lg rounded-full font-black text-[10px] uppercase tracking-widest px-6 h-9 lg:h-11 bg-primary hover:bg-primary/90 text-primary-foreground transition-all active:scale-95"
             >
-              <Plus className="w-4 h-4 mr-2" />
-              طلب عرض سعر جديد (New RFQ)
+              <Plus className="w-4 h-4 me-2" />
+              {t("orders.actions.new_rfq")}
             </Button>
           )}
           {activeTab === "quotations" && (
@@ -356,8 +358,8 @@ export default function ProjectPurchaseOrders() {
               }} 
               className="shadow-lg rounded-full font-black text-[10px] uppercase tracking-widest px-6 h-9 lg:h-11 bg-amber-600 hover:bg-amber-700 text-white transition-all active:scale-95"
             >
-              <Plus className="w-4 h-4 mr-2" />
-              تسجيل عرض سعر (Add Quote)
+              <Plus className="w-4 h-4 me-2" />
+              {t("orders.actions.add_quote")}
             </Button>
           )}
           {activeTab === "purchase_orders" && (
@@ -365,8 +367,8 @@ export default function ProjectPurchaseOrders() {
               onClick={() => navigate(`/projects/${projectId}/purchase-orders/new`)} 
               className="shadow-lg rounded-full font-black text-[10px] uppercase tracking-widest px-6 h-9 lg:h-11 bg-primary hover:bg-primary/90 text-primary-foreground transition-all active:scale-95"
             >
-              <Plus className="w-4 h-4 mr-2" />
-              أمر شراء يدوي (New PO)
+              <Plus className="w-4 h-4 me-2" />
+              {t("orders.actions.new_po")}
             </Button>
           )}
         </div>
@@ -385,19 +387,19 @@ export default function ProjectPurchaseOrders() {
           <TabsList className="bg-muted/40 p-1 rounded-2xl h-11 border border-border/50">
             <TabsTrigger value="suppliers" className="rounded-xl px-5 text-xs font-bold gap-2 data-[state=active]:bg-background data-[state=active]:shadow-sm">
               <Building2 className="w-4 h-4 text-blue-600" />
-              Supplier Directory ({suppliers.length})
+              {t("orders.tabs.suppliers")} ({suppliers.length})
             </TabsTrigger>
             <TabsTrigger value="rfqs" className="rounded-xl px-5 text-xs font-bold gap-2 data-[state=active]:bg-background data-[state=active]:shadow-sm">
               <FileText className="w-4 h-4 text-purple-600" />
-              RFQs ({rfqs.length})
+              {t("orders.tabs.rfqs")} ({rfqs.length})
             </TabsTrigger>
             <TabsTrigger value="quotations" className="rounded-xl px-5 text-xs font-bold gap-2 data-[state=active]:bg-background data-[state=active]:shadow-sm">
               <DollarSign className="w-4 h-4 text-amber-600" />
-              Quotations ({quotations.length})
+              {t("orders.tabs.quotations")} ({quotations.length})
             </TabsTrigger>
             <TabsTrigger value="purchase_orders" className="rounded-xl px-5 text-xs font-bold gap-2 data-[state=active]:bg-background data-[state=active]:shadow-sm">
               <ShoppingCart className="w-4 h-4 text-emerald-600" />
-              Purchase Orders ({purchaseOrders.length})
+              {t("orders.tabs.purchase_orders")} ({purchaseOrders.length})
             </TabsTrigger>
           </TabsList>
         </div>
@@ -408,16 +410,16 @@ export default function ProjectPurchaseOrders() {
           {project && (
             <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 lg:gap-10 text-[11px] lg:text-sm text-muted-foreground bg-muted/30 p-2 rounded-[1.5rem] border border-border/50 shadow-sm">
               <div className="flex items-center gap-1.5 lg:gap-2.5">
-                <span className="font-black uppercase tracking-widest opacity-60 text-[9px] lg:text-[10px]">Project:</span>
+                <span className="font-black uppercase tracking-widest opacity-60 text-[9px] lg:text-[10px]">{t("orders.project_meta.project")}</span>
                 <span className="font-bold text-foreground">{project.name}</span>
               </div>
               <div className="flex items-center gap-1.5 lg:gap-2.5">
-                <span className="font-black uppercase tracking-widest opacity-60 text-[9px] lg:text-[10px]">Location:</span>
+                <span className="font-black uppercase tracking-widest opacity-60 text-[9px] lg:text-[10px]">{t("orders.project_meta.location")}</span>
                 <span className="font-bold text-foreground">{project.location}</span>
               </div>
               <div className="flex items-center gap-1.5 lg:gap-2.5">
                 <ShoppingCart className="w-3.5 h-3.5 text-primary" />
-                <span className="font-bold text-foreground">Supplier Registry</span>
+                <span className="font-bold text-foreground">{t("orders.project_meta.supplier_registry")}</span>
               </div>
             </div>
           )}
@@ -427,17 +429,17 @@ export default function ProjectPurchaseOrders() {
             <div className="flex flex-col gap-1">
               <div className="flex items-center gap-2">
                 <div className="w-2 h-2 rounded-full bg-primary animate-pulse shadow-[0_0_8px_hsl(var(--primary)/0.4)]" />
-                <h2 className="text-sm lg:text-lg font-black uppercase tracking-tight text-foreground/70">Supplier Directory</h2>
+                <h2 className="text-sm lg:text-lg font-black uppercase tracking-tight text-foreground/70">{t("orders.supplier_directory.title")}</h2>
               </div>
-              <p className="text-[10px] lg:text-xs font-bold text-muted-foreground uppercase tracking-widest opacity-60">Manage project-specific vendors</p>
+              <p className="text-[10px] lg:text-xs font-bold text-muted-foreground uppercase tracking-widest opacity-60">{t("orders.supplier_directory.subtitle")}</p>
             </div>
             <div className="relative w-full max-w-md group">
-              <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground group-focus-within:text-primary transition-colors" />
+              <Search className="absolute start-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground group-focus-within:text-primary transition-colors" />
               <Input
-                placeholder="Search suppliers, contacts, or materials..."
+                placeholder={t("orders.supplier_directory.search_placeholder")}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-12 h-10 lg:h-12 bg-white dark:bg-background/50 border-none focus-visible:ring-2 focus-visible:ring-primary/50 rounded-full shadow-inner transition-all text-sm font-medium"
+                className="ps-12 h-10 lg:h-12 bg-white dark:bg-background/50 border-none focus-visible:ring-2 focus-visible:ring-primary/50 rounded-full shadow-inner transition-all text-sm font-medium"
               />
             </div>
           </div>
@@ -450,10 +452,10 @@ export default function ProjectPurchaseOrders() {
                   <div className="bg-primary/10 p-8 rounded-full mb-6">
                     <Users className="w-16 h-16 text-primary opacity-50" />
                   </div>
-                  <p className="font-black text-xl uppercase tracking-tight text-foreground">No Suppliers Onboarded</p>
-                  <p className="text-sm font-bold uppercase tracking-widest opacity-60 mt-2">Start by adding your first project supplier to manage materials.</p>
+                  <p className="font-black text-xl uppercase tracking-tight text-foreground">{t("orders.supplier_directory.empty_title")}</p>
+                  <p className="text-sm font-bold uppercase tracking-widest opacity-60 mt-2">{t("orders.supplier_directory.empty_desc")}</p>
                   <Button onClick={handleAddSupplier} className="mt-8 rounded-full font-black text-[10px] uppercase tracking-widest px-8 h-11 bg-primary hover:bg-primary/90 text-primary-foreground transition-all shadow-lg shadow-primary/20">
-                    Onboard New Supplier
+                    {t("orders.supplier_directory.add_first_supplier")}
                   </Button>
                 </CardContent>
               </Card>
@@ -479,25 +481,25 @@ export default function ProjectPurchaseOrders() {
           {rfqs.length === 0 ? (
             <div className="text-center p-12 border-2 border-dashed border-muted/50 rounded-[1.5rem] bg-muted/5 space-y-3">
               <FileText className="w-12 h-12 text-muted-foreground/50 mx-auto" />
-              <p className="font-black text-lg text-foreground">لا توجد طلبات عروض أسعار (RFQs)</p>
+              <p className="font-black text-lg text-foreground">{t("orders.rfq_empty.title")}</p>
               <p className="text-xs text-muted-foreground">
-                أنشئ طلب عرض سعر جديد لتحديد المواد المطلوبة ودعوة الموردين لتقديم عروضهم
+                {t("orders.rfq_empty.description")}
               </p>
               <Button onClick={() => navigate(`/projects/${projectId}/rfqs/new`)} className="rounded-full text-xs font-bold gap-1.5 px-6 mt-2">
                 <Plus className="w-4 h-4" />
-                إنشاء طلب عرض سعر جديد
+                {t("orders.rfq_empty.cta")}
               </Button>
             </div>
           ) : (
             <div className="space-y-3 pb-12">
               <div className="flex flex-wrap items-center gap-2">
                 <div className="relative flex-1 min-w-[200px] max-w-sm">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  <Search className="absolute start-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                   <Input
                     value={rfqSearch}
                     onChange={(e) => setRfqSearch(e.target.value)}
-                    placeholder="Search by number or title..."
-                    className="pl-9 h-9 rounded-xl text-sm"
+                    placeholder={t("orders.rfq_tab.search_placeholder")}
+                    className="ps-9 h-9 rounded-xl text-sm"
                   />
                 </div>
                 <Select value={rfqStatusFilter} onValueChange={setRfqStatusFilter}>
@@ -505,28 +507,28 @@ export default function ProjectPurchaseOrders() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">All statuses</SelectItem>
-                    <SelectItem value="draft">Draft</SelectItem>
-                    <SelectItem value="sent">Sent</SelectItem>
-                    <SelectItem value="evaluating">Evaluating</SelectItem>
-                    <SelectItem value="awarded">Awarded</SelectItem>
+                    <SelectItem value="all">{t("orders.rfq_tab.all_statuses")}</SelectItem>
+                    <SelectItem value="draft">{t("po_status.draft")}</SelectItem>
+                    <SelectItem value="sent">{t("po_status.issued")}</SelectItem>
+                    <SelectItem value="evaluating">{t("orders.quotes_table.status_under_review")}</SelectItem>
+                    <SelectItem value="awarded">{t("orders.quotes_table.status_accepted")}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
 
-              <div className="border rounded-2xl overflow-hidden bg-card" dir="ltr">
+              <div className="border rounded-2xl overflow-hidden bg-card">
                 <Table>
                   <TableHeader className="bg-muted/40">
                     <TableRow>
-                      <TableHead>RFQ No.</TableHead>
-                      <TableHead>Title</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead className="text-center">Items</TableHead>
-                      <TableHead className="text-center">Suppliers</TableHead>
-                      <TableHead className="text-center">Quotes</TableHead>
-                      <TableHead className="text-center">PO Coverage</TableHead>
-                      <TableHead>Due Date</TableHead>
-                      <TableHead>Created By</TableHead>
+                      <TableHead>{t("orders.rfq_tab.table.rfq_no")}</TableHead>
+                      <TableHead>{t("orders.rfq_tab.table.title")}</TableHead>
+                      <TableHead>{t("orders.rfq_tab.table.status")}</TableHead>
+                      <TableHead className="text-center">{t("orders.rfq_tab.table.items")}</TableHead>
+                      <TableHead className="text-center">{t("orders.rfq_tab.table.suppliers")}</TableHead>
+                      <TableHead className="text-center">{t("orders.rfq_tab.table.quotes")}</TableHead>
+                      <TableHead className="text-center">{t("orders.rfq_tab.table.po_coverage")}</TableHead>
+                      <TableHead>{t("orders.rfq_tab.table.due_date")}</TableHead>
+                      <TableHead>{t("orders.rfq_tab.table.created_by")}</TableHead>
                       <TableHead className="w-[130px]" />
                     </TableRow>
                   </TableHeader>
@@ -585,7 +587,7 @@ export default function ProjectPurchaseOrders() {
                                 <Button
                                   variant="ghost"
                                   size="sm"
-                                  title="Compare & award"
+                                  title={t("orders.rfq_tab.compare_award_title")}
                                   onClick={() => navigate(`/projects/${projectId}/rfqs/${rfq.id}?tab=award`)}
                                   className="h-8 w-8 p-0"
                                 >
@@ -594,7 +596,7 @@ export default function ProjectPurchaseOrders() {
                                 <Button
                                   variant="ghost"
                                   size="sm"
-                                  title="Add quotation"
+                                  title={t("orders.rfq_tab.add_quote_title")}
                                   onClick={() => {
                                     setSelectedRfqForQuote(rfq.id);
                                     setSelectedSupplierForQuote(undefined);
@@ -607,7 +609,7 @@ export default function ProjectPurchaseOrders() {
                                 <Button
                                   variant="ghost"
                                   size="sm"
-                                  title="Delete"
+                                  title={t("orders.rfq_tab.delete_title")}
                                   disabled={rfq.status === "awarded"}
                                   onClick={() => setRfqToDelete(rfq)}
                                   className="h-8 w-8 p-0 text-destructive hover:bg-destructive/10"
@@ -627,15 +629,15 @@ export default function ProjectPurchaseOrders() {
           )}
 
           <AlertDialog open={!!rfqToDelete} onOpenChange={(open) => !open && setRfqToDelete(null)}>
-            <AlertDialogContent dir="ltr">
+            <AlertDialogContent>
               <AlertDialogHeader>
-                <AlertDialogTitle>Delete RFQ {rfqToDelete?.rfqNumber}?</AlertDialogTitle>
+                <AlertDialogTitle>{t("orders.delete_rfq_dialog.title", { rfqNumber: rfqToDelete?.rfqNumber })}</AlertDialogTitle>
                 <AlertDialogDescription>
-                  This will permanently delete the RFQ with its items and quotations. This cannot be undone.
+                  {t("orders.delete_rfq_dialog.description")}
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
-                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogCancel>{t("orders.delete_rfq_dialog.cancel")}</AlertDialogCancel>
                 <AlertDialogAction
                   className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                   onClick={() => {
@@ -643,7 +645,7 @@ export default function ProjectPurchaseOrders() {
                     setRfqToDelete(null);
                   }}
                 >
-                  Delete
+                  {t("orders.delete_rfq_dialog.confirm")}
                 </AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialogContent>
@@ -655,9 +657,9 @@ export default function ProjectPurchaseOrders() {
           {quotations.length === 0 ? (
             <div className="text-center p-12 border-2 border-dashed border-muted/50 rounded-[1.5rem] bg-muted/5 space-y-3">
               <DollarSign className="w-12 h-12 text-muted-foreground/50 mx-auto" />
-              <p className="font-black text-lg text-foreground">لا توجد عروض أسعار مسجلة</p>
+              <p className="font-black text-lg text-foreground">{t("orders.quotes_empty.title")}</p>
               <p className="text-xs text-muted-foreground">
-                سجّل عروض الأسعار المستلمة من الموردين لبدء المقارنة والترسية
+                {t("orders.quotes_empty.description")}
               </p>
               <Button
                 onClick={() => {
@@ -668,22 +670,22 @@ export default function ProjectPurchaseOrders() {
                 className="rounded-full text-xs font-bold gap-1.5 px-6 mt-2 bg-amber-600 hover:bg-amber-700 text-white"
               >
                 <Plus className="w-4 h-4" />
-                تسجيل عرض سعر جديد
+                {t("orders.quotes_empty.cta")}
               </Button>
             </div>
           ) : (
             <div className="border border-border/60 rounded-[1.5rem] overflow-hidden bg-background shadow-md">
-              <table className="w-full text-right text-xs">
+              <table className="w-full text-end text-xs">
                 <thead className="bg-muted/30 border-b font-bold text-foreground">
                   <tr>
-                    <th className="p-3.5">المورد</th>
-                    <th className="p-3.5">طلب عرض السعر (RFQ)</th>
-                    <th className="p-3.5">رقم العرض</th>
-                    <th className="p-3.5">المبلغ الإجمالي</th>
-                    <th className="p-3.5">مدة التوريد</th>
-                    <th className="p-3.5">الحالة</th>
-                    <th className="p-3.5 text-center">المستند</th>
-                    <th className="p-3.5 text-center">الإجراءات</th>
+                    <th className="p-3.5">{t("orders.quotes_table.supplier")}</th>
+                    <th className="p-3.5">{t("orders.quotes_table.rfq")}</th>
+                    <th className="p-3.5">{t("orders.quotes_table.quote_no")}</th>
+                    <th className="p-3.5">{t("orders.quotes_table.total")}</th>
+                    <th className="p-3.5">{t("orders.quotes_table.lead_time")}</th>
+                    <th className="p-3.5">{t("orders.quotes_table.status")}</th>
+                    <th className="p-3.5 text-center">{t("orders.quotes_table.doc")}</th>
+                    <th className="p-3.5 text-center">{t("orders.quotes_table.actions")}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border/40">
@@ -698,7 +700,7 @@ export default function ProjectPurchaseOrders() {
                         )}
                       </td>
                       <td className="p-3.5">
-                        <span className="font-semibold text-primary">{quote.rfqTitle || "طلب تسعير"}</span>
+                        <span className="font-semibold text-primary">{quote.rfqTitle || t("orders.quotes_table.rfq_fallback")}</span>
                         {quote.rfqNumber && (
                           <span className="text-[10px] text-muted-foreground block font-mono">
                             {quote.rfqNumber}
@@ -716,7 +718,7 @@ export default function ProjectPurchaseOrders() {
                         SAR
                       </td>
                       <td className="p-3.5 text-muted-foreground">
-                        {quote.leadTimeDays ? `${quote.leadTimeDays} يوم` : "-"}
+                        {quote.leadTimeDays ? t("orders.quotes_table.days_suffix", { days: quote.leadTimeDays }) : "-"}
                       </td>
                       <td className="p-3.5">
                         <Badge
@@ -730,10 +732,10 @@ export default function ProjectPurchaseOrders() {
                           }`}
                         >
                           {quote.status === "accepted"
-                            ? "مقبول / فائز"
+                            ? t("orders.quotes_table.status_accepted")
                             : quote.status === "rejected"
-                            ? "مرفوض"
-                            : "قيد المراجعة"}
+                            ? t("orders.quotes_table.status_rejected")
+                            : t("orders.quotes_table.status_under_review")}
                         </Badge>
                       </td>
                       <td className="p-3.5 text-center">
@@ -747,7 +749,7 @@ export default function ProjectPurchaseOrders() {
                             className="inline-flex items-center gap-1 text-primary font-bold hover:underline"
                           >
                             <FileText className="w-4 h-4" />
-                            عرض
+                            {t("orders.actions.view_quote")}
                           </a>
                         ) : (
                           <span className="text-muted-foreground">-</span>
@@ -764,7 +766,7 @@ export default function ProjectPurchaseOrders() {
                           className="rounded-xl text-xs font-bold gap-1.5 h-8 border-primary/30 text-primary hover:bg-primary/5"
                         >
                           <Award className="w-3.5 h-3.5" />
-                          المقارنة والترسية
+                          {t("orders.actions.compare_and_award")}
                         </Button>
                       </td>
                     </tr>
@@ -780,13 +782,13 @@ export default function ProjectPurchaseOrders() {
           {purchaseOrders.length === 0 ? (
             <div className="text-center p-12 border-2 border-dashed border-muted/50 rounded-[1.5rem] bg-muted/5 space-y-3">
               <ShoppingCart className="w-12 h-12 text-muted-foreground/50 mx-auto" />
-              <p className="font-black text-lg text-foreground">لا توجد أوامر شراء صادرة</p>
+              <p className="font-black text-lg text-foreground">{t("orders.po_empty.title")}</p>
               <p className="text-xs text-muted-foreground">
-                يمكنك إصدار أمر شراء تلقائياً من عرض السعر الفائز أو إنشاؤه يدوياً
+                {t("orders.po_empty.description")}
               </p>
               <Button onClick={() => navigate(`/projects/${projectId}/purchase-orders/new`)} className="rounded-full text-xs font-bold gap-1.5 px-6 mt-2">
                 <Plus className="w-4 h-4" />
-                إنشاء أمر شراء جديد
+                {t("orders.po_empty.cta")}
               </Button>
             </div>
           ) : (
@@ -807,14 +809,14 @@ export default function ProjectPurchaseOrders() {
                         variant="secondary"
                         className={cn("text-[10px] font-bold", PO_STATUS_STYLES[po.status] || PO_STATUS_STYLES.draft)}
                       >
-                        {PO_STATUS_LABELS[po.status] || po.status}
+                        {t(`po_status.${po.status}` as any, { defaultValue: PO_STATUS_LABELS[po.status] || po.status })}
                       </Badge>
                     </div>
                   </CardHeader>
 
                   <CardContent className="p-4 space-y-3 flex-1 text-xs">
                     <div className="space-y-1">
-                      <p className="text-muted-foreground text-[11px]">المورد المستهدف:</p>
+                      <p className="text-muted-foreground text-[11px]">{t("orders.po_card.target_supplier")}</p>
                       <p className="font-bold text-sm text-foreground flex items-center gap-1.5">
                         <Building2 className="w-3.5 h-3.5 text-primary" />
                         {po.supplierName}
@@ -823,11 +825,11 @@ export default function ProjectPurchaseOrders() {
 
                     <div className="p-3 rounded-xl bg-muted/30 border border-border/40 space-y-1">
                       <div className="flex justify-between text-muted-foreground text-[11px]">
-                        <span>عدد البنود:</span>
-                        <span className="font-semibold text-foreground">{po.itemsCount || 0} بنود</span>
+                        <span>{t("orders.po_card.items_count_label")}</span>
+                        <span className="font-semibold text-foreground">{t("orders.po_card.items_count", { count: po.itemsCount || 0 })}</span>
                       </div>
                       <div className="flex justify-between font-black text-sm text-primary pt-1 border-t border-border/40">
-                        <span>الإجمالي:</span>
+                        <span>{t("orders.po_card.total")}</span>
                         <span>
                           {Number(po.totalAmount || 0).toLocaleString("en-US", {
                             minimumFractionDigits: 2,
@@ -839,8 +841,8 @@ export default function ProjectPurchaseOrders() {
                     </div>
 
                     <div className="flex items-center justify-between text-[11px] text-muted-foreground">
-                      <span>تاريخ الطلب: {po.orderDate}</span>
-                      {po.expectedDeliveryDate && <span>التسليم: {po.expectedDeliveryDate}</span>}
+                      <span>{t("orders.po_card.order_date", { date: po.orderDate })}</span>
+                      {po.expectedDeliveryDate && <span>{t("orders.po_card.delivery_date", { date: po.expectedDeliveryDate })}</span>}
                     </div>
 
                     {/* Payments: accounting asks for the invoices or raises an order; everyone else asks for a transfer */}
@@ -852,7 +854,7 @@ export default function ProjectPurchaseOrders() {
                             purchaseOrderId: po.id,
                             supplierId: po.supplierId ?? undefined,
                             payeeName: po.supplierName ?? undefined,
-                            description: `أصل فاتورة أمر الشراء ${po.poNumber}`,
+                            description: t("orders.po_card.original_invoice_desc", { poNumber: po.poNumber }),
                             sourceType: "purchase_order",
                             sourceId: po.id,
                           }}
@@ -869,7 +871,7 @@ export default function ProjectPurchaseOrders() {
                       className="rounded-xl text-xs font-bold gap-1.5 flex-1 h-8 bg-primary hover:bg-primary/90 text-primary-foreground"
                     >
                       <FileText className="w-3.5 h-3.5" />
-                      فتح أمر الشراء
+                      {t("orders.actions.open_po")}
                     </Button>
 
                     <Button
@@ -904,15 +906,15 @@ export default function ProjectPurchaseOrders() {
       />
 
       <AlertDialog open={!!poToDelete} onOpenChange={(open) => !open && setPoToDelete(null)}>
-        <AlertDialogContent dir="ltr">
+        <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete purchase order {poToDelete?.poNumber}?</AlertDialogTitle>
+            <AlertDialogTitle>{t("orders.delete_po_dialog.title", { poNumber: poToDelete?.poNumber })}</AlertDialogTitle>
             <AlertDialogDescription>
-              This will permanently delete the purchase order and its items. Its RFQ items will show as having no PO again. This cannot be undone.
+              {t("orders.delete_po_dialog.description")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>{t("orders.delete_po_dialog.cancel")}</AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               onClick={() => {
@@ -920,7 +922,7 @@ export default function ProjectPurchaseOrders() {
                 setPoToDelete(null);
               }}
             >
-              Delete
+              {t("orders.delete_po_dialog.confirm")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -986,6 +988,7 @@ interface SupplierCardProps {
 }
 
 function SupplierCard({ supplier, projectId, onEdit, onDelete, onAddMaterial, onLinkMaterial, onEditMaterial }: SupplierCardProps) {
+  const { t } = useTranslation(["procurement", "common"]);
   const [, navigate] = useLocation();
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
   const [previewFile, setPreviewFile] = useState<{ url: string, name: string, type?: string } | null>(null);
@@ -1025,7 +1028,7 @@ function SupplierCard({ supplier, projectId, onEdit, onDelete, onAddMaterial, on
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/suppliers", supplier.id, "attachments"] });
-      toast({ title: "Success", description: "Attachment removed successfully" });
+      toast({ title: t("orders.toasts.delete_po_success_title"), description: t("orders.supplier_directory.attachment_removed") });
     },
   });
 
@@ -1035,7 +1038,7 @@ function SupplierCard({ supplier, projectId, onEdit, onDelete, onAddMaterial, on
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/suppliers", supplier.id, "materials"] });
-      toast({ title: "Unlinked", description: "Material removed from supplier catalog" });
+      toast({ title: t("orders.supplier_directory.unlink_material"), description: t("orders.supplier_directory.material_unlinked_desc") });
     }
   });
 
@@ -1115,18 +1118,18 @@ function SupplierCard({ supplier, projectId, onEdit, onDelete, onAddMaterial, on
                     onClick={onEdit} 
                     disabled={isApproved}
                     className="rounded-lg font-bold text-xs"
-                    title={isApproved ? "Approved suppliers cannot be edited" : undefined}
+                    title={isApproved ? t("orders.supplier_directory.approved_cannot_edit") : undefined}
                   >
-                    <Edit2 className="w-4 h-4 mr-2.5 text-primary" /> Edit Supplier
+                    <Edit2 className="w-4 h-4 me-2.5 text-primary" /> {t("orders.supplier_directory.edit_supplier")}
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem 
                     onClick={onDelete} 
                     disabled={isApproved}
                     className="rounded-lg font-bold text-xs text-destructive focus:text-destructive"
-                    title={isApproved ? "Approved suppliers cannot be removed" : undefined}
+                    title={isApproved ? t("orders.supplier_directory.approved_cannot_remove") : undefined}
                   >
-                    <Trash2 className="w-4 h-4 mr-2.5" /> Remove Vendor
+                    <Trash2 className="w-4 h-4 me-2.5" /> {t("orders.supplier_directory.remove_vendor")}
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
@@ -1136,25 +1139,25 @@ function SupplierCard({ supplier, projectId, onEdit, onDelete, onAddMaterial, on
           <div className="grid grid-cols-2 gap-4 mt-6 pt-5 border-t border-muted/50">
             <div className="flex flex-col gap-1">
               <span className="text-muted-foreground font-black uppercase tracking-widest opacity-60 text-[8px] flex items-center gap-1">
-                <Mail className="w-3 h-3" /> Email
+                <Mail className="w-3 h-3" /> {t("orders.supplier_directory.email")}
               </span>
               <p className="text-[11px] font-bold text-foreground truncate bg-muted/40 px-3 py-1.5 rounded-[1rem] border border-border/40">{supplier.email || "N/A"}</p>
             </div>
             <div className="flex flex-col gap-1">
               <span className="text-muted-foreground font-black uppercase tracking-widest opacity-60 text-[8px] flex items-center gap-1">
-                <Phone className="w-3 h-3" /> Phone
+                <Phone className="w-3 h-3" /> {t("orders.supplier_directory.phone")}
               </span>
               <p className="text-[11px] font-bold text-foreground truncate bg-muted/40 px-3 py-1.5 rounded-[1rem] border border-border/40">{supplier.phone || "N/A"}</p>
             </div>
             <div className="flex flex-col gap-1">
               <span className="text-muted-foreground font-black uppercase tracking-widest opacity-60 text-[8px] flex items-center gap-1">
-                <MapPin className="w-3 h-3" /> Address
+                <MapPin className="w-3 h-3" /> {t("orders.supplier_directory.address")}
               </span>
               <p className="text-[11px] font-bold text-foreground line-clamp-1 bg-muted/40 px-3 py-1.5 rounded-[1rem] border border-border/40">{supplier.address || "N/A"}</p>
             </div>
             <div className="flex flex-col gap-1">
               <span className="text-muted-foreground font-black uppercase tracking-widest opacity-60 text-[8px] flex items-center gap-1">
-                <Hash className="w-3 h-3" /> Tax ID
+                <Hash className="w-3 h-3" /> {t("orders.supplier_directory.tax_number")}
               </span>
               <p className="text-[11px] font-bold text-foreground truncate bg-muted/40 px-3 py-1.5 rounded-[1rem] border border-border/40">{supplier.taxNumber || "N/A"}</p>
             </div>
@@ -1193,7 +1196,7 @@ function SupplierCard({ supplier, projectId, onEdit, onDelete, onAddMaterial, on
                 <Package className="w-3.5 h-3.5 text-primary" />
               </div>
               <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">
-                {supplierMaterials.length} Materials
+                {t("orders.supplier_directory.materials_count", { count: supplierMaterials.length })}
               </span>
             </div>
             <Badge variant="outline" className="text-[10px] font-black border-primary/30 text-primary bg-primary/5 rounded-full px-4 py-1">
@@ -1206,7 +1209,7 @@ function SupplierCard({ supplier, projectId, onEdit, onDelete, onAddMaterial, on
       <Dialog open={isDetailsOpen} onOpenChange={setIsDetailsOpen}>
         <DialogContent className="max-w-3xl rounded-[1.5rem] p-0 overflow-hidden border-none shadow-2xl bg-[#f8f9fa] dark:bg-background">
           <div className="relative bg-gradient-to-br from-primary to-primary/80 p-6 md:p-8 text-white shrink-0 overflow-hidden">
-            <div className="absolute top-0 right-0 p-20 bg-white/10 blur-3xl rounded-full -mr-20 -mt-20 animate-pulse" />
+            <div className="absolute top-0 right-0 p-20 bg-white/10 blur-3xl rounded-full -me-20 -mt-20 animate-pulse" />
             <div className="relative flex items-center gap-6">
               <div className="w-20 h-20 md:w-24 md:h-24 rounded-2xl bg-white p-3 shadow-2xl shrink-0 flex items-center justify-center transition-transform hover:scale-105 duration-500">
                 {supplier.logoUrl ? (
@@ -1234,25 +1237,25 @@ function SupplierCard({ supplier, projectId, onEdit, onDelete, onAddMaterial, on
                         <div className="relative">
                           <FileText className="w-3.5 h-3.5 transition-transform group-hover/doc:rotate-12" />
                           {attachments.length > 0 && (
-                            <span className="absolute -top-1 -right-1 w-2 h-2 bg-amber-400 rounded-full animate-pulse border-2 border-white" />
+                            <span className="absolute -top-1 -end-1 w-2 h-2 bg-amber-400 rounded-full animate-pulse border-2 border-white" />
                           )}
                         </div>
-                        <span className="text-[10px] font-bold uppercase tracking-wider">{attachments.length} Docs</span>
+                        <span className="text-[10px] font-bold uppercase tracking-wider">{t("orders.supplier_directory.docs_count", { count: attachments.length })}</span>
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="start" className="w-[380px] rounded-[1.5rem] p-3 shadow-2xl border-none bg-white/95 backdrop-blur-xl">
                          <div className="px-4 py-3 border-b border-muted/50 mb-2">
-                            <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Supplier Files & Certificates</p>
+                            <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">{t("orders.supplier_directory.files_certificates")}</p>
                          </div>
                          {attachments.length === 0 ? (
                             <div className="p-12 text-center">
                                <div className="bg-muted/10 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
                                   <FileText className="w-8 h-8 text-muted-foreground/20" />
                                </div>
-                               <p className="text-xs text-muted-foreground font-bold uppercase tracking-wider opacity-40">No documents</p>
+                               <p className="text-xs text-muted-foreground font-bold uppercase tracking-wider opacity-40">{t("orders.supplier_directory.no_documents")}</p>
                             </div>
                          ) : (
-                            <div className="space-y-1.5 max-h-[300px] overflow-y-auto custom-scrollbar pr-1">
+                            <div className="space-y-1.5 max-h-[300px] overflow-y-auto custom-scrollbar pe-1">
                               {attachments.map(att => (
                                  <DropdownMenuItem 
                                     key={att.id} 
@@ -1283,7 +1286,7 @@ function SupplierCard({ supplier, projectId, onEdit, onDelete, onAddMaterial, on
                                               </div>
                                            </div>
                                        </div>
-                                       <div className="flex items-center gap-1.5 shrink-0 ml-3">
+                                       <div className="flex items-center gap-1.5 shrink-0 ms-3">
                                           <Button
                                              variant="ghost"
                                              size="icon"
@@ -1326,10 +1329,10 @@ function SupplierCard({ supplier, projectId, onEdit, onDelete, onAddMaterial, on
                      >
                        <div className="relative">
                          <FileText className="w-3.5 h-3.5 transition-transform group-hover/req:rotate-12" />
-                         <span className="absolute -top-1 -right-1 w-2 h-2 bg-emerald-400 rounded-full border-2 border-white animate-pulse" />
+                         <span className="absolute -top-1 -end-1 w-2 h-2 bg-emerald-400 rounded-full border-2 border-white animate-pulse" />
                        </div>
                        <span className="text-[10px] font-bold uppercase tracking-wider">{supplierRequests[0].requestNumber}</span>
-                       <ExternalLink className="w-3.5 h-3.5 ml-1 opacity-60" />
+                       <ExternalLink className="w-3.5 h-3.5 ms-1 opacity-60" />
                      </Button>
                    ) : supplierRequests.length > 1 ? (
                      <DropdownMenu>
@@ -1340,16 +1343,16 @@ function SupplierCard({ supplier, projectId, onEdit, onDelete, onAddMaterial, on
                          >
                            <div className="relative">
                              <FileText className="w-3.5 h-3.5 transition-transform group-hover/req:rotate-12" />
-                             <span className="absolute -top-1 -right-1 w-2 h-2 bg-emerald-400 rounded-full border-2 border-white animate-pulse" />
+                             <span className="absolute -top-1 -end-1 w-2 h-2 bg-emerald-400 rounded-full border-2 border-white animate-pulse" />
                            </div>
-                           <span className="text-[10px] font-bold uppercase tracking-wider">{supplierRequests.length} SSRs</span>
+                           <span className="text-[10px] font-bold uppercase tracking-wider">{t("orders.supplier_directory.ssrs_count", { count: supplierRequests.length })}</span>
                          </Button>
                        </DropdownMenuTrigger>
                        <DropdownMenuContent align="start" className="w-[380px] rounded-[1.5rem] p-3 shadow-2xl border-none bg-white/95 backdrop-blur-xl">
                          <div className="px-4 py-3 border-b border-muted/50 mb-2">
-                            <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Linked SSR Requests</p>
+                            <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">{t("orders.supplier_directory.linked_ssrs")}</p>
                          </div>
-                         <div className="space-y-1.5 max-h-[300px] overflow-y-auto custom-scrollbar pr-1">
+                         <div className="space-y-1.5 max-h-[300px] overflow-y-auto custom-scrollbar pe-1">
                            {supplierRequests.map(req => (
                               <DropdownMenuItem 
                                  key={req.requestId} 
@@ -1369,7 +1372,7 @@ function SupplierCard({ supplier, projectId, onEdit, onDelete, onAddMaterial, on
                                         </p>
                                      </div>
                                  </div>
-                                 <ExternalLink className="w-4 h-4 text-muted-foreground/30 ml-2 group-hover:text-primary transition-colors" />
+                                 <ExternalLink className="w-4 h-4 text-muted-foreground/30 ms-2 group-hover:text-primary transition-colors" />
                               </DropdownMenuItem>
                            ))}
                          </div>
@@ -1387,20 +1390,20 @@ function SupplierCard({ supplier, projectId, onEdit, onDelete, onAddMaterial, on
             {/* Complete Supplier Data Overview */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 bg-white p-5 rounded-[1.2rem] border border-border/40 shadow-sm">
               <div className="flex flex-col gap-1.5 text-center">
-                <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60 flex items-center justify-center gap-1.5"><Users className="w-3.5 h-3.5" /> Contact Person</span>
-                <p className="text-sm font-bold text-foreground truncate" title={supplier.contactPerson || "N/A"}>{supplier.contactPerson || "N/A"}</p>
+                <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60 flex items-center justify-center gap-1.5"><Users className="w-3.5 h-3.5" /> {t("orders.supplier_directory.contact_person")}</span>
+                <p className="text-sm font-bold text-foreground truncate" title={supplier.contactPerson || t("orders.supplier_directory.not_available")}>{supplier.contactPerson || t("orders.supplier_directory.not_available")}</p>
               </div>
               <div className="flex flex-col gap-1.5 text-center">
-                <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60 flex items-center justify-center gap-1.5"><MapPin className="w-3.5 h-3.5" /> Address</span>
-                <p className="text-sm font-bold text-foreground line-clamp-1" title={supplier.address || "N/A"}>{supplier.address || "N/A"}</p>
+                <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60 flex items-center justify-center gap-1.5"><MapPin className="w-3.5 h-3.5" /> {t("orders.supplier_directory.address")}</span>
+                <p className="text-sm font-bold text-foreground line-clamp-1" title={supplier.address || t("orders.supplier_directory.not_available")}>{supplier.address || t("orders.supplier_directory.not_available")}</p>
               </div>
               <div className="flex flex-col gap-1.5 text-center">
-                <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60 flex items-center justify-center gap-1.5"><Hash className="w-3.5 h-3.5" /> Tax Number</span>
-                <p className="text-sm font-bold text-foreground font-mono truncate" title={supplier.taxNumber || "N/A"}>{supplier.taxNumber || "N/A"}</p>
+                <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60 flex items-center justify-center gap-1.5"><Hash className="w-3.5 h-3.5" /> {t("orders.supplier_directory.tax_number")}</span>
+                <p className="text-sm font-bold text-foreground font-mono truncate" title={supplier.taxNumber || t("orders.supplier_directory.not_available")}>{supplier.taxNumber || t("orders.supplier_directory.not_available")}</p>
               </div>
               <div className="flex flex-col gap-1.5 text-center">
-                <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60 flex items-center justify-center gap-1.5"><Briefcase className="w-3.5 h-3.5" /> Experience</span>
-                <p className="text-sm font-bold text-foreground">{supplier.experienceYears != null ? `${supplier.experienceYears} Years` : "N/A"}</p>
+                <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60 flex items-center justify-center gap-1.5"><Briefcase className="w-3.5 h-3.5" /> {t("orders.supplier_directory.experience")}</span>
+                <p className="text-sm font-bold text-foreground">{supplier.experienceYears != null ? t("orders.supplier_directory.years_count", { count: supplier.experienceYears }) : t("orders.supplier_directory.not_available")}</p>
               </div>
             </div>
 
@@ -1411,8 +1414,8 @@ function SupplierCard({ supplier, projectId, onEdit, onDelete, onAddMaterial, on
                     <Package className="w-5 h-5 text-primary" />
                   </div>
                   <div>
-                    <h3 className="text-lg font-bold tracking-tight text-foreground/90">Supplied Materials</h3>
-                    <p className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider opacity-70">Verified Product Catalog</p>
+                    <h3 className="text-lg font-bold tracking-tight text-foreground/90">{t("orders.supplier_directory.supplied_materials")}</h3>
+                    <p className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider opacity-70">{t("orders.supplier_directory.verified_catalog")}</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-2.5" onClick={(e) => e.stopPropagation()}>
@@ -1425,7 +1428,7 @@ function SupplierCard({ supplier, projectId, onEdit, onDelete, onAddMaterial, on
                     }}
                     className="rounded-full h-9 px-4 text-[10px] font-bold uppercase tracking-wider border-primary/20 text-primary hover:bg-primary/5 transition-all active:scale-95 shadow-sm"
                   >
-                    <Link2 className="w-3.5 h-3.5 mr-1.5" /> Link Existing
+                    <Link2 className="w-3.5 h-3.5 me-1.5" /> {t("orders.supplier_directory.link_existing")}
                   </Button>
                   <Button
                     size="sm"
@@ -1435,7 +1438,7 @@ function SupplierCard({ supplier, projectId, onEdit, onDelete, onAddMaterial, on
                     }}
                     className="rounded-full h-9 px-5 text-[10px] font-bold uppercase tracking-wider bg-primary text-primary-foreground hover:bg-primary/90 shadow-lg shadow-primary/10 transition-all hover:scale-105 active:scale-95"
                   >
-                    <PlusCircle className="w-3.5 h-3.5 mr-1.5" /> Add New
+                    <PlusCircle className="w-3.5 h-3.5 me-1.5" /> {t("orders.supplier_directory.add_new_material")}
                   </Button>
                 </div>
               </div>
@@ -1446,8 +1449,8 @@ function SupplierCard({ supplier, projectId, onEdit, onDelete, onAddMaterial, on
                 ) : supplierMaterials.length === 0 ? (
                   <div className="flex flex-col items-center justify-center py-16 bg-white/50 border-2 border-dashed border-border rounded-[2rem] text-muted-foreground/30 transition-colors hover:border-primary/10">
                     <Package className="w-12 h-12 mb-3 opacity-10" />
-                    <p className="text-[11px] font-bold uppercase tracking-wider">No materials linked yet</p>
-                    <p className="text-[9px] font-semibold uppercase tracking-tight mt-1">Start building the vendor catalog</p>
+                    <p className="text-[11px] font-bold uppercase tracking-wider">{t("orders.supplier_directory.no_materials_linked")}</p>
+                    <p className="text-[9px] font-semibold uppercase tracking-tight mt-1">{t("orders.supplier_directory.start_building_catalog")}</p>
                   </div>
                 ) : (
                   supplierMaterials.map((sm) => (
@@ -1469,27 +1472,27 @@ function SupplierCard({ supplier, projectId, onEdit, onDelete, onAddMaterial, on
                         </div>
                       </div>
                       
-                      <div className="flex items-center gap-6 ml-4">
+                      <div className="flex items-center gap-6 ms-4">
                         <div className="flex gap-4">
                           {sm.totalDelivered !== undefined && (
                             <div className="text-center px-3 py-1.5 bg-primary/5 rounded-xl border border-primary/5">
-                              <p className="text-[9px] font-bold text-muted-foreground/60 uppercase tracking-wider mb-0.5">Delivered</p>
+                              <p className="text-[9px] font-bold text-muted-foreground/60 uppercase tracking-wider mb-0.5">{t("orders.supplier_directory.delivered")}</p>
                               <p className="text-xs font-bold text-primary tabular-nums tracking-tight">
-                                {sm.totalDelivered} <span className="text-[9px] opacity-60 uppercase ml-0.5">{sm.material.unit}</span>
+                                {sm.totalDelivered} <span className="text-[9px] opacity-60 uppercase ms-0.5">{sm.material.unit}</span>
                               </p>
                             </div>
                           )}
                           {sm.lastPrice && (
                             <div className="text-center px-3 py-1.5 bg-emerald-50 rounded-xl border border-emerald-100/50">
-                              <p className="text-[9px] font-bold text-emerald-700/60 uppercase tracking-wider mb-0.5">Last Price</p>
+                              <p className="text-[9px] font-bold text-emerald-700/60 uppercase tracking-wider mb-0.5">{t("orders.supplier_directory.last_price")}</p>
                               <p className="text-xs font-bold text-emerald-600 tabular-nums tracking-tight">
-                                {Number(sm.lastPrice).toLocaleString(undefined, { minimumFractionDigits: 2 })} <span className="text-[9px] opacity-60 ml-0.5">$</span>
+                                {Number(sm.lastPrice).toLocaleString(undefined, { minimumFractionDigits: 2 })} <span className="text-[9px] opacity-60 ms-0.5">$</span>
                               </p>
                             </div>
                           )}
                         </div>
                         
-                        <div className="flex items-center gap-1.5 border-l border-muted/50 pl-4">
+                        <div className="flex items-center gap-1.5 border-s border-muted/50 ps-4">
                           <Button
                             variant="ghost"
                             size="icon"
@@ -1498,7 +1501,7 @@ function SupplierCard({ supplier, projectId, onEdit, onDelete, onAddMaterial, on
                               onEditMaterial(sm.material);
                             }}
                             className="h-8 w-8 text-amber-500/40 hover:text-amber-500 hover:bg-amber-500/10 rounded-lg transition-all active:scale-90"
-                            title="Edit Base Material Info"
+                            title={t("orders.supplier_directory.edit_material_info")}
                           >
                             <Settings className="w-4 h-4" />
                           </Button>
@@ -1511,7 +1514,7 @@ function SupplierCard({ supplier, projectId, onEdit, onDelete, onAddMaterial, on
                               setIsEditLinkOpen(true);
                             }}
                             className="h-8 w-8 text-primary/40 hover:text-primary hover:bg-primary/10 rounded-lg transition-all active:scale-90"
-                            title="Edit Price & Lead Time"
+                            title={t("orders.supplier_directory.edit_price_lead")}
                           >
                             <Edit2 className="w-4 h-4" />
                           </Button>
@@ -1523,7 +1526,7 @@ function SupplierCard({ supplier, projectId, onEdit, onDelete, onAddMaterial, on
                               unlinkMutation.mutate(sm.id);
                             }}
                             className="h-8 w-8 text-destructive/30 hover:text-white hover:bg-destructive rounded-lg transition-all active:scale-90"
-                            title="Unlink Material"
+                            title={t("orders.supplier_directory.unlink_material")}
                           >
                             <Trash2 className="w-4 h-4" />
                           </Button>
@@ -1574,13 +1577,13 @@ function SupplierCard({ supplier, projectId, onEdit, onDelete, onAddMaterial, on
                 <iframe 
                   src={previewFile.url} 
                   className="w-full h-full border-none bg-white" 
-                  title="Document Preview"
+                  title={t("orders.supplier_directory.document_preview")}
                 />
               )
             ) : (
               <div className="text-center p-12">
                 <FileText className="w-16 h-16 text-muted-foreground/20 mx-auto mb-4" />
-                <p className="text-sm text-muted-foreground font-bold">Preview not available for this file type</p>
+                <p className="text-sm text-muted-foreground font-bold">{t("orders.supplier_directory.preview_not_available")}</p>
               </div>
             )}
           </div>

@@ -1,4 +1,5 @@
 import { useMemo, useRef, useState, useEffect, type KeyboardEvent } from "react";
+import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -12,6 +13,7 @@ import { CELL_LOCKED, CELL_OVERRIDE, type MatrixPayloadNode } from "@shared/prog
 import { CellDialog } from "./cell-popover";
 import { type MatrixModel, type CellEntry, useSaveCells, fmtPct } from "./use-progress-matrix";
 import { exportMatrixExcel, readMatrixExcel } from "./excel";
+import { localizedName } from "@/lib/localized";
 
 const ALL = "__all__";
 const COLS = [
@@ -37,6 +39,7 @@ export function MatrixGrid({ projectId, projectName, model, isAdmin }: {
   model: MatrixModel;
   isAdmin: boolean;
 }) {
+  const { t } = useTranslation("progress");
   const { payload, summary } = model;
   const { tree } = summary;
   const perms = payload.permissions;
@@ -134,7 +137,7 @@ export function MatrixGrid({ projectId, projectName, model, isAdmin }: {
     const trimmed = value.trim();
     const pct = trimmed === "" ? null : Number(trimmed);
     if (pct !== null && (!Number.isFinite(pct) || pct < 0 || pct > 100)) {
-      toast({ title: "قيمة غير صحيحة (Invalid value)", description: "Enter a percent between 0 and 100.", variant: "destructive" });
+      toast({ title: t("matrix.invalid_value_title"), description: t("matrix.invalid_value_desc"), variant: "destructive" });
     } else if ((cell ? cell[2] : null) !== (pct === null ? null : Math.round(pct * 100) / 100)) {
       saveCells.mutate([{ nodeId: node.id, unitId: unit.id, percent: pct === null ? null : Math.round(pct * 100) / 100 }]);
     }
@@ -177,7 +180,7 @@ export function MatrixGrid({ projectId, projectName, model, isAdmin }: {
       entries.push({ nodeId: fillNode.id, unitId: payload.units[u].id, percent: pct });
     }
     if (entries.length) saveCells.mutate(entries);
-    if (locked) toast({ title: "تم تخطي المقفل (Locked skipped)", description: `${locked} locked cell(s) were not changed.` });
+    if (locked) toast({ title: t("matrix.locked_skipped_title"), description: t("matrix.locked_skipped_desc", { count: locked }) });
     setFillNode(null);
   };
 
@@ -185,16 +188,16 @@ export function MatrixGrid({ projectId, projectName, model, isAdmin }: {
     try {
       const result = await readMatrixExcel(file, model);
       if (!result.entries.length) {
-        toast({ title: "لا تغييرات (No changes)", description: `Locked skipped: ${result.skippedLocked}, unknown units: ${result.unknownUnits}, unknown codes: ${result.unknownCodes}, invalid: ${result.invalid}` });
+        toast({ title: t("matrix.no_changes_title"), description: `Locked skipped: ${result.skippedLocked}, unknown units: ${result.unknownUnits}, unknown codes: ${result.unknownCodes}, invalid: ${result.invalid}` });
         return;
       }
       saveCells.mutate(result.entries);
       toast({
-        title: "جارٍ الاستيراد (Importing)",
+        title: t("matrix.importing_title"),
         description: `${result.entries.length} change(s). Locked skipped: ${result.skippedLocked}, non-leaf rows: ${result.skippedNonLeaf}, unknown units: ${result.unknownUnits}, unknown codes: ${result.unknownCodes}, invalid: ${result.invalid}.`,
       });
     } catch (err) {
-      toast({ title: "تعذّر قراءة الملف (Could not read file)", description: String(err instanceof Error ? err.message : err), variant: "destructive" });
+      toast({ title: t("matrix.read_file_error"), description: String(err instanceof Error ? err.message : err), variant: "destructive" });
     }
   };
 
@@ -206,8 +209,8 @@ export function MatrixGrid({ projectId, projectName, model, isAdmin }: {
   if (!payload.nodes.length) {
     return (
       <div className="rounded-xl border border-dashed p-10 text-center text-muted-foreground space-y-2">
-        <p className="font-semibold">لا توجد بنود بعد (No items yet)</p>
-        <p className="text-sm">ابدأ من تبويب «البنود والأوزان» بتوليد الهيكل من سجل الفحوصات. (Start in the WBS tab: generate items from the WIR log.)</p>
+        <p className="font-semibold">{t("matrix.no_items_title")}</p>
+        <p className="text-sm">{t("matrix.no_items_desc")}</p>
       </div>
     );
   }
@@ -217,51 +220,51 @@ export function MatrixGrid({ projectId, projectName, model, isAdmin }: {
       {/* Toolbar */}
       <div className="flex flex-wrap items-end gap-3">
         <div className="space-y-1">
-          <Label className="text-xs">المبنى (Building)</Label>
+          <Label className="text-xs">{t("matrix.building")}</Label>
           <Select value={building} onValueChange={(v) => { setBuilding(v); setPage(0); }}>
             <SelectTrigger className="w-32 h-8"><SelectValue /></SelectTrigger>
-            <SelectContent><SelectItem value={ALL}>الكل (All)</SelectItem>{buildings.map((b) => <SelectItem key={b} value={b}>{b}</SelectItem>)}</SelectContent>
+            <SelectContent><SelectItem value={ALL}>{t("matrix.all")}</SelectItem>{buildings.map((b) => <SelectItem key={b} value={b}>{b}</SelectItem>)}</SelectContent>
           </Select>
         </div>
         <div className="space-y-1">
-          <Label className="text-xs">الدور (Floor)</Label>
+          <Label className="text-xs">{t("matrix.floor")}</Label>
           <Select value={floor} onValueChange={(v) => { setFloor(v); setPage(0); }}>
             <SelectTrigger className="w-24 h-8"><SelectValue /></SelectTrigger>
-            <SelectContent><SelectItem value={ALL}>الكل (All)</SelectItem>{floors.map((b) => <SelectItem key={b} value={b}>{b}</SelectItem>)}</SelectContent>
+            <SelectContent><SelectItem value={ALL}>{t("matrix.all")}</SelectItem>{floors.map((b) => <SelectItem key={b} value={b}>{b}</SelectItem>)}</SelectContent>
           </Select>
         </div>
         <div className="space-y-1">
-          <Label className="text-xs">النوع (Type)</Label>
+          <Label className="text-xs">{t("matrix.type")}</Label>
           <Select value={vtype} onValueChange={(v) => { setVtype(v); setPage(0); }}>
             <SelectTrigger className="w-28 h-8"><SelectValue /></SelectTrigger>
-            <SelectContent><SelectItem value={ALL}>الكل (All)</SelectItem>{types.map((b) => <SelectItem key={b} value={b}>{b}</SelectItem>)}</SelectContent>
+            <SelectContent><SelectItem value={ALL}>{t("matrix.all")}</SelectItem>{types.map((b) => <SelectItem key={b} value={b}>{b}</SelectItem>)}</SelectContent>
           </Select>
         </div>
         <div className="space-y-1">
-          <Label className="text-xs">بحث (Search unit)</Label>
-          <Input className="h-8 w-36" value={search} onChange={(e) => { setSearch(e.target.value); setPage(0); }} placeholder="Villa No…" />
+          <Label className="text-xs">{t("matrix.search_unit")}</Label>
+          <Input className="h-8 w-36" value={search} onChange={(e) => { setSearch(e.target.value); setPage(0); }} placeholder={t("matrix.search_placeholder")} />
         </div>
         <div className="space-y-1">
-          <Label className="text-xs">لكل صفحة (Per page)</Label>
+          <Label className="text-xs">{t("matrix.per_page")}</Label>
           <Select value={String(pageSize)} onValueChange={(v) => { setPageSize(Number(v)); setPage(0); }}>
             <SelectTrigger className="w-20 h-8"><SelectValue /></SelectTrigger>
             <SelectContent>{[28, 56, 100].map((n) => <SelectItem key={n} value={String(n)}>{n}</SelectItem>)}</SelectContent>
           </Select>
         </div>
         <div className="flex items-center gap-1">
-          <Button size="icon" variant="outline" className="h-8 w-8" disabled={page === 0} onClick={() => setPage(page - 1)}><ChevronLeft className="w-4 h-4" /></Button>
+          <Button size="icon" variant="outline" className="h-8 w-8" disabled={page === 0} onClick={() => setPage(page - 1)}><ChevronLeft className="w-4 h-4 rtl:rotate-180" /></Button>
           <span className="text-xs text-muted-foreground px-1 whitespace-nowrap">
             {filteredUnits.length ? `${page * pageSize + 1}–${Math.min(filteredUnits.length, (page + 1) * pageSize)} / ${filteredUnits.length}` : "0"}
           </span>
-          <Button size="icon" variant="outline" className="h-8 w-8" disabled={page >= pageCount - 1} onClick={() => setPage(page + 1)}><ChevronRight className="w-4 h-4" /></Button>
+          <Button size="icon" variant="outline" className="h-8 w-8" disabled={page >= pageCount - 1} onClick={() => setPage(page + 1)}><ChevronRight className="w-4 h-4 rtl:rotate-180" /></Button>
         </div>
         <div className="flex items-center gap-1 ml-auto">
-          <Button size="sm" variant="outline" className="h-8" onClick={expandAll}><ChevronsUpDown className="w-4 h-4 mr-1" />توسيع (Expand)</Button>
-          <Button size="sm" variant="outline" className="h-8" onClick={collapseToPhases}><ChevronsDownUp className="w-4 h-4 mr-1" />المراحل (Phases)</Button>
+          <Button size="sm" variant="outline" className="h-8" onClick={expandAll}><ChevronsUpDown className="w-4 h-4 mr-1" />{t("matrix.expand")}</Button>
+          <Button size="sm" variant="outline" className="h-8" onClick={collapseToPhases}><ChevronsDownUp className="w-4 h-4 mr-1" />{t("matrix.phases")}</Button>
           <Button size="sm" variant="outline" className="h-8" onClick={() => exportMatrixExcel(model, projectName)}><Download className="w-4 h-4 mr-1" />Excel</Button>
           {perms.canEdit && (
             <>
-              <Button size="sm" variant="outline" className="h-8" onClick={() => fileRef.current?.click()}><Upload className="w-4 h-4 mr-1" />استيراد (Import)</Button>
+              <Button size="sm" variant="outline" className="h-8" onClick={() => fileRef.current?.click()}><Upload className="w-4 h-4 mr-1" />{t("matrix.import")}</Button>
               <input ref={fileRef} type="file" accept=".xlsx" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) onImport(f); }} />
             </>
           )}
@@ -269,10 +272,10 @@ export function MatrixGrid({ projectId, projectName, model, isAdmin }: {
       </div>
 
       <div className="flex flex-wrap items-center gap-4 text-[11px] text-muted-foreground">
-        <span className="inline-flex items-center gap-1"><Lock className="w-3 h-3 text-emerald-600" /> مقفل بفحص معتمد (Locked by approved WIR)</span>
-        <span className="inline-flex items-center gap-1"><span className="w-3 h-3 rounded-sm" style={{ background: heat(60, true) }} /> إدخال البند (Leaf entry)</span>
-        <span className="inline-flex items-center gap-1"><span className="w-3 h-3 rounded-sm" style={{ background: heat(60, false) }} /> محسوب (Computed)</span>
-        <span>Enter/رقم للتحرير · Enter حفظ ونزول · Tab يمين · Esc إلغاء · Shift+نقرة = السجل (Shift+click = history)</span>
+        <span className="inline-flex items-center gap-1"><Lock className="w-3 h-3 text-emerald-600" /> {t("matrix.legend.locked")}</span>
+        <span className="inline-flex items-center gap-1"><span className="w-3 h-3 rounded-sm" style={{ background: heat(60, true) }} /> {t("matrix.legend.leaf")}</span>
+        <span className="inline-flex items-center gap-1"><span className="w-3 h-3 rounded-sm" style={{ background: heat(60, false) }} /> {t("matrix.legend.computed")}</span>
+        <span>{t("matrix.legend.shortcuts")}</span>
       </div>
 
       {/* Grid */}
@@ -283,7 +286,13 @@ export function MatrixGrid({ projectId, projectName, model, isAdmin }: {
               <tr key={hr}>
                 {hr === 0 && (
                   <>
-                    {["الكود (Code)", "البند (Item)", "الوزن المحلي (Local %)", "الوزن الكلي (Global %)", "الإنجاز (Progress)"].map((label, i) => (
+                    {[
+                      t("matrix.headers.code"),
+                      t("matrix.headers.item"),
+                      t("matrix.headers.local_weight"),
+                      t("matrix.headers.global_weight"),
+                      t("matrix.headers.progress"),
+                    ].map((label, i) => (
                       <th key={i} rowSpan={4}
                         className="sticky top-0 z-30 bg-muted border-r border-b px-2 text-left font-semibold align-bottom pb-1"
                         style={{ left: LEFT[i], minWidth: COLS[i].width, width: COLS[i].width, height: HEADER_H * 4 }}>
@@ -303,7 +312,7 @@ export function MatrixGrid({ projectId, projectName, model, isAdmin }: {
                       className={cn("sticky z-20 bg-muted border-r border-b px-1 text-center whitespace-nowrap",
                         hr === 0 ? "font-bold" : "font-normal text-muted-foreground", !unit.included && "line-through opacity-60")}
                       style={{ top: hr * HEADER_H, height: HEADER_H, minWidth: 58 }}
-                      title={hr === 0 ? `${unit.buildingNo ?? ""} ${unit.flatNo ?? ""}`.trim() : hr === 2 ? "وزن الوحدة (Unit weight)" : hr === 3 ? "إنجاز الوحدة (Unit progress)" : undefined}>
+                      title={hr === 0 ? `${unit.buildingNo ?? ""} ${unit.flatNo ?? ""}`.trim() : hr === 2 ? t("matrix.unit_weight_tooltip") : hr === 3 ? t("matrix.unit_progress_tooltip") : undefined}>
                       {hr === 3 ? <span className="font-semibold text-foreground">{content}</span> : content}
                     </th>
                   );
@@ -326,21 +335,20 @@ export function MatrixGrid({ projectId, projectName, model, isAdmin }: {
                     <div className="flex items-center gap-1" style={{ paddingLeft: depth * 12 }}>
                       {!leaf ? (
                         <button className="shrink-0 text-muted-foreground hover:text-foreground" onClick={() => toggle(n.id)}>
-                          {collapsed.has(n.id) ? <ChevronRight className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                          {collapsed.has(n.id) ? <ChevronRight className="w-3.5 h-3.5 rtl:rotate-180" /> : <ChevronDown className="w-3.5 h-3.5" />}
                         </button>
                       ) : <span className="w-3.5 shrink-0" />}
                       <Tooltip>
                         <TooltipTrigger asChild>
-                          <span className="truncate">{n.nameAr}</span>
+                          <span className="truncate">{localizedName(n)}</span>
                         </TooltipTrigger>
                         <TooltipContent side="right" className="max-w-sm">
-                          <div className="font-semibold">{n.nameAr}</div>
-                          {n.nameEn && <div>{n.nameEn}</div>}
+                          <div className="font-semibold">{localizedName(n)}</div>
                           {n.activityCode && <div className="text-muted-foreground">Activity {n.activityCode}{n.levelName ? ` · ${n.levelName}` : ""}</div>}
                         </TooltipContent>
                       </Tooltip>
                       {leaf && perms.canEdit && (
-                        <button className="ml-auto shrink-0 text-muted-foreground hover:text-blue-600" title="تطبيق % على كل الوحدات المعروضة (Apply % to all displayed units)"
+                        <button className="ml-auto shrink-0 text-muted-foreground hover:text-blue-600" title={t("matrix.apply_all_units")}
                           onClick={() => { setFillNode(n); setFillValue("100"); }}>
                           <PaintBucket className="w-3.5 h-3.5" />
                         </button>
@@ -410,18 +418,18 @@ export function MatrixGrid({ projectId, projectName, model, isAdmin }: {
       <Dialog open={!!fillNode} onOpenChange={(o) => { if (!o) setFillNode(null); }}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>تطبيق نسبة على الوحدات المعروضة (Apply % to displayed units)</DialogTitle>
+            <DialogTitle>{t("matrix.fill_dialog.title")}</DialogTitle>
             <DialogDescription>
-              {fillNode?.code} — {fillNode?.nameAr}. {cols.length} وحدة معروضة (units shown). الخانات المقفلة لن تتغير (Locked cells are skipped).
+              {t("matrix.fill_dialog.desc", { code: fillNode?.code, name: localizedName(fillNode), count: cols.length })}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-1">
-            <Label>النسبة % (Percent)</Label>
+            <Label>{t("matrix.fill_dialog.percent")}</Label>
             <Input type="number" min={0} max={100} step="0.01" value={fillValue} onChange={(e) => setFillValue(e.target.value)} />
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setFillNode(null)}>إلغاء (Cancel)</Button>
-            <Button onClick={applyFill} disabled={!(Number(fillValue) >= 0 && Number(fillValue) <= 100) || fillValue.trim() === ""}>تطبيق (Apply)</Button>
+            <Button variant="outline" onClick={() => setFillNode(null)}>{t("matrix.fill_dialog.cancel")}</Button>
+            <Button onClick={applyFill} disabled={!(Number(fillValue) >= 0 && Number(fillValue) <= 100) || fillValue.trim() === ""}>{t("matrix.fill_dialog.apply")}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

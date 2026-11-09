@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -15,15 +16,16 @@ import { type MatrixModel, useMatrixApi, parseApiError, fmtMoney, fmtPct } from 
 import { exportCostAndRatioExcel, readUnitValuesExcel } from "./excel";
 
 const ALL = "__all__";
-const MODES: { value: UnitWeightMode; label: string }[] = [
-  { value: "equal", label: "بالتساوي (Equal)" },
-  { value: "area", label: "بالمساحة (By area m²)" },
-  { value: "value", label: "بالقيمة (By value)" },
-  { value: "manual", label: "يدوي (Manual)" },
+const MODES: { value: UnitWeightMode; labelKey: string }[] = [
+  { value: "equal", labelKey: "units.modes.equal" },
+  { value: "area", labelKey: "units.modes.area" },
+  { value: "value", labelKey: "units.modes.value" },
+  { value: "manual", labelKey: "units.modes.manual" },
 ];
 const numericSort = (a: string, b: string) => a.localeCompare(b, undefined, { numeric: true });
 
 export function UnitsTable({ projectId, projectName, model }: { projectId: string; projectName: string; model: MatrixModel }) {
+  const { t } = useTranslation("progress");
   const { payload, summary } = model;
   const canEdit = payload.permissions.canEdit;
   const api = useMatrixApi(projectId);
@@ -47,16 +49,16 @@ export function UnitsTable({ projectId, projectName, model }: { projectId: strin
     setSaving(true);
     try {
       await fn();
-      if (ok) toast({ title: "تم الحفظ (Saved)", description: ok });
+      if (ok) toast({ title: t("save_cells.saved"), description: ok });
     } catch (err) {
-      toast({ title: "لم يتم الحفظ (Not saved)", description: parseApiError(err).message, variant: "destructive" });
+      toast({ title: t("save_cells.failed"), description: parseApiError(err).message, variant: "destructive" });
     } finally {
       setSaving(false);
     }
   };
   const saveSettings = () => call(() => api("PATCH", "/progress-matrix/settings", {
     unitWeightMode: mode, defaultUnitValue: Number(defaultValue) || 0, driveProjectProgress: drive,
-  }), drive && !payload.settings.driveProjectProgress ? "نسبة المشروع تُحتسب الآن من المصفوفة (Project % now follows the matrix)" : undefined);
+  }), drive && !payload.settings.driveProjectProgress ? t("units.drive_enabled_msg") : undefined);
   const saveUnits = (entries: { workLocationId: string; unitValue?: number | null; manualWeight?: number | null; included?: boolean }[], ok?: string) =>
     call(() => api("PUT", "/progress-matrix/units", { entries }), ok);
 
@@ -112,10 +114,10 @@ export function UnitsTable({ projectId, projectName, model }: { projectId: strin
   const onImport = async (file: File) => {
     try {
       const r = await readUnitValuesExcel(file, model);
-      if (!r.entries.length) { toast({ title: "لا قيم (No values found)", description: `Unknown units: ${r.unknown}, invalid: ${r.invalid}` }); return; }
+      if (!r.entries.length) { toast({ title: t("units.no_values_title"), description: `Unknown units: ${r.unknown}, invalid: ${r.invalid}` }); return; }
       await saveUnits(r.entries, `${r.entries.length} unit value(s) imported${r.unknown ? `, ${r.unknown} unknown unit(s)` : ""}${r.invalid ? `, ${r.invalid} invalid` : ""}.`);
     } catch (err) {
-      toast({ title: "تعذّر قراءة الملف (Could not read file)", description: String(err instanceof Error ? err.message : err), variant: "destructive" });
+      toast({ title: t("units.read_file_error"), description: String(err instanceof Error ? err.message : err), variant: "destructive" });
     }
   };
 
@@ -131,68 +133,68 @@ export function UnitsTable({ projectId, projectName, model }: { projectId: strin
       <Card className="p-4 rounded-xl">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
           <div className="space-y-1">
-            <Label>طريقة وزن الوحدات (Unit weighting)</Label>
+            <Label>{t("units.weight_mode")}</Label>
             <Select value={mode} onValueChange={(v) => setMode(v as UnitWeightMode)} disabled={!canEdit}>
               <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>{MODES.map((m) => <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>)}</SelectContent>
+              <SelectContent>{MODES.map((m) => <SelectItem key={m.value} value={m.value}>{t(m.labelKey)}</SelectItem>)}</SelectContent>
             </Select>
           </div>
           <div className="space-y-1">
-            <Label>القيمة الافتراضية للوحدة (Default unit value)</Label>
+            <Label>{t("units.default_value")}</Label>
             <Input type="number" min={0} step="0.01" value={defaultValue} disabled={!canEdit} onChange={(e) => setDefaultValue(e.target.value)} />
           </div>
           <div className="space-y-1">
             <Label className="flex items-center gap-2">
               <Switch checked={drive} onCheckedChange={setDrive} disabled={!canEdit} />
-              احتساب نسبة المشروع من المصفوفة (Drive project %)
+              {t("units.drive_project_progress")}
             </Label>
             <p className="text-xs text-muted-foreground">
-              عند التفعيل تُستبدل نسبة إنجاز المشروع بنسبة المصفوفة ({fmtPct(summary.projectProgress)}). (When on, the project's Overall Progress follows the matrix.)
+              {t("units.drive_project_progress_hint", { progress: fmtPct(summary.projectProgress) })}
             </p>
           </div>
           <div className="flex gap-2 md:justify-end">
-            {canEdit && <Button onClick={saveSettings} disabled={!settingsDirty || saving}><Save className="w-4 h-4 mr-1" />حفظ الإعدادات (Save)</Button>}
+            {canEdit && <Button onClick={saveSettings} disabled={!settingsDirty || saving}><Save className="w-4 h-4 me-1" />{t("units.save_settings")}</Button>}
           </div>
         </div>
       </Card>
 
       <div className="flex flex-wrap items-end gap-3">
         <div className="space-y-1">
-          <Label className="text-xs">المبنى (Building)</Label>
+          <Label className="text-xs">{t("units.table.building")}</Label>
           <Select value={building} onValueChange={(v) => { setBuilding(v); setPage(0); }}>
             <SelectTrigger className="w-32 h-8"><SelectValue /></SelectTrigger>
-            <SelectContent><SelectItem value={ALL}>الكل (All)</SelectItem>{buildings.map((b) => <SelectItem key={b} value={b}>{b}</SelectItem>)}</SelectContent>
+            <SelectContent><SelectItem value={ALL}>{t("matrix.all")}</SelectItem>{buildings.map((b) => <SelectItem key={b} value={b}>{b}</SelectItem>)}</SelectContent>
           </Select>
         </div>
         <div className="space-y-1">
-          <Label className="text-xs">الدور (Floor)</Label>
+          <Label className="text-xs">{t("units.table.floor")}</Label>
           <Select value={floor} onValueChange={(v) => { setFloor(v); setPage(0); }}>
             <SelectTrigger className="w-24 h-8"><SelectValue /></SelectTrigger>
-            <SelectContent><SelectItem value={ALL}>الكل (All)</SelectItem>{floors.map((b) => <SelectItem key={b} value={b}>{b}</SelectItem>)}</SelectContent>
+            <SelectContent><SelectItem value={ALL}>{t("matrix.all")}</SelectItem>{floors.map((b) => <SelectItem key={b} value={b}>{b}</SelectItem>)}</SelectContent>
           </Select>
         </div>
         <div className="space-y-1">
-          <Label className="text-xs">النوع (Type)</Label>
+          <Label className="text-xs">{t("units.table.type")}</Label>
           <Select value={vtype} onValueChange={(v) => { setVtype(v); setPage(0); }}>
             <SelectTrigger className="w-28 h-8"><SelectValue /></SelectTrigger>
-            <SelectContent><SelectItem value={ALL}>الكل (All)</SelectItem>{types.map((b) => <SelectItem key={b} value={b}>{b}</SelectItem>)}</SelectContent>
+            <SelectContent><SelectItem value={ALL}>{t("matrix.all")}</SelectItem>{types.map((b) => <SelectItem key={b} value={b}>{b}</SelectItem>)}</SelectContent>
           </Select>
         </div>
         <div className="space-y-1">
-          <Label className="text-xs">بحث (Search)</Label>
-          <Input className="h-8 w-36" value={search} onChange={(e) => { setSearch(e.target.value); setPage(0); }} placeholder="Villa No…" />
+          <Label className="text-xs">{t("units.search")}</Label>
+          <Input className="h-8 w-36" value={search} onChange={(e) => { setSearch(e.target.value); setPage(0); }} placeholder={t("units.search_placeholder")} />
         </div>
         <div className="flex items-center gap-1">
-          <Button size="icon" variant="outline" className="h-8 w-8" disabled={page === 0} onClick={() => setPage(page - 1)}><ChevronLeft className="w-4 h-4" /></Button>
+          <Button size="icon" variant="outline" className="h-8 w-8" disabled={page === 0} onClick={() => setPage(page - 1)}><ChevronLeft className="w-4 h-4 rtl:rotate-180" /></Button>
           <span className="text-xs text-muted-foreground px-1">{page + 1} / {pageCount} · {filtered.length}</span>
-          <Button size="icon" variant="outline" className="h-8 w-8" disabled={page >= pageCount - 1} onClick={() => setPage(page + 1)}><ChevronRight className="w-4 h-4" /></Button>
+          <Button size="icon" variant="outline" className="h-8 w-8" disabled={page >= pageCount - 1} onClick={() => setPage(page + 1)}><ChevronRight className="w-4 h-4 rtl:rotate-180" /></Button>
         </div>
-        <div className="ml-auto flex gap-2">
-          {canEdit && <Button size="sm" variant="outline" onClick={() => { setBulkValue(defaultValue); setBulkOpen(true); }}><Coins className="w-4 h-4 mr-1" />تعيين قيمة للمفلترة (Set value for filtered)</Button>}
-          <Button size="sm" variant="outline" onClick={() => exportCostAndRatioExcel(model, projectName)}><Download className="w-4 h-4 mr-1" />Cost and ratio</Button>
+        <div className="ms-auto flex gap-2">
+          {canEdit && <Button size="sm" variant="outline" onClick={() => { setBulkValue(defaultValue); setBulkOpen(true); }}><Coins className="w-4 h-4 me-1" />{t("units.set_value_filtered")}</Button>}
+          <Button size="sm" variant="outline" onClick={() => exportCostAndRatioExcel(model, projectName)}><Download className="w-4 h-4 me-1" />{t("units.cost_and_ratio")}</Button>
           {canEdit && (
             <>
-              <Button size="sm" variant="outline" onClick={() => fileRef.current?.click()}><Upload className="w-4 h-4 mr-1" />استيراد القيم (Import values)</Button>
+              <Button size="sm" variant="outline" onClick={() => fileRef.current?.click()}><Upload className="w-4 h-4 me-1" />{t("units.import_values")}</Button>
               <input ref={fileRef} type="file" accept=".xlsx" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) onImport(f); }} />
             </>
           )}
@@ -202,21 +204,21 @@ export function UnitsTable({ projectId, projectName, model }: { projectId: strin
       <div className="overflow-auto rounded-xl border max-h-[calc(100vh-420px)]">
         <table className="w-full text-xs">
           <thead className="bg-muted sticky top-0 z-10">
-            <tr className="text-left whitespace-nowrap">
-              <th className="p-2">الوحدة (Villa No)</th>
-              <th className="p-2">المبنى (Bldg)</th>
-              <th className="p-2">الشقة (Flat)</th>
-              <th className="p-2">الدور (Floor)</th>
-              <th className="p-2">النوع (Type)</th>
-              <th className="p-2 text-right">المساحة (m²)</th>
-              <th className="p-2 text-right">القيمة (Value)</th>
-              <th className="p-2 text-right">الوزن % (Weight)</th>
-              <th className="p-2 text-center">مشمولة (Incl.)</th>
-              <th className="p-2 text-right">الإنجاز (Earned %)</th>
-              <th className="p-2 text-right">قيمة الاستحقاق (Earned)</th>
-              <th className="p-2 text-right">المعلّق (Pending)</th>
-              <th className="p-2 text-right">المدفوع (Paid)</th>
-              <th className="p-2 text-right">المتبقي (Remaining)</th>
+            <tr className="text-start whitespace-nowrap">
+              <th className="p-2">{t("units.table.unit")}</th>
+              <th className="p-2">{t("units.table.building")}</th>
+              <th className="p-2">{t("units.table.flat")}</th>
+              <th className="p-2">{t("units.table.floor")}</th>
+              <th className="p-2">{t("units.table.type")}</th>
+              <th className="p-2 text-end">{t("units.table.area")}</th>
+              <th className="p-2 text-end">{t("units.table.value")}</th>
+              <th className="p-2 text-end">{t("units.table.weight")}</th>
+              <th className="p-2 text-center">{t("units.table.included")}</th>
+              <th className="p-2 text-end">{t("units.table.progress")}</th>
+              <th className="p-2 text-end">{t("units.table.earned")}</th>
+              <th className="p-2 text-end">{t("units.table.pending")}</th>
+              <th className="p-2 text-end">{t("units.table.paid")}</th>
+              <th className="p-2 text-end">{t("units.table.remaining")}</th>
             </tr>
           </thead>
           <tbody>
@@ -230,20 +232,20 @@ export function UnitsTable({ projectId, projectName, model }: { projectId: strin
                   <td className="p-2">{unit.flatNo}</td>
                   <td className="p-2">{unit.floor}</td>
                   <td className="p-2">{unit.villaType}</td>
-                  <td className="p-2 text-right">{unit.areaM2 != null ? unit.areaM2.toFixed(2) : ""}</td>
-                  <td className="p-1 text-right">
+                  <td className="p-2 text-end">{unit.areaM2 != null ? unit.areaM2.toFixed(2) : ""}</td>
+                  <td className="p-1 text-end">
                     {canEdit ? (
                       <Input key={`${unit.id}:${unit.unitValue ?? ""}`} type="number" min={0} step="0.01"
-                        className="h-7 w-32 ml-auto text-right text-xs"
+                        className="h-7 w-32 ms-auto text-end text-xs"
                         defaultValue={unit.unitValue ?? ""} placeholder={fmtMoney(payload.settings.defaultUnitValue)}
                         onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
                         onBlur={(e) => commitNumber(e.target.value, unit.unitValue, (v) => saveUnits([{ workLocationId: unit.id, unitValue: v }]))} />
                     ) : fmtMoney(f.value)}
                   </td>
-                  <td className="p-1 text-right">
+                  <td className="p-1 text-end">
                     {canEdit && mode === "manual" ? (
                       <Input key={`${unit.id}:w:${unit.manualWeight ?? ""}`} type="number" min={0} step="0.0001"
-                        className="h-7 w-24 ml-auto text-right text-xs" defaultValue={unit.manualWeight ?? ""}
+                        className="h-7 w-24 ms-auto text-end text-xs" defaultValue={unit.manualWeight ?? ""}
                         title={`= ${(summary.unitShare[u] * 100).toFixed(4)}% after normalizing`}
                         onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
                         onBlur={(e) => commitNumber(e.target.value, unit.manualWeight, (v) => saveUnits([{ workLocationId: unit.id, manualWeight: v }]))} />
@@ -253,27 +255,27 @@ export function UnitsTable({ projectId, projectName, model }: { projectId: strin
                     <Checkbox checked={unit.included} disabled={!canEdit}
                       onCheckedChange={(c) => saveUnits([{ workLocationId: unit.id, included: !!c }])} />
                   </td>
-                  <td className="p-2 text-right font-semibold">{fmtPct(f.earnedPct, 2)}</td>
-                  <td className="p-2 text-right">{fmtMoney(f.earnedAmount)}</td>
-                  <td className="p-2 text-right text-amber-700">{f.pendingAmount ? `${fmtMoney(f.pendingAmount)} (${fmtPct(f.pendingPct, 2)})` : ""}</td>
-                  <td className="p-2 text-right text-emerald-700">{f.paidAmount ? `${fmtMoney(f.paidAmount)} (${fmtPct(f.paidPct, 2)})` : ""}</td>
-                  <td className="p-2 text-right">{fmtMoney(f.remainingAmount)}</td>
+                  <td className="p-2 text-end font-semibold">{fmtPct(f.earnedPct, 2)}</td>
+                  <td className="p-2 text-end">{fmtMoney(f.earnedAmount)}</td>
+                  <td className="p-2 text-end text-amber-700">{f.pendingAmount ? `${fmtMoney(f.pendingAmount)} (${fmtPct(f.pendingPct, 2)})` : ""}</td>
+                  <td className="p-2 text-end text-emerald-700">{f.paidAmount ? `${fmtMoney(f.paidAmount)} (${fmtPct(f.paidPct, 2)})` : ""}</td>
+                  <td className="p-2 text-end">{fmtMoney(f.remainingAmount)}</td>
                 </tr>
               );
             })}
           </tbody>
           <tfoot className="bg-muted/70 sticky bottom-0 font-semibold">
             <tr className="border-t">
-              <td className="p-2" colSpan={5}>المجموع للمفلترة (Filtered total) — {filtered.length}</td>
-              <td className="p-2 text-right">{filteredTotals.area.toFixed(2)}</td>
-              <td className="p-2 text-right">{fmtMoney(filteredTotals.value)}</td>
-              <td className="p-2 text-right">{(filteredTotals.share * 100).toFixed(4)}</td>
+              <td className="p-2" colSpan={5}>{t("units.table.filtered_total", { count: filtered.length })}</td>
+              <td className="p-2 text-end">{filteredTotals.area.toFixed(2)}</td>
+              <td className="p-2 text-end">{fmtMoney(filteredTotals.value)}</td>
+              <td className="p-2 text-end">{(filteredTotals.share * 100).toFixed(4)}</td>
               <td />
-              <td className="p-2 text-right">{filteredTotals.value ? fmtPct((filteredTotals.earned / filteredTotals.value) * 100, 2) : ""}</td>
-              <td className="p-2 text-right">{fmtMoney(filteredTotals.earned)}</td>
-              <td className="p-2 text-right">{fmtMoney(filteredTotals.pending)}</td>
-              <td className="p-2 text-right">{fmtMoney(filteredTotals.paid)}</td>
-              <td className="p-2 text-right">{fmtMoney(filteredTotals.remaining)}</td>
+              <td className="p-2 text-end">{filteredTotals.value ? fmtPct((filteredTotals.earned / filteredTotals.value) * 100, 2) : ""}</td>
+              <td className="p-2 text-end">{fmtMoney(filteredTotals.earned)}</td>
+              <td className="p-2 text-end">{fmtMoney(filteredTotals.pending)}</td>
+              <td className="p-2 text-end">{fmtMoney(filteredTotals.paid)}</td>
+              <td className="p-2 text-end">{fmtMoney(filteredTotals.remaining)}</td>
             </tr>
           </tfoot>
         </table>
@@ -282,22 +284,22 @@ export function UnitsTable({ projectId, projectName, model }: { projectId: strin
       <Dialog open={bulkOpen} onOpenChange={setBulkOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>تعيين قيمة للوحدات المفلترة (Set value for filtered units)</DialogTitle>
+            <DialogTitle>{t("units.bulk_dialog.title")}</DialogTitle>
             <DialogDescription>
-              {filtered.length} وحدة (units). اترك الحقل فارغاً لاستخدام القيمة الافتراضية. (Leave empty to use the default value.)
+              {t("units.bulk_dialog.desc", { count: filtered.length })}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-1">
-            <Label>القيمة (Value)</Label>
+            <Label>{t("units.bulk_dialog.value")}</Label>
             <Input type="number" min={0} step="0.01" value={bulkValue} onChange={(e) => setBulkValue(e.target.value)} />
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setBulkOpen(false)}>إلغاء (Cancel)</Button>
+            <Button variant="outline" onClick={() => setBulkOpen(false)}>{t("units.bulk_dialog.cancel")}</Button>
             <Button disabled={saving || (bulkValue.trim() !== "" && !(Number(bulkValue) >= 0))} onClick={() => {
               const v = bulkValue.trim() === "" ? null : Number(bulkValue);
               setBulkOpen(false);
               saveUnits(filtered.map((u) => ({ workLocationId: payload.units[u].id, unitValue: v })), `${filtered.length} unit(s) updated`);
-            }}>تطبيق (Apply)</Button>
+            }}>{t("units.bulk_dialog.apply")}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

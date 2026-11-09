@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useTranslation } from "react-i18next";
+import i18n from "@/lib/i18n";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus, Search, Paperclip, Printer, Send, CheckCircle2, XCircle, Banknote, Ban, AlertTriangle, FileSearch, FileCheck, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -18,8 +20,7 @@ import {
   poCommitted,
   PAYMENT_METHODS,
   PAYMENT_METHOD_LABELS,
-  PAYMENT_ORDER_LABELS,
-} from "@shared/payments";
+  PAYMENT_ORDER_LABELS, PAYMENT_ORDER_STATUSES } from "@shared/payments";
 import {
   LatestActivity,
   AttachmentsPanel,
@@ -42,11 +43,13 @@ import {
   type PaymentsContext,
   type PaymentsOverview,
 } from "./payments-common";
+import { enumOptions, enumText } from "@/lib/enums";
+import { printVoucher } from "./payment-order-print";
 
 export interface OrderDraft {
   billRequestId?: string;
   fineId?: string;
-  clearanceId?: string;
+  permitTransactionId?: string;
   subcontractorCertificateId?: string;
   // A page that starts a standalone payment (an advance on a purchase order, say) hands over what it knows
   prefill?: {
@@ -77,6 +80,7 @@ interface Props {
 const LIVE = [...OPEN_PAYMENT_ORDER, "paid"] as string[];
 
 export function OrdersTab({ ctx, projectId, data, draft, onDraftClose, onStartDraft, onOpenBillRequest, requesterAction }: Props) {
+  const { t } = useTranslation("payments");
   const [status, setStatus] = useState("all");
   const [search, setSearch] = useState("");
   const [openId, setOpenId] = useState<string | null>(null);
@@ -98,18 +102,18 @@ export function OrdersTab({ ctx, projectId, data, draft, onDraftClose, onStartDr
       <div className="flex flex-wrap items-center gap-2">
         <div className="relative flex-1 min-w-[200px] max-w-sm">
           <Search className="absolute start-3 top-2.5 w-4 h-4 text-muted-foreground" />
-          <Input className="ps-9" placeholder="بحث: رقم الأمر، المستفيد، المشروع…" value={search} onChange={(e) => setSearch(e.target.value)} />
+          <Input className="ps-9" placeholder={t("orders.search_placeholder")} value={search} onChange={(e) => setSearch(e.target.value)} />
         </div>
         <Select value={status} onValueChange={setStatus}>
           <SelectTrigger className="w-[230px]"><SelectValue /></SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">كل الحالات</SelectItem>
-            {Object.entries(PAYMENT_ORDER_LABELS).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}
+            <SelectItem value="all">{t("common.all_statuses")}</SelectItem>
+            {enumOptions("payment_order", PAYMENT_ORDER_STATUSES).map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
           </SelectContent>
         </Select>
         {ctx.perms.isAccounting ? (
           <Button className="ms-auto" onClick={onStartDraft}>
-            <Plus className="w-4 h-4 mr-1" /> أمر دفع جديد
+            <Plus className="w-4 h-4 me-1" /> {t("orders.create_btn")}
           </Button>
         ) : (
           <div className="ms-auto flex gap-2">{requesterAction}</div>
@@ -121,19 +125,19 @@ export function OrdersTab({ ctx, projectId, data, draft, onDraftClose, onStartDr
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>الرقم</TableHead>
-                {projectId === "all" && <TableHead>المشروع</TableHead>}
-                <TableHead>المستفيد</TableHead>
-                <TableHead>المصدر</TableHead>
-                <TableHead className="text-end">المبلغ</TableHead>
-                <TableHead>الحالة</TableHead>
-                <TableHead>تاريخ الصرف</TableHead>
+                <TableHead>{t("common.number")}</TableHead>
+                {projectId === "all" && <TableHead>{t("common.project")}</TableHead>}
+                <TableHead>{t("common.payee")}</TableHead>
+                <TableHead>{t("common.source")}</TableHead>
+                <TableHead className="text-end">{t("common.amount")}</TableHead>
+                <TableHead>{t("common.status")}</TableHead>
+                <TableHead>{t("orders.payment_date")}</TableHead>
                 <TableHead />
               </TableRow>
             </TableHeader>
             <TableBody>
               {filtered.length === 0 && (
-                <TableRow><TableCell colSpan={8} className="text-center text-muted-foreground py-10">لا توجد أوامر دفع</TableCell></TableRow>
+                <TableRow><TableCell colSpan={8} className="text-center text-muted-foreground py-10">{t("orders.no_items")}</TableCell></TableRow>
               )}
               {filtered.map((o) => (
                 <TableRow key={o.id} className="cursor-pointer" onClick={() => setOpenId(o.id)}>
@@ -141,17 +145,17 @@ export function OrdersTab({ ctx, projectId, data, draft, onDraftClose, onStartDr
                   {projectId === "all" && <TableCell>{o.projectName}</TableCell>}
                   <TableCell className="font-semibold">{o.payeeName}</TableCell>
                   <TableCell className="text-muted-foreground">
-                    {sourceLabel(o, data)}
+                    {sourceLabel(o, data, t)}
                     {o.purchaseOrderId && (() => {
                       const p = data.purchaseOrders.find((x) => x.id === o.purchaseOrderId);
                       return p ? <div className={`text-xs flex items-center gap-1 ${p.over ? "text-destructive" : ""}`}>{p.over && <AlertTriangle className="w-3 h-3" />}{p.poNumber}</div> : null;
                     })()}
                   </TableCell>
                   <TableCell className="text-end tabular-nums">{money(o.amount)}</TableCell>
-                  <TableCell><StatusBadge status={o.status} labels={PAYMENT_ORDER_LABELS} /></TableCell>
+                  <TableCell><StatusBadge status={o.status} group="payment_order" /></TableCell>
                   <TableCell>{fmtDate(o.paidDate)}</TableCell>
                   <TableCell className="text-muted-foreground text-xs whitespace-nowrap">
-                    <Paperclip className="w-3.5 h-3.5 inline mr-1" />{o.attachments.length}
+                    <Paperclip className="w-3.5 h-3.5 inline me-1" />{o.attachments.length}
                     <OriginalsControl ctx={ctx} order={o} data={data} compact onOpen={onOpenBillRequest} />
                   </TableCell>
                 </TableRow>
@@ -167,16 +171,20 @@ export function OrdersTab({ ctx, projectId, data, draft, onDraftClose, onStartDr
   );
 }
 
-function sourceLabel(o: any, data: PaymentsOverview): string {
+function sourceLabel(o: any, data: PaymentsOverview, t?: (key: string, opts?: any) => string): string {
+  const tr = (k: string, opts?: any): string => String(t ? t(k, opts) : i18n.t(k, { ns: "payments", ...opts }));
   if (o.billRequestId) {
     const b = data.billRequests.find((x) => x.id === o.billRequestId);
-    const nos = (b?.invoices ?? []).map((i: any) => i.invoiceNo).join("، ");
-    return `فواتير ${b?.requestNo ?? ""}${nos ? ` (${nos})` : ""}`.trim();
+    const nos = (b?.invoices ?? []).map((i: any) => i.invoiceNo).join(", ");
+    return `${tr("orders.purpose_invoices")} ${b?.requestNo ?? ""}${nos ? ` (${nos})` : ""}`.trim();
   }
-  if (o.fineId) return `خصم: ${data.fines.find((f) => f.id === o.fineId)?.title ?? ""}`;
-  if (o.clearanceId) return `رسوم: ${data.clearances.find((c) => c.id === o.clearanceId)?.title ?? ""}`;
-  if (o.subcontractorCertificateId) return `مستخلص باطن ${data.subcontractorCertificates.find((c) => c.id === o.subcontractorCertificateId)?.certNo ?? ""}`.trim();
-  if (o.purpose === "advance") return o.reason && o.reason !== ADVANCE_REASON ? `${ADVANCE_REASON}: ${o.reason}` : ADVANCE_REASON;
+  if (o.fineId) return tr("orders.fine_source", { title: data.fines.find((f) => f.id === o.fineId)?.title ?? "" });
+  if (o.permitTransactionId) {
+    const p = data.permits.find((c) => c.id === o.permitTransactionId);
+    return tr("orders.permit_reason", { info: p ? `${p.transactionNo} · ${p.title}` : "" });
+  }
+  if (o.subcontractorCertificateId) return tr("orders.cert_source", { certNo: data.subcontractorCertificates.find((c) => c.id === o.subcontractorCertificateId)?.certNo ?? "" });
+  if (o.purpose === "advance") return o.reason && o.reason !== "دفعة مقدمة" && o.reason !== "Advance payment" ? `${tr("orders.purpose_advance")}: ${o.reason}` : tr("orders.purpose_advance");
   return o.reason ?? "—";
 }
 
@@ -184,27 +192,27 @@ type SourceKind = "bill" | "fine" | "clearance" | "subcontractor" | "advance" | 
 // These are paid against an existing record; advance and other stand on their own
 const isSourced = (k: SourceKind): k is "bill" | "fine" | "clearance" | "subcontractor" =>
   k === "bill" || k === "fine" || k === "clearance" || k === "subcontractor";
-const ADVANCE_REASON = "دفعة مقدمة";
 
 export function CreateOrderDialog({ ctx, defaultProjectId, data, draft, onClose }: { ctx: PaymentsContext; defaultProjectId: string; data: PaymentsOverview; draft: OrderDraft; onClose: () => void }) {
+  const { t } = useTranslation("payments");
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
   const draftProject =
     data.billRequests.find((b) => b.id === draft.billRequestId)?.projectId ??
     data.fines.find((f) => f.id === draft.fineId)?.projectId ??
-    data.clearances.find((c) => c.id === draft.clearanceId)?.projectId ??
+    data.permits.find((c) => c.id === draft.permitTransactionId)?.projectId ??
     data.subcontractorCertificates.find((c) => c.id === draft.subcontractorCertificateId)?.projectId;
 
   const pre = draft.prefill;
   const [projectId, setProjectId] = useState(draftProject ?? pre?.projectId ?? (defaultProjectId === "all" ? "" : defaultProjectId));
   const [kind, setKind] = useState<SourceKind>(
-    pre?.kind ?? (draft.billRequestId ? "bill" : draft.fineId ? "fine" : draft.clearanceId ? "clearance" : draft.subcontractorCertificateId ? "subcontractor" : "bill"),
+    pre?.kind ?? (draft.billRequestId ? "bill" : draft.fineId ? "fine" : draft.permitTransactionId ? "clearance" : draft.subcontractorCertificateId ? "subcontractor" : "bill"),
   );
-  const [sourceId, setSourceId] = useState(draft.billRequestId ?? draft.fineId ?? draft.clearanceId ?? draft.subcontractorCertificateId ?? "");
+  const [sourceId, setSourceId] = useState(draft.billRequestId ?? draft.fineId ?? draft.permitTransactionId ?? draft.subcontractorCertificateId ?? "");
   const [payeeName, setPayeeName] = useState(pre?.payeeName ?? "");
   const [amount, setAmount] = useState(pre?.amount !== undefined ? String(pre.amount) : "");
-  const [reason, setReason] = useState(pre?.reason ?? (pre?.kind === "advance" ? ADVANCE_REASON : ""));
+  const [reason, setReason] = useState(pre?.reason ?? (pre?.kind === "advance" ? t("orders.advance_reason") : ""));
   const [advancePoId, setAdvancePoId] = useState(pre?.purchaseOrderId ?? "");
   const [supplierId, setSupplierId] = useState(pre?.supplierId ?? "");
 
@@ -215,7 +223,7 @@ export function CreateOrderDialog({ ctx, defaultProjectId, data, draft, onClose 
     meta: paymentsQuery,
   });
 
-  const hasLive = (key: "billRequestId" | "fineId" | "clearanceId" | "subcontractorCertificateId", id: string) =>
+  const hasLive = (key: "billRequestId" | "fineId" | "permitTransactionId" | "subcontractorCertificateId", id: string) =>
     data.orders.some((o) => o[key] === id && LIVE.includes(o.status));
 
   const options = useMemo(() => {
@@ -223,7 +231,9 @@ export function CreateOrderDialog({ ctx, defaultProjectId, data, draft, onClose 
     return {
       bill: data.billRequests.filter((b) => inProject(b) && b.status === "received" && !hasLive("billRequestId", b.id)),
       fine: data.fines.filter((f) => inProject(f) && ["open", "under_appeal"].includes(f.status) && !hasLive("fineId", f.id)),
-      clearance: data.clearances.filter((c) => inProject(c) && !c.feePaid && Number(c.feeAmount) > 0 && !hasLive("clearanceId", c.id)),
+      // licence / transaction fees from الرخص والمعاملات; a transfer request already raised for one counts as its order
+      clearance: data.permits.filter((c) => inProject(c) && !c.feePaid && Number(c.feeAmount) > 0 && !["cancelled", "rejected"].includes(c.status) &&
+        !data.orders.some((o) => o.permitTransactionId === c.id && !["rejected", "cancelled"].includes(o.status))),
       subcontractor: data.subcontractorCertificates.filter((c) => inProject(c) && c.status === "approved" && !hasLive("subcontractorCertificateId", c.id)),
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -236,20 +246,20 @@ export function CreateOrderDialog({ ctx, defaultProjectId, data, draft, onClose 
       const b = data.billRequests.find((x) => x.id === sourceId);
       if (b) {
         // Pay what the listed invoices add up to; fall back to the expected amount if none are listed
-        const nos = (b.invoices ?? []).map((i: any) => i.invoiceNo).join("، ");
+        const nos = (b.invoices ?? []).map((i: any) => i.invoiceNo).join(", ");
         setPayeeName(b.payeeName);
         setAmount(String(b.invoiceTotal > 0 ? b.invoiceTotal : b.amount));
-        setReason(nos ? `${b.description} — فواتير: ${nos}` : b.description);
+        setReason(nos ? t("orders.invoices_with_nos", { description: b.description, nos }) : b.description);
       }
     } else if (kind === "fine") {
       const f = data.fines.find((x) => x.id === sourceId);
       if (f) { setPayeeName(f.authority ?? ""); setAmount(String(Math.max(0, Number(f.amount) - Number(f.paidAmount)))); setReason(f.title); }
     } else if (kind === "subcontractor") {
       const c = data.subcontractorCertificates.find((x) => x.id === sourceId);
-      if (c) { setPayeeName(c.subcontractorName); setAmount(String(c.netPayable)); setReason(`مستخلص ${c.certNo} — ${c.subcontractorName}`); }
+      if (c) { setPayeeName(c.subcontractorName); setAmount(String(c.netPayable)); setReason(t("orders.cert_reason", { certNo: c.certNo, name: c.subcontractorName })); }
     } else {
-      const c = data.clearances.find((x) => x.id === sourceId);
-      if (c) { setPayeeName(c.authority ?? ""); setAmount(String(c.feeAmount)); setReason(`رسوم: ${c.title}`); }
+      const c = data.permits.find((x) => x.id === sourceId);
+      if (c) { setPayeeName(c.authorityName ?? ""); setAmount(String(c.feeAmount)); setReason(t("orders.permit_reason", { info: `${c.transactionNo} · ${c.title}` })); }
     }
   }, [kind, sourceId, data]);
 
@@ -259,7 +269,7 @@ export function CreateOrderDialog({ ctx, defaultProjectId, data, draft, onClose 
         projectId,
         billRequestId: kind === "bill" ? sourceId || null : null,
         fineId: kind === "fine" ? sourceId || null : null,
-        clearanceId: kind === "clearance" ? sourceId || null : null,
+        permitTransactionId: kind === "clearance" ? sourceId || null : null,
         subcontractorCertificateId: kind === "subcontractor" ? sourceId || null : null,
         // a bill request brings its own supplier and PO; anything else can name them
         supplierId: kind === "bill" ? null : supplierId || null,
@@ -274,10 +284,10 @@ export function CreateOrderDialog({ ctx, defaultProjectId, data, draft, onClose 
       }),
     onSuccess: () => {
       invalidatePayments(queryClient);
-      toast({ title: "تم إنشاء أمر الدفع كمسودة" });
+      toast({ title: t("toasts.order_created") });
       onClose();
     },
-    onError: (e) => toast({ title: "تعذّر إنشاء أمر الدفع", description: errorMessage(e), variant: "destructive" }),
+    onError: (e) => toast({ title: t("errors.create_order_failed"), description: errorMessage(e), variant: "destructive" }),
   });
 
   // The purchase order this payment counts against: a bill request brings its own, anything else can pick one
@@ -295,53 +305,53 @@ export function CreateOrderDialog({ ctx, defaultProjectId, data, draft, onClose 
     kind === "bill" ? `${r.requestNo} · ${r.payeeName} · ${money(r.invoiceTotal > 0 ? r.invoiceTotal : r.amount)}`
     : kind === "fine" ? `${r.title} · ${money(Number(r.amount) - Number(r.paidAmount))}`
     : kind === "subcontractor" ? `${r.certNo} · ${r.subcontractorName} · ${money(r.netPayable)}`
-    : `${r.title} · ${money(r.feeAmount)}`;
+    : `${r.transactionNo} · ${r.title} · ${money(r.feeAmount)}`;
 
   return (
     <PaymentDialog
       onClose={onClose}
       size="md"
       icon={Banknote}
-      kind="أمر دفع"
-      title="أمر دفع جديد"
-      description="يُصدر كمسودة، ثم يُرسل للاعتماد من الإدارة قبل الصرف"
+      kind={t("orders.kind")}
+      title={t("orders.new_title")}
+      description={t("orders.new_description")}
       footer={
         <>
           <Button
             disabled={create.isPending || !projectId || !payeeName.trim() || !(Number(amount) > 0) || (isSourced(kind) ? !sourceId : !reason.trim())}
             onClick={() => create.mutate()}
           >
-            <Plus className="w-4 h-4 mr-1" /> إنشاء المسودة
+            <Plus className="w-4 h-4 me-1" /> {t("orders.create_btn")}
           </Button>
-          <Button variant="outline" onClick={onClose}>إلغاء</Button>
+          <Button variant="outline" onClick={onClose}>{t("common.cancel")}</Button>
         </>
       }
     >
         <div className="grid gap-3">
           <div className="space-y-1.5">
-            <Label>المشروع</Label>
+            <Label>{t("common.project")}</Label>
             <Select value={projectId} onValueChange={(v) => { setProjectId(v); setSourceId(""); }} disabled={!!draftProject}>
-              <SelectTrigger><SelectValue placeholder="اختر المشروع" /></SelectTrigger>
+              <SelectTrigger><SelectValue placeholder={t("common.select_project")} /></SelectTrigger>
               <SelectContent>{ctx.projects.map((p) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent>
             </Select>
           </div>
           <div className="space-y-1.5">
-            <Label>سبب الدفع</Label>
-            <Select value={kind} onValueChange={(v) => { setKind(v as SourceKind); setSourceId(""); setAdvancePoId(""); setSupplierId(""); setPayeeName(""); setAmount(""); setReason(v === "advance" ? ADVANCE_REASON : ""); }} disabled={!!draftProject}>
+            <Label>{t("orders.reason_label")}</Label>
+            <Select value={kind} onValueChange={(v) => { setKind(v as SourceKind); setSourceId(""); setAdvancePoId(""); setSupplierId(""); setPayeeName(""); setAmount(""); setReason(v === "advance" ? t("orders.advance_reason") : ""); }} disabled={!!draftProject}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="bill">فواتير تم استلام أصولها</SelectItem>
-                <SelectItem value="fine">سداد خصم</SelectItem>
-                <SelectItem value="clearance">رسوم رخصة</SelectItem>
-                <SelectItem value="subcontractor">مستخلص مقاول باطن</SelectItem>
-                <SelectItem value="advance">دفعة مقدمة</SelectItem>
-                <SelectItem value="other">أخرى (مع بيان السبب)</SelectItem>
+                <SelectItem value="bill">{t("orders.source_invoices")}</SelectItem>
+                <SelectItem value="fine">{t("orders.source_fine")}</SelectItem>
+                <SelectItem value="clearance">{t("orders.source_permit")}</SelectItem>
+                <SelectItem value="subcontractor">{t("orders.source_subcontractor")}</SelectItem>
+                <SelectItem value="advance">{t("orders.source_advance")}</SelectItem>
+                <SelectItem value="other">{t("orders.source_other")}</SelectItem>
               </SelectContent>
             </Select>
           </div>
           {(kind === "advance" || kind === "other") && (sources?.suppliers.length ?? 0) > 0 && (
             <div className="space-y-1.5">
-              <Label>المورد (من سجل الموردين)</Label>
+              <Label>{t("orders.supplier_from_register")}</Label>
               <Select
                 value={supplierId || "none"}
                 onValueChange={(v) => {
@@ -352,7 +362,7 @@ export function CreateOrderDialog({ ctx, defaultProjectId, data, draft, onClose 
               >
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="none">— غير محدد —</SelectItem>
+                  <SelectItem value="none">{t("common.unspecified")}</SelectItem>
                   {sources?.suppliers.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
                 </SelectContent>
               </Select>
@@ -360,7 +370,7 @@ export function CreateOrderDialog({ ctx, defaultProjectId, data, draft, onClose 
           )}
           {kind !== "bill" && (
             <div className="space-y-1.5">
-              <Label>أمر شراء (اختياري)</Label>
+              <Label>{t("orders.po_optional")}</Label>
               <Select value={advancePoId || "none"} onValueChange={(v) => {
                 const po = sources?.purchaseOrders.find((p) => p.id === v);
                 setAdvancePoId(v === "none" ? "" : v);
@@ -373,37 +383,37 @@ export function CreateOrderDialog({ ctx, defaultProjectId, data, draft, onClose 
                   {sources?.purchaseOrders.map((p) => <SelectItem key={p.id} value={p.id}>{p.poNumber} · {p.supplierName} · {money(p.totalAmount)}</SelectItem>)}
                 </SelectContent>
               </Select>
-              <p className="text-xs text-muted-foreground">{kind === "advance" ? "اربط الدفعة بأمر الشراء الذي تُدفع مقدماً عنه، إن وُجد." : "اربط الدفعة بأمر شراء إن كانت تخصه."}</p>
+              <p className="text-xs text-muted-foreground">{kind === "advance" ? t("orders.source_advance_hint") : t("orders.source_other_hint")}</p>
             </div>
           )}
           {kind === "bill" && effPoId && poSource && (
-            <p className="text-xs text-muted-foreground">أمر الشراء المرتبط بطلب الفواتير: <span className="font-mono">{poSource.poNumber}</span></p>
+            <p className="text-xs text-muted-foreground">{t("orders.linked_po")} <span className="font-mono">{poSource.poNumber}</span></p>
           )}
           {effPoId && poSummary && <PoCard po={poSummary} />}
           {poOver && !poSummary?.over && <PoOverAlert po={{ poNumber: poSource?.poNumber ?? poSummary?.poNumber ?? "", value: poValue }} projected={projectedCommitted} />}
           {isSourced(kind) && (
             <div className="space-y-1.5">
-              <Label>المصدر</Label>
+              <Label>{t("common.source")}</Label>
               <Select value={sourceId} onValueChange={setSourceId} disabled={!!draftProject}>
-                <SelectTrigger><SelectValue placeholder={list.length ? "اختر" : "لا توجد عناصر متاحة"} /></SelectTrigger>
+                <SelectTrigger><SelectValue placeholder={list.length ? t("common.select") : t("common.no_items")} /></SelectTrigger>
                 <SelectContent>{list.map((r: any) => <SelectItem key={r.id} value={r.id}>{optionLabel(r)}</SelectItem>)}</SelectContent>
               </Select>
-              {kind === "bill" && <p className="text-xs text-muted-foreground">تظهر هنا الطلبات التي أكدت المحاسبة استلام أصولها فقط.</p>}
-              {kind === "subcontractor" && <p className="text-xs text-muted-foreground">تظهر هنا المستخلصات المعتمدة فقط، ويُصرف الصافي المستحق كاملاً.</p>}
+              {kind === "bill" && <p className="text-xs text-muted-foreground">{t("orders.bills_hint")}</p>}
+              {kind === "subcontractor" && <p className="text-xs text-muted-foreground">{t("orders.certs_hint")}</p>}
             </div>
           )}
           <div className="grid sm:grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label>المستفيد</Label>
+              <Label>{t("common.payee")}</Label>
               <Input value={payeeName} onChange={(e) => setPayeeName(e.target.value)} />
             </div>
             <div className="space-y-1.5">
-              <Label>المبلغ</Label>
+              <Label>{t("common.amount")}</Label>
               <Input type="number" min="0" step="0.01" value={amount} disabled={kind === "subcontractor"} onChange={(e) => setAmount(e.target.value)} />
             </div>
           </div>
           <div className="space-y-1.5">
-            <Label>البيان</Label>
+            <Label>{t("common.description")}</Label>
             <Textarea rows={2} value={reason} onChange={(e) => setReason(e.target.value)} />
           </div>
         </div>
@@ -414,6 +424,7 @@ export function CreateOrderDialog({ ctx, defaultProjectId, data, draft, onClose 
 // After payment, accounting can ask for the original invoice behind it. This is the icon for that:
 // it creates a bill request (under أصول الفواتير) linked to this order, then shows that request's state.
 function OriginalsControl({ ctx, order, data, compact, onOpen }: { ctx: PaymentsContext; order: any; data: PaymentsOverview; compact?: boolean; onOpen: (billRequestId: string) => void }) {
+  const { t } = useTranslation("payments");
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const request = data.billRequests.find((b) => b.paymentOrderId === order.id && b.status !== "cancelled");
@@ -422,34 +433,34 @@ function OriginalsControl({ ctx, order, data, compact, onOpen }: { ctx: Payments
     mutationFn: async () => (await apiRequest("POST", `/api/payments/orders/${order.id}/request-originals`, {})).json(),
     onSuccess: (created: any) => {
       invalidatePayments(queryClient);
-      toast({ title: `تم طلب أصل الفاتورة (${created.requestNo})`, description: "يظهر الطلب في تبويب أصول الفواتير." });
+      toast({ title: t("toasts.original_requested", { requestNo: created.requestNo }), description: t("toasts.original_requested_desc") });
     },
-    onError: (e) => toast({ title: "تعذّر طلب أصل الفاتورة", description: errorMessage(e), variant: "destructive" }),
+    onError: (e) => toast({ title: t("errors.request_original_failed"), description: errorMessage(e), variant: "destructive" }),
   });
 
   // Only a paid order that was not raised from a bill request (those collected the originals before paying)
   if (order.status !== "paid" || order.billRequestId) return null;
 
   if (request) {
-    const label = BILL_REQUEST_LABELS[request.status as keyof typeof BILL_REQUEST_LABELS] ?? request.status;
+    const label = enumText("bill_request", request.status);
     return compact ? (
-      <Button type="button" size="icon" variant="ghost" className="h-7 w-7 text-emerald-700" title={`أصل الفاتورة ${request.requestNo}: ${label}`} onClick={(e) => { e.stopPropagation(); onOpen(request.id); }}>
+      <Button type="button" size="icon" variant="ghost" className="h-7 w-7 text-emerald-700" title={t("orders.original_label", { requestNo: request.requestNo, label })} onClick={(e) => { e.stopPropagation(); onOpen(request.id); }}>
         <FileCheck className="w-4 h-4" />
       </Button>
     ) : (
       <Button type="button" variant="outline" onClick={() => onOpen(request.id)}>
-        <FileCheck className="w-4 h-4 mr-1" /> أصل الفاتورة {request.requestNo}: {label}
+        <FileCheck className="w-4 h-4 me-1" /> {t("orders.original_label", { requestNo: request.requestNo, label })}
       </Button>
     );
   }
   if (!ctx.perms.isAccounting) return null;
   return compact ? (
-    <Button type="button" size="icon" variant="ghost" className="h-7 w-7" title="طلب أصل الفاتورة" disabled={ask.isPending} onClick={(e) => { e.stopPropagation(); ask.mutate(); }}>
+    <Button type="button" size="icon" variant="ghost" className="h-7 w-7" title={t("orders.request_original")} disabled={ask.isPending} onClick={(e) => { e.stopPropagation(); ask.mutate(); }}>
       <FileSearch className="w-4 h-4" />
     </Button>
   ) : (
     <Button type="button" variant="outline" disabled={ask.isPending} onClick={() => ask.mutate()}>
-      <FileSearch className="w-4 h-4 mr-1" /> طلب أصل الفاتورة
+      <FileSearch className="w-4 h-4 me-1" /> {t("orders.request_original")}
     </Button>
   );
 }
@@ -457,6 +468,7 @@ function OriginalsControl({ ctx, order, data, compact, onOpen }: { ctx: Payments
 type Panel = null | "reject" | "pay" | "decline";
 
 function OrderDialog({ ctx, row, data, onClose, onOpenBillRequest }: { ctx: PaymentsContext; row: any; data: PaymentsOverview; onClose: () => void; onOpenBillRequest: (id: string) => void }) {
+  const { t } = useTranslation("payments");
   const { toast } = useToast();
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -471,12 +483,12 @@ function OrderDialog({ ctx, row, data, onClose, onOpenBillRequest }: { ctx: Paym
     mutationFn: async (v: Record<string, unknown>) => apiRequest("POST", `/api/payments/orders/${row.id}/transition`, v),
     onSuccess: (_d, v) => {
       invalidatePayments(queryClient);
-      const msg: Record<string, string> = { submit: "أُرسل للاعتماد", approve: "تم الاعتماد", reject: "تم الرفض", pay: "تم تسجيل الصرف", cancel: "تم الإلغاء", approve_request: "وافق مدير المشروع على الطلب", decline_request: "تم رفض الطلب", accept_request: "قُبل الطلب وأصبح مسودة أمر دفع", withdraw_request: "تم سحب الطلب" };
+      const msg: Record<string, string> = { submit: t("orders.toast_submitted"), approve: t("orders.toast_approved"), reject: t("orders.toast_rejected"), pay: t("orders.toast_paid"), cancel: t("orders.toast_cancelled"), approve_request: t("orders.toast_request_approved"), decline_request: t("orders.toast_request_declined"), accept_request: t("orders.toast_request_accepted"), withdraw_request: t("orders.toast_request_withdrawn") };
       toast({ title: msg[String(v.action)] });
       setPanel(null);
       setNote("");
     },
-    onError: (e) => toast({ title: "تعذّر تنفيذ الإجراء", description: errorMessage(e), variant: "destructive" }),
+    onError: (e) => toast({ title: t("errors.action_failed"), description: errorMessage(e), variant: "destructive" }),
   });
 
   const { isAccounting, canApprove } = ctx.perms;
@@ -486,38 +498,38 @@ function OrderDialog({ ctx, row, data, onClose, onOpenBillRequest }: { ctx: Paym
   // Reject, decline and pay open above the actions, so the form is in view however far the body is scrolled
   const panelForm =
     panel === "reject" || panel === "decline" ? (
-      <Section title={panel === "reject" ? "سبب الرفض" : "سبب رفض الطلب"} icon={XCircle} tone="danger">
+      <Section title={panel === "reject" ? t("orders.reject_panel_title") : t("orders.decline_panel_title")} icon={XCircle} tone="danger">
         <Textarea rows={2} value={note} onChange={(e) => setNote(e.target.value)} autoFocus />
         <div className="flex justify-end gap-2">
-          <Button variant="outline" size="sm" onClick={() => setPanel(null)}>تراجع</Button>
+          <Button variant="outline" size="sm" onClick={() => setPanel(null)}>{t("common.back_btn")}</Button>
           <Button size="sm" variant="destructive" disabled={!note.trim() || act.isPending} onClick={() => act.mutate({ action: panel === "reject" ? "reject" : "decline_request", note })}>
-            {panel === "reject" ? "رفض الأمر" : "رفض الطلب"}
+            {panel === "reject" ? t("orders.reject_btn") : t("orders.decline_btn")}
           </Button>
         </div>
       </Section>
     ) : panel === "pay" ? (
-      <Section title="تسجيل الصرف" icon={Banknote}>
+      <Section title={t("orders.payment_panel")} icon={Banknote}>
         <div className="grid sm:grid-cols-3 gap-3">
           <div className="space-y-1.5">
-            <Label>طريقة الدفع</Label>
+            <Label>{t("orders.payment_method")}</Label>
             <Select value={method} onValueChange={setMethod}>
               <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>{PAYMENT_METHODS.map((m) => <SelectItem key={m} value={m}>{PAYMENT_METHOD_LABELS[m]}</SelectItem>)}</SelectContent>
+              <SelectContent>{PAYMENT_METHODS.map((m) => <SelectItem key={m} value={m}>{enumText("payment_method", m)}</SelectItem>)}</SelectContent>
             </Select>
           </div>
           <div className="space-y-1.5">
-            <Label>رقم المرجع / الشيك</Label>
+            <Label>{t("orders.method_ref_label")}</Label>
             <Input value={reference} onChange={(e) => setReference(e.target.value)} />
           </div>
           <div className="space-y-1.5">
-            <Label>تاريخ الصرف</Label>
+            <Label>{t("orders.payment_date")}</Label>
             <Input type="date" value={paidDate} onChange={(e) => setPaidDate(e.target.value)} />
           </div>
         </div>
         <div className="flex justify-end gap-2">
-          <Button variant="outline" size="sm" onClick={() => setPanel(null)}>تراجع</Button>
+          <Button variant="outline" size="sm" onClick={() => setPanel(null)}>{t("common.back_btn")}</Button>
           <Button size="sm" disabled={act.isPending} onClick={() => act.mutate({ action: "pay", paymentMethod: method, paymentReference: reference || null, paidDate })}>
-            تأكيد الصرف
+            {t("orders.confirm_payment")}
           </Button>
         </div>
       </Section>
@@ -527,9 +539,9 @@ function OrderDialog({ ctx, row, data, onClose, onOpenBillRequest }: { ctx: Paym
     <PaymentDialog
       onClose={onClose}
       icon={Banknote}
-      kind="أمر دفع"
+      kind={t("orders.kind")}
       title={<span className="font-mono">{row.orderNo}</span>}
-      badge={<StatusBadge status={row.status} labels={PAYMENT_ORDER_LABELS} />}
+      badge={<StatusBadge status={row.status} group="payment_order" />}
       description={row.projectName}
       amount={money(row.amount)}
       panel={panelForm}
@@ -538,66 +550,66 @@ function OrderDialog({ ctx, row, data, onClose, onOpenBillRequest }: { ctx: Paym
           {/* The step this order is waiting for comes first */}
           {isAccounting && ["draft", "rejected"].includes(row.status) && (
             <Button disabled={act.isPending} onClick={() => act.mutate({ action: "submit" })}>
-              <Send className="w-4 h-4 mr-1" /> إرسال للاعتماد
+              <Send className="w-4 h-4 me-1" /> {t("orders.send_for_approval")}
             </Button>
           )}
           {/* A transfer request: the project manager first, then accounting */}
           {row.status === "requested" && canApprove && (
-            <Button disabled={act.isPending || ownOrder} title={ownOrder ? "لا يمكنك الموافقة على طلب قدّمته" : undefined} onClick={() => act.mutate({ action: "approve_request" })}>
-              <CheckCircle2 className="w-4 h-4 mr-1" /> موافقة مدير المشروع
+            <Button disabled={act.isPending || ownOrder} title={ownOrder ? t("orders.cannot_approve_own_request") : undefined} onClick={() => act.mutate({ action: "approve_request" })}>
+              <CheckCircle2 className="w-4 h-4 me-1" /> {t("orders.pm_approve")}
             </Button>
           )}
           {row.status === "request_approved" && isAccounting && (
             <Button disabled={act.isPending} onClick={() => act.mutate({ action: "accept_request" })}>
-              <CheckCircle2 className="w-4 h-4 mr-1" /> أمر دفع
+              <CheckCircle2 className="w-4 h-4 me-1" /> {t("orders.accept_as_order")}
             </Button>
           )}
           {canApprove && row.status === "pending_approval" && (
-            <Button disabled={act.isPending || ownOrder} title={ownOrder ? "لا يمكنك اعتماد أمر أنشأته" : undefined} onClick={() => act.mutate({ action: "approve" })}>
-              <CheckCircle2 className="w-4 h-4 mr-1" /> اعتماد
+            <Button disabled={act.isPending || ownOrder} title={ownOrder ? t("orders.cannot_approve_own") : undefined} onClick={() => act.mutate({ action: "approve" })}>
+              <CheckCircle2 className="w-4 h-4 me-1" /> {t("orders.approve_order")}
             </Button>
           )}
           {isAccounting && row.status === "approved" && (
             <Button disabled={act.isPending} onClick={() => setPanel("pay")}>
-              <Banknote className="w-4 h-4 mr-1" /> تسجيل الصرف
+              <Banknote className="w-4 h-4 me-1" /> {t("orders.record_payment")}
             </Button>
           )}
           {canApprove && row.status === "pending_approval" && (
             <Button variant="outline" disabled={act.isPending} onClick={() => setPanel("reject")}>
-              <XCircle className="w-4 h-4 mr-1" /> رفض
+              <XCircle className="w-4 h-4 me-1" /> {t("common.reject")}
             </Button>
           )}
           {((row.status === "requested" && canApprove) || (row.status === "request_approved" && isAccounting)) && (
             <Button variant="outline" disabled={act.isPending} onClick={() => setPanel("decline")}>
-              <XCircle className="w-4 h-4 mr-1" /> رفض الطلب
+              <XCircle className="w-4 h-4 me-1" /> {t("orders.decline_btn")}
             </Button>
           )}
           <OriginalsControl ctx={ctx} order={row} data={data} onOpen={onOpenBillRequest} />
-          <Button variant="outline" onClick={() => printVoucher(row, data)}>
-            <Printer className="w-4 h-4 mr-1" /> طباعة
+          <Button variant="outline" onClick={() => printVoucher(row, data, sourceLabel(row, data, t))}>
+            <Printer className="w-4 h-4 me-1" /> {t("common.print")}
           </Button>
           {/* Only whoever made the request may withdraw it */}
           {["requested", "request_approved"].includes(row.status) && row.createdBy === user?.id && (
             <Button variant="ghost" className="text-destructive" disabled={act.isPending} onClick={() => act.mutate({ action: "withdraw_request" })}>
-              <Ban className="w-4 h-4 mr-1" /> سحب الطلب
+              <Ban className="w-4 h-4 me-1" /> {t("common.withdraw_request")}
             </Button>
           )}
           {isAccounting && ["draft", "pending_approval", "approved", "rejected"].includes(row.status) && (
             <Button variant="ghost" className="text-destructive" disabled={act.isPending} onClick={() => act.mutate({ action: "cancel" })}>
-              <Ban className="w-4 h-4 mr-1" /> إلغاء
+              <Ban className="w-4 h-4 me-1" /> {t("common.cancel")}
             </Button>
           )}
         </>
       }
     >
-      <Section title="تفاصيل الأمر">
+      <Section title={t("orders.details_title")}>
         <TileRow>
-          <Tile label="المستفيد">{row.payeeName}</Tile>
-          <Tile label="المصدر">{sourceLabel(row, data)}</Tile>
+          <Tile label={t("common.payee")}>{row.payeeName}</Tile>
+          <Tile label={t("common.source")}>{sourceLabel(row, data, t)}</Tile>
         </TileRow>
         {row.reason && (
           <TileRow>
-            <Tile label="البيان">{row.reason}</Tile>
+            <Tile label={t("common.description")}>{row.reason}</Tile>
           </TileRow>
         )}
         {row.billRequestId && (() => {
@@ -605,7 +617,7 @@ function OrderDialog({ ctx, row, data, onClose, onOpenBillRequest }: { ctx: Paym
           return invoices.length > 0 ? (
             <div className="rounded-md border border-muted/50 overflow-hidden shadow-xl bg-background">
               <div className="flex gap-3 bg-muted/50 px-4 py-2.5 text-[11px] font-bold text-muted-foreground">
-                <span>الفواتير المسددة</span><span className="ms-auto">المبلغ</span>
+                <span>{t("orders.paid_invoices")}</span><span className="ms-auto">{t("common.amount")}</span>
               </div>
               <ul className="divide-y divide-muted/40">
                 {invoices.map((i: any) => (
@@ -623,27 +635,27 @@ function OrderDialog({ ctx, row, data, onClose, onOpenBillRequest }: { ctx: Paym
 
       {poForOrder && <PoCard po={poForOrder} />}
 
-      <Section title="الاعتماد والصرف">
+      <Section title={t("orders.approval_title")}>
         <TileRow>
-          <Tile label="أنشأه">{row.createdByName ?? "—"}</Tile>
-          <Tile label="اعتمده">{row.approvedByName ?? "—"}</Tile>
-          <Tile label="تاريخ الاعتماد">{fmtDate(row.approvedAt)}</Tile>
+          <Tile label={t("orders.created_by")}>{row.createdByName ?? "—"}</Tile>
+          <Tile label={t("orders.approved_by")}>{row.approvedByName ?? "—"}</Tile>
+          <Tile label={t("orders.approval_date")}>{fmtDate(row.approvedAt)}</Tile>
         </TileRow>
         {row.status === "paid" && (
           <TileRow>
-            <Tile label="طريقة الدفع">{PAYMENT_METHOD_LABELS[row.paymentMethod as keyof typeof PAYMENT_METHOD_LABELS] ?? row.paymentMethod}</Tile>
-            <Tile label="المرجع">{row.paymentReference ?? "—"}</Tile>
-            <Tile label="تاريخ الصرف">{fmtDate(row.paidDate)}</Tile>
+            <Tile label={t("orders.payment_method")}>{enumText("payment_method", row.paymentMethod)}</Tile>
+            <Tile label={t("common.reference")}>{row.paymentReference ?? "—"}</Tile>
+            <Tile label={t("orders.payment_date")}>{fmtDate(row.paidDate)}</Tile>
           </TileRow>
         )}
         {row.rejectReason && (
           <TileRow className="border-destructive/30 bg-destructive/5">
-            <Tile label="سبب الرفض"><span className="text-destructive">{row.rejectReason}</span></Tile>
+            <Tile label={t("orders.reject_panel_title")}><span className="text-destructive">{row.rejectReason}</span></Tile>
           </TileRow>
         )}
       </Section>
 
-      <LatestActivity entityType="payment_order" entityId={row.id} labels={PAYMENT_ORDER_LABELS} />
+      <LatestActivity entityType="payment_order" entityId={row.id} group="payment_order" />
 
       <div className="rounded-md border border-dashed border-primary/20 bg-primary/5 p-3">
         <AttachmentsPanel
@@ -652,40 +664,10 @@ function OrderDialog({ ctx, row, data, onClose, onOpenBillRequest }: { ctx: Paym
           projectId={row.projectId}
           files={row.attachments}
           editable={isAccounting && editable}
-          hint="أرفق ما يلزم لإثبات الدفع، مثل إشعار التحويل أو صورة الشيك."
+          hint={t("orders.attachment_hint")}
           canRemove={() => true}
         />
       </div>
     </PaymentDialog>
   );
-}
-
-const esc = (v: unknown) =>
-  String(v ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c] as string));
-
-function printVoucher(row: any, data: PaymentsOverview) {
-  const w = window.open("", "_blank", "width=820,height=900");
-  if (!w) return;
-  const method = PAYMENT_METHOD_LABELS[row.paymentMethod as keyof typeof PAYMENT_METHOD_LABELS] ?? row.paymentMethod ?? "—";
-  w.document.write(`<!doctype html><html dir="rtl"><head><meta charset="utf-8"><title>${esc(row.orderNo)}</title>
-<style>body{font-family:Arial,Tahoma,sans-serif;padding:32px;color:#111}h1{margin:0 0 4px}table{width:100%;border-collapse:collapse;margin-top:16px}
-td{border:1px solid #bbb;padding:8px 10px;font-size:14px}td:first-child{background:#f3f4f6;width:30%;font-weight:700}.sig{display:flex;gap:24px;margin-top:64px}
-.sig div{flex:1;border-top:1px solid #111;padding-top:6px;text-align:center;font-size:13px}</style></head><body>
-<h1>أمر دفع — ${esc(row.orderNo)}</h1><div>${esc(row.projectName)}</div>
-<table>
-<tr><td>المستفيد</td><td>${esc(row.payeeName)}</td></tr>
-<tr><td>المبلغ</td><td>${esc(money(row.amount))}</td></tr>
-<tr><td>المصدر</td><td>${esc(sourceLabel(row, data))}</td></tr>
-${(() => { const p = data.purchaseOrders.find((x) => x.id === row.purchaseOrderId); return p ? `<tr><td>أمر الشراء</td><td>${esc(poLabel(p))} — قيمته ${esc(money(p.value))}</td></tr>` : ""; })()}
-${(data.billRequests.find((b) => b.id === row.billRequestId)?.invoices ?? []).map((i: any) => `<tr><td>فاتورة ${esc(i.invoiceNo)}</td><td>${esc(fmtDate(i.invoiceDate))} — ${esc(money(i.amount))}</td></tr>`).join("")}
-<tr><td>البيان</td><td>${esc(row.reason)}</td></tr>
-<tr><td>الحالة</td><td>${esc(PAYMENT_ORDER_LABELS[row.status as keyof typeof PAYMENT_ORDER_LABELS] ?? row.status)}</td></tr>
-<tr><td>أنشأه</td><td>${esc(row.createdByName)}</td></tr>
-<tr><td>اعتمده</td><td>${esc(row.approvedByName)} ${esc(fmtDate(row.approvedAt))}</td></tr>
-<tr><td>طريقة الدفع / المرجع</td><td>${esc(method)} ${esc(row.paymentReference)}</td></tr>
-<tr><td>تاريخ الصرف</td><td>${esc(fmtDate(row.paidDate))}</td></tr>
-</table>
-<div class="sig"><div>المحاسب</div><div>المدير المالي</div><div>المدير المعتمد</div></div>
-<script>window.onload=function(){window.print()}</script></body></html>`);
-  w.document.close();
 }

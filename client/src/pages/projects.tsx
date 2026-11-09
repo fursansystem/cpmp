@@ -212,7 +212,7 @@ export default function Projects() {
   return (
     <div className="min-h-screen bg-transparent px-6 lg:px-10 pt-2 pb-8 space-y-10 animate-in fade-in duration-700 relative overflow-hidden">
       {/* Background Decorative Elements */}
-      <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none -z-10">
+      <div className="absolute top-0 start-0 w-full h-full overflow-hidden pointer-events-none -z-10">
         <div className="absolute top-[-10%] right-[-10%] w-[40%] h-[40%] bg-primary/5 rounded-full blur-[120px]" />
         <div className="absolute bottom-[-10%] left-[-10%] w-[40%] h-[40%] bg-blue-500/5 rounded-full blur-[120px]" />
       </div>
@@ -230,7 +230,7 @@ export default function Projects() {
                   disabled={!canCreateProject}
                   className="bg-primary text-primary-foreground rounded-xl h-11 px-6 font-bold shadow-lg shadow-primary/20 hover:scale-105 transition-all"
                 >
-                  {user?.role !== "org_admin" && <Plus className="w-4 h-4 mr-2" />}
+                  {user?.role !== "org_admin" && <Plus className="w-4 h-4 me-2" />}
                   New Project
                 </Button>
               }
@@ -245,12 +245,12 @@ export default function Projects() {
 
       <div className="flex items-center gap-4 flex-wrap">
         <div className="relative flex-1 min-w-[200px] max-w-md group">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground group-focus-within:text-primary transition-colors" />
+          <Search className="absolute start-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground group-focus-within:text-primary transition-colors" />
           <Input
             placeholder="Search projects..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-10 bg-white dark:bg-muted/10 border-none shadow-sm rounded-xl h-11 focus-visible:ring-primary/20"
+            className="ps-10 bg-white dark:bg-muted/10 border-none shadow-sm rounded-xl h-11 focus-visible:ring-primary/20"
             data-testid="input-search"
           />
         </div>

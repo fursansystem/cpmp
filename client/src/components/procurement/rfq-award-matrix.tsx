@@ -132,10 +132,10 @@ export function RfqAwardMatrix({ rfq, quotations, orderedItems, projectId, onCre
         <table className="w-full text-xs border-collapse">
           <thead>
             <tr className="bg-muted/40 border-b">
-              <th className="p-3 text-left font-bold min-w-[220px]">Item</th>
-              <th className="p-3 text-left font-bold w-24">Qty</th>
+              <th className="p-3 text-start font-bold min-w-[220px]">Item</th>
+              <th className="p-3 text-start font-bold w-24">Qty</th>
               {quotations.map((q) => (
-                <th key={q.id} className="p-3 min-w-[170px] text-center border-l">
+                <th key={q.id} className="p-3 min-w-[170px] text-center border-s">
                   <div className="font-bold text-sm">{q.supplierName}</div>
                   <div className="text-[10px] text-muted-foreground font-normal">{q.quotationNumber || "No number"}</div>
                   <div className="text-[10px] text-muted-foreground font-normal flex items-center justify-center gap-1 mt-0.5">
@@ -144,7 +144,7 @@ export function RfqAwardMatrix({ rfq, quotations, orderedItems, projectId, onCre
                   </div>
                 </th>
               ))}
-              <th className="p-3 text-left font-bold min-w-[150px] border-l">Status</th>
+              <th className="p-3 text-start font-bold min-w-[150px] border-s">Status</th>
             </tr>
           </thead>
           <tbody className="divide-y">
@@ -171,7 +171,7 @@ export function RfqAwardMatrix({ rfq, quotations, orderedItems, projectId, onCre
                     const isSelected = selection[item.id] === q.id;
                     const short = p && Number(p.qi.quantity) < Number(item.quantity);
                     return (
-                      <td key={q.id} className="p-1.5 border-l text-center">
+                      <td key={q.id} className="p-1.5 border-s text-center">
                         {p ? (
                           <button
                             type="button"
@@ -208,7 +208,7 @@ export function RfqAwardMatrix({ rfq, quotations, orderedItems, projectId, onCre
                       </td>
                     );
                   })}
-                  <td className="p-3 border-l">
+                  <td className="p-3 border-s">
                     {ordered ? (
                       <div className="space-y-0.5">
                         <Badge className="bg-emerald-600 text-white gap-1 text-[10px]">
@@ -242,11 +242,11 @@ export function RfqAwardMatrix({ rfq, quotations, orderedItems, projectId, onCre
                 Quotation total (incl. tax & discount)
               </td>
               {quotations.map((q) => (
-                <td key={q.id} className="p-3 text-center border-l font-mono">
+                <td key={q.id} className="p-3 text-center border-s font-mono">
                   {money(Number(q.totalAmount || 0))} {q.currency}
                 </td>
               ))}
-              <td className="border-l" />
+              <td className="border-s" />
             </tr>
           </tbody>
         </table>

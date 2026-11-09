@@ -39,7 +39,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useAuth } from "@/lib/auth";
 import { toast } from "@/hooks/use-toast";
 import { CalendarIcon, X, FilePlus2 } from "lucide-react";
-import { format } from "date-fns";
+import { format } from "@/lib/date-format";
 import { cn } from "@/lib/utils";
 import { z } from "zod";
 import {
@@ -48,6 +48,7 @@ import {
   WorkListChapter,
   WorkListActivity
 } from "@shared/schema";
+import { localizedName } from "@/lib/localized";
 
 interface ActivityFormDialogProps {
   projectId: string;
@@ -292,7 +293,7 @@ export function ActivityFormDialog({
         <button
           type="button"
           onClick={() => onOpenChange(false)}
-          className="absolute top-5 right-5 z-[100] w-10 h-10 flex items-center justify-center rounded-full bg-primary/10 hover:bg-primary/20 transition-all duration-300 text-primary border border-primary/20 group active:scale-90"
+          className="absolute top-5 end-5 z-[100] w-10 h-10 flex items-center justify-center rounded-full bg-primary/10 hover:bg-primary/20 transition-all duration-300 text-primary border border-primary/20 group active:scale-90"
         >
           <X className="w-5 h-5 group-hover:rotate-90 transition-transform duration-300" />
         </button>
@@ -306,7 +307,7 @@ export function ActivityFormDialog({
             <div className="w-16 h-16 bg-primary/10 rounded-2xl flex items-center justify-center text-primary shadow-lg shadow-primary/5 transition-transform duration-500 hover:scale-105 shrink-0">
               <FilePlus2 className="w-8 h-8" />
             </div>
-            <div className="flex-grow text-left">
+            <div className="flex-grow text-start">
               <div className="flex items-center gap-2 mb-1">
                 <div className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
                 <span className="text-xs font-black uppercase tracking-[0.2em] text-primary">New Activity</span>
@@ -371,8 +372,8 @@ export function ActivityFormDialog({
                         <SelectContent>
                           {divisions.map((div) => (
                             <SelectItem key={div.id} value={div.id}>
-                              <span className="text-muted-foreground mr-2">{div.code}</span>
-                              {div.nameEnglish}
+                              <span className="text-muted-foreground me-2">{div.code}</span>
+                              {localizedName(div)}
                             </SelectItem>
                           ))}
                         </SelectContent>
@@ -403,8 +404,8 @@ export function ActivityFormDialog({
                       <SelectContent>
                         {filteredChapters.map((chapter) => (
                           <SelectItem key={chapter.id} value={chapter.id}>
-                            <span className="text-muted-foreground mr-2">{chapter.code}</span>
-                            {chapter.nameEnglish}
+                            <span className="text-muted-foreground me-2">{chapter.code}</span>
+                            {localizedName(chapter)}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -435,8 +436,8 @@ export function ActivityFormDialog({
                         <SelectContent>
                           {filteredActivities.map((activity) => (
                             <SelectItem key={activity.id} value={activity.id}>
-                              <span className="text-muted-foreground mr-2">{activity.code}</span>
-                              {activity.nameEnglish}
+                              <span className="text-muted-foreground me-2">{activity.code}</span>
+                              {localizedName(activity)}
                             </SelectItem>
                           ))}
                         </SelectContent>
@@ -494,7 +495,7 @@ export function ActivityFormDialog({
                             <Button
                               variant="outline"
                               className={cn(
-                                "w-[140px] h-10 rounded-[1.5rem] pl-3 text-left font-semibold border-primary/30 hover:bg-primary/5 bg-transparent",
+                                "w-[140px] h-10 rounded-[1.5rem] ps-3 text-start font-semibold border-primary/30 hover:bg-primary/5 bg-transparent",
                                 !field.value && "text-muted-foreground"
                               )}
                               data-testid="button-date-picker"
@@ -504,7 +505,7 @@ export function ActivityFormDialog({
                               ) : (
                                 <span>mm/dd/yyyy</span>
                               )}
-                              <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                              <CalendarIcon className="ms-auto h-4 w-4 opacity-50" />
                             </Button>
                           </FormControl>
                         </PopoverTrigger>

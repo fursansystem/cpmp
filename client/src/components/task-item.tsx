@@ -2,7 +2,7 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { Calendar, User, MoreVertical } from "lucide-react";
-import { format } from "date-fns";
+import { format } from "@/lib/date-format";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -15,8 +15,10 @@ interface TaskItemProps {
   title: string;
   priority: "low" | "medium" | "high" | "urgent";
   status: "todo" | "in-progress" | "completed";
-  type?: "general" | "inspection_request" | "permission_request" | "approval_request";
+  type?: "general" | "inspection_request" | "permission_request" | "approval_request" | "permit_step";
   assignedTo?: string;
+  // Opens the record the task mirrors (a licence / transaction step)
+  href?: string;
   dueDate?: string;
   onToggle?: () => void;
   onEdit?: () => void;
@@ -35,6 +37,7 @@ const typeConfig = {
   inspection_request: { label: "Inspection Request", className: "bg-blue-500 text-white" },
   permission_request: { label: "Permission to Work", className: "bg-purple-500 text-white" },
   approval_request: { label: "Approval Request", className: "bg-orange-500 text-white" },
+  permit_step: { label: "الرخص والمعاملات", className: "bg-teal-600 text-white" },
 };
 
 export function TaskItem({
@@ -44,12 +47,13 @@ export function TaskItem({
   type = "general",
   assignedTo,
   dueDate,
+  href,
   onToggle,
   onEdit,
   onDelete,
 }: TaskItemProps) {
   const priorityInfo = priorityConfig[priority];
-  const typeInfo = typeConfig[type];
+  const typeInfo = typeConfig[type] ?? typeConfig.general;
   const isCompleted = status === "completed";
 
   return (
@@ -70,6 +74,11 @@ export function TaskItem({
           <Badge className={typeInfo.className} data-testid={`badge-type-${type}`}>
             {typeInfo.label}
           </Badge>
+          {href && (
+            <a href={href} className="text-xs font-semibold text-primary hover:underline" data-testid="link-task-source">
+              فتح المعاملة
+            </a>
+          )}
         </div>
         <div className="flex items-center gap-4 text-xs text-muted-foreground flex-wrap">
           {assignedTo && (

@@ -1,0 +1,246 @@
+{
+  "title": "المستودع",
+  "back": "رجوع",
+  "kpis": {
+    "stocked_materials": "مواد لها رصيد",
+    "low_stock": "تحت الحد الأدنى",
+    "pending_issues": "سندات بانتظار الاعتماد",
+    "warehouses": "المستودعات"
+  },
+  "conflicts_alert": "<0>{{count}} مادة بوحدات متعارضة:</0> {{items}}. رصيدها غير صحيح حتى تُوحَّد وحداتها.",
+  "low_stock_title": "مواد تحت الحد الأدنى",
+  "actions": {
+    "issue_materials": "صرف مواد",
+    "transfer": "تحويل",
+    "manual_movement": "حركة يدوية",
+    "approvers_settings": "ضبط المناصب المعتمدة",
+    "export_excel": "تصدير Excel"
+  },
+  "tabs": {
+    "overview": "نظرة عامة",
+    "balances": "الأرصدة",
+    "deliveries": "التوريدات",
+    "issues": "سندات الصرف",
+    "transfers": "التحويلات",
+    "warehouses": "المستودعات",
+    "ledger": "دفتر الحركة"
+  },
+  "balances": {
+    "search_placeholder": "بحث عن مادة...",
+    "all_warehouses": "كل المستودعات (الإجمالي)",
+    "empty": "لا توجد أرصدة",
+    "unit_conflict": "وحدات متعارضة",
+    "low_stock": "تحت الحد",
+    "normal": "طبيعي",
+    "ledger_hint": "اضغط على أي مادة لعرض كل حركاتها في الدفتر.",
+    "table": {
+      "material": "المادة",
+      "unit": "الوحدة",
+      "in": "وارد",
+      "out": "منصرف",
+      "balance": "الرصيد",
+      "min_stock": "الحد الأدنى",
+      "status": "الحالة"
+    }
+  },
+  "issues": {
+    "pending_notice": "<0>{{count}} سند بانتظار الاعتماد</0> ومنصبك لا يملك صلاحية الاعتماد.",
+    "pending_notice_manage": " اضبط المناصب المعتمدة من زر الدرع أعلى الصفحة.",
+    "configure_approvers": "ضبط المعتمدين",
+    "empty": "لا توجد سندات صرف",
+    "recipient": "المستلم:",
+    "warehouse": "المستودع:",
+    "purpose": "الغرض:",
+    "rejection_reason": "سبب الرفض: {{reason}}",
+    "approve": "اعتماد",
+    "reject": "رفض",
+    "cancel": "إلغاء",
+    "status": {
+      "pending_approval": "بانتظار الاعتماد",
+      "issued": "مصروف",
+      "rejected": "مرفوض",
+      "cancelled": "ملغي"
+    },
+    "reject_dialog": {
+      "title": "رفض سند {{number}}؟",
+      "description": "سبب الرفض إلزامي ويُحفظ على السند.",
+      "placeholder": "سبب الرفض",
+      "cancel": "إلغاء",
+      "confirm": "رفض"
+    },
+    "cancel_dialog": {
+      "title": "إلغاء سند {{number}}؟",
+      "issued_description": "ستُسجَّل حركة عكسية تُعيد الكميات للمخزون، ويبقى السند في السجل كملغي.",
+      "pending_description": "سيُلغى السند دون أي أثر على المخزون.",
+      "cancel": "تراجع",
+      "confirm": "تأكيد الإلغاء"
+    },
+    "toasts": {
+      "approved": "تم اعتماد السند",
+      "rejected": "تم رفض السند",
+      "cancelled": "تم إلغاء السند",
+      "action_failed": "تعذّر الإجراء"
+    }
+  },
+  "transfers": {
+    "empty": "لا توجد تحويلات"
+  },
+  "warehouses_tab": {
+    "default": "الافتراضي",
+    "keeper": "أمين المستودع: {{name}}",
+    "material_count": "{{count}} مادة",
+    "movement_count": "{{count}} حركة"
+  },
+  "ledger": {
+    "all_materials": "كل المواد",
+    "empty": "لا توجد حركات",
+    "table": {
+      "date": "التاريخ",
+      "material": "المادة",
+      "type": "النوع",
+      "quantity": "الكمية",
+      "warehouse": "المستودع",
+      "performed_by": "المنفّذ",
+      "notes": "ملاحظة"
+    },
+    "movements": {
+      "in": "استلام",
+      "out": "صرف",
+      "transfer_in": "تحويل وارد",
+      "transfer_out": "تحويل صادر"
+    }
+  },
+  "approvers_dialog": {
+    "title": "المناصب المعتمدة لسندات الصرف",
+    "description": "من يحمل أحد هذه المناصب في المشروع يستطيع اعتماد سندات الصرف وتسجيل التسويات",
+    "empty_title": "لا توجد مناصب مشغولة في هذا المشروع",
+    "empty_desc": "أضف أعضاء الفريق وحدّد مناصبهم أولًا، ثم عُد لضبط المعتمدين.",
+    "member_count": "{{count}} عضو",
+    "no_account": "بلا حساب",
+    "user_count": "{{count}} مستخدم",
+    "no_approvers_warning": "بلا مناصب معتمدة، <0>لن يستطيع أحد اعتماد سندات الصرف</0> عدا مدير النظام — وستبقى السندات التي تحتوي مواد تحتاج اعتمادًا معلّقة.",
+    "no_account_warning": "— لا يملك شاغلوها حسابات دخول، فلن يتمكنوا من الاعتماد فعليًا حتى تُربط حساباتهم.",
+    "save": "حفظ",
+    "saving": "جارٍ الحفظ...",
+    "cancel": "إلغاء",
+    "toasts": {
+      "saved": "تم حفظ المناصب المعتمدة",
+      "failed": "تعذّر الحفظ"
+    }
+  },
+  "adjustment_dialog": {
+    "title": "حركة مخزون يدوية",
+    "description": "تسوية جرد، تالف، مرتجع أو رصيد افتتاحي — السبب إلزامي",
+    "warehouse": "المستودع",
+    "movement_type": "نوع الحركة",
+    "select_placeholder": "اختر",
+    "material": "المادة",
+    "select_material_placeholder": "اختر المادة من الكتالوج",
+    "current_balance": "الرصيد الحالي في هذا المستودع: <0>{{balance}} {{unit}}</0>",
+    "quantity": "الكمية",
+    "quantity_exceeds": "الكمية تتجاوز المتوفر",
+    "date": "التاريخ",
+    "reason": "السبب",
+    "reason_placeholder": "مثال: تلف بسبب المطر · فرق جرد شهر أكتوبر · مرتجع من الفيلا 12",
+    "reason_hint": "حركة تغيّر الرصيد بلا تفسير تجعل الدفتر غير موثوق — لذلك السبب إلزامي.",
+    "opening_balance_warning": "الرصيد الافتتاحي يُقبل فقط لمادة لم تتحرك بعد في هذا المستودع. إن كانت لها حركات، استخدم «تسوية جرد» بدلًا منه.",
+    "submit": "تسجيل الحركة",
+    "submitting": "جارٍ التسجيل...",
+    "cancel": "إلغاء",
+    "errors": {
+      "choose_warehouse": "اختر المستودع",
+      "choose_material": "اختر المادة",
+      "valid_quantity": "أدخل كمية صحيحة",
+      "reason_required": "السبب مطلوب",
+      "failed": "تعذّر تسجيل الحركة"
+    },
+    "toasts": {
+      "recorded": "تم تسجيل الحركة",
+      "balance_updated": "تم تحديث الرصيد."
+    }
+  },
+  "transfer_dialog": {
+    "title": "تحويل بين المستودعات",
+    "description": "ينقل الرصيد بين مستودعين — إجمالي المشروع يبقى كما هو",
+    "from_warehouse": "من مستودع",
+    "to_warehouse": "إلى مستودع",
+    "select_placeholder": "اختر",
+    "date": "التاريخ",
+    "add_material": "إضافة مادة",
+    "select_from_source": "اختر مادة من رصيد المصدر",
+    "select_source_first": "اختر المستودع المصدر أولًا",
+    "no_available_materials": "لا توجد مواد برصيد متاح",
+    "table": {
+      "material": "المادة",
+      "available": "المتاح",
+      "quantity": "الكمية",
+      "exceeds_available": "يتجاوز المتاح"
+    },
+    "notes": "ملاحظات",
+    "optional": "اختياري",
+    "same_warehouse_error": "المستودع المصدر والمستقبل متطابقان.",
+    "submit": "تنفيذ التحويل",
+    "submitting": "جارٍ التحويل...",
+    "cancel": "إلغاء",
+    "errors": {
+      "choose_both": "اختر المستودع المصدر والمستقبل",
+      "cannot_same": "لا يمكن التحويل إلى نفس المستودع",
+      "enter_at_least_one": "أدخل كمية لمادة واحدة على الأقل",
+      "failed": "تعذّر التحويل"
+    },
+    "toasts": {
+      "title": "تم التحويل — {{number}}",
+      "description": "{{from}} ← {{to}}. إجمالي المشروع لم يتغيّر."
+    }
+  },
+  "issue_dialog": {
+    "title": "سند صرف مواد",
+    "description": "الكميات تُخصم من المستودع المحدد فقط",
+    "warehouse": "المستودع",
+    "default_suffix": " (الافتراضي)",
+    "select_placeholder": "اختر",
+    "issue_date": "تاريخ الصرف",
+    "recipient": "المستلم",
+    "recipient_name_placeholder": "اسم المستلم",
+    "recipient_type": "صفة المستلم",
+    "recipient_types": {
+      "subcontractor": "مقاول باطن",
+      "internal": "فريق داخلي",
+      "other": "أخرى"
+    },
+    "work_location": "موقع العمل (اختياري)",
+    "unassigned": "بلا تحديد",
+    "purpose": "الغرض",
+    "optional": "اختياري",
+    "add_material": "إضافة مادة",
+    "select_from_warehouse": "اختر مادة من رصيد المستودع",
+    "select_warehouse_first": "اختر المستودع أولًا",
+    "no_available_materials": "لا توجد مواد برصيد متاح",
+    "requires_approval": "يحتاج اعتماد",
+    "table": {
+      "material": "المادة",
+      "available": "المتاح",
+      "quantity": "الكمية",
+      "note": "ملاحظة",
+      "exceeds_available": "يتجاوز المتاح"
+    },
+    "needs_approval_warning": "السند يحتوي مادة تحتاج اعتمادًا، فسيُسجَّل كـ<0> معلّق </0>ولن يتغيّر الرصيد حتى يُعتمد — بما في ذلك باقي المواد في السند.",
+    "submit_direct": "صرف وتسجيل",
+    "submit_approval": "إرسال للاعتماد",
+    "submitting": "جارٍ الحفظ...",
+    "cancel": "إلغاء",
+    "errors": {
+      "choose_warehouse": "اختر المستودع",
+      "recipient_required": "اسم المستلم مطلوب",
+      "enter_at_least_one": "أدخل كمية لمادة واحدة على الأقل",
+      "quantity_exceeds": "الكمية تتجاوز المتوفر: {{items}}",
+      "failed": "تعذّر تسجيل الصرف"
+    },
+    "toasts": {
+      "title": "تم تسجيل سند الصرف — {{number}}",
+      "pending_desc": "السند بانتظار الاعتماد. لن يتغيّر الرصيد قبل اعتماده.",
+      "deducted_desc": "تم خصم الكميات من المخزون."
+    }
+  }
+}
+

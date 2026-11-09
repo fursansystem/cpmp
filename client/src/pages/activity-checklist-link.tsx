@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { BackButton } from "@/components/back-button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -282,6 +283,7 @@ export default function ActivityChecklistLinkPage() {
 
   return (
     <div className="p-6 space-y-6">
+      <BackButton label="Back to List Library" to="/list-library" />
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-display font-bold flex items-center gap-2">
@@ -314,9 +316,9 @@ export default function ActivityChecklistLinkPage() {
               data-testid="button-save-links"
             >
               {saveMutation.isPending ? (
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                <Loader2 className="h-4 w-4 me-2 animate-spin" />
               ) : (
-                <Save className="h-4 w-4 mr-2" />
+                <Save className="h-4 w-4 me-2" />
               )}
               Save Links
             </Button>
@@ -345,7 +347,7 @@ export default function ActivityChecklistLinkPage() {
                   ) : (
                     divisions.map((div) => (
                       <SelectItem key={div.id} value={div.id}>
-                        <span className="text-muted-foreground mr-2">{div.code}</span>
+                        <span className="text-muted-foreground me-2">{div.code}</span>
                         {div.nameEnglish}
                       </SelectItem>
                     ))
@@ -370,7 +372,7 @@ export default function ActivityChecklistLinkPage() {
                 <SelectContent>
                   {filteredChapters.map((chapter) => (
                     <SelectItem key={chapter.id} value={chapter.id}>
-                      <span className="text-muted-foreground mr-2">{chapter.code}</span>
+                      <span className="text-muted-foreground me-2">{chapter.code}</span>
                       {chapter.nameEnglish}
                     </SelectItem>
                   ))}
@@ -394,7 +396,7 @@ export default function ActivityChecklistLinkPage() {
                 <SelectContent>
                   {filteredActivities.map((activity) => (
                     <SelectItem key={activity.id} value={activity.id}>
-                      <span className="text-muted-foreground mr-2">{activity.code}</span>
+                      <span className="text-muted-foreground me-2">{activity.code}</span>
                       {activity.nameEnglish}
                     </SelectItem>
                   ))}
@@ -512,7 +514,7 @@ export default function ActivityChecklistLinkPage() {
 
               {(["main", "sbc", "recommendations"] as ChecklistCategory[]).map((category) => (
                 <TabsContent key={category} value={category}>
-                  <ScrollArea className="h-[400px] pr-4">
+                  <ScrollArea className="h-[400px] pe-4">
                     {filteredChecklistItems.length === 0 ? (
                       <div className="text-center py-8 text-muted-foreground">
                         No {categoryLabels[category]} checklist items found

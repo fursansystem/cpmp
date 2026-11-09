@@ -1,4 +1,5 @@
 import { useState, type ReactNode } from "react";
+import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Banknote, FilePlus2, HandCoins, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -102,6 +103,7 @@ export function PaymentActionDialog({ mode, context, onClose }: { mode: PaymentM
 // Buttons for the person's role. Accounting gets "request the original invoices" and "payment order";
 // everyone else on the project (except the consultant's team) gets "request a transfer".
 export function PaymentActionButtons({ context, size = "sm" }: { context: PaymentContext; size?: "sm" | "default" }) {
+  const { t } = useTranslation("payments");
   const { mode } = usePaymentRoles(context.projectId);
   const [open, setOpen] = useState<PaymentMode | null>(null);
   if (!mode) return null;
@@ -111,15 +113,15 @@ export function PaymentActionButtons({ context, size = "sm" }: { context: Paymen
       {mode === "accounting" ? (
         <>
           <Button variant="outline" size={size} className="rounded-xl gap-1.5" onClick={() => setOpen("bill")}>
-            <FilePlus2 className="w-4 h-4" /> طلب أصول فواتير
+            <FilePlus2 className="w-4 h-4" /> {t("actions.bill_request_originals")}
           </Button>
           <Button variant="outline" size={size} className="rounded-xl gap-1.5" onClick={() => setOpen("order")}>
-            <Banknote className="w-4 h-4" /> أمر دفع
+            <Banknote className="w-4 h-4" /> {t("actions.payment_order")}
           </Button>
         </>
       ) : (
         <Button variant="outline" size={size} className="rounded-xl gap-1.5" onClick={() => setOpen("request")}>
-          <HandCoins className="w-4 h-4" /> طلب تحويل
+          <HandCoins className="w-4 h-4" /> {t("actions.request_transfer")}
         </Button>
       )}
       {open && <PaymentActionDialog mode={open} context={context} onClose={() => setOpen(null)} />}
@@ -133,6 +135,7 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
 
 // A project member asks for a transfer. It goes to the project manager, then to accounting.
 function RequestTransferDialog({ ctx, context, onClose }: { ctx: PaymentsContext; context: PaymentContext; onClose: () => void }) {
+  const { t } = useTranslation("payments");
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [form, setForm] = useState({
@@ -171,12 +174,12 @@ function RequestTransferDialog({ ctx, context, onClose }: { ctx: PaymentsContext
     onSuccess: () => {
       invalidatePayments(queryClient);
       toast({
-        title: "أُرسل طلب التحويل",
-        description: goesToManagerFirst ? "ينتظر موافقة مدير المشروع ثم المحاسبة، ويمكنك متابعته من المدفوعات ← أوامر الدفع." : "ينتظر المحاسبة، ويمكنك متابعته من المدفوعات ← أوامر الدفع.",
+        title: t("toasts.transfer_sent"),
+        description: goesToManagerFirst ? t("toasts.transfer_sent_desc_manager") : t("toasts.transfer_sent_desc_direct"),
       });
       onClose();
     },
-    onError: (e) => toast({ title: "تعذّر إرسال الطلب", description: errorMessage(e), variant: "destructive" }),
+    onError: (e) => toast({ title: t("errors.send_failed"), description: errorMessage(e), variant: "destructive" }),
   });
 
   const po = sources?.purchaseOrders.find((p) => p.id === form.purchaseOrderId);
@@ -186,40 +189,40 @@ function RequestTransferDialog({ ctx, context, onClose }: { ctx: PaymentsContext
       onClose={onClose}
       size="md"
       icon={HandCoins}
-      kind="طلب تحويل"
-      title="طلب تحويل مالي"
-      description={goesToManagerFirst ? "يصل أولاً إلى مدير المشروع للموافقة، ثم إلى المحاسبة لإصدار أمر الدفع" : "يصل إلى المحاسبة لإصدار أمر الدفع"}
+      kind={t("transfer.kind")}
+      title={t("transfer.title")}
+      description={goesToManagerFirst ? t("transfer.desc_via_manager") : t("transfer.desc_direct")}
       amount={Number(form.amount) > 0 ? money(form.amount) : undefined}
-      amountLabel="المبلغ المطلوب"
+      amountLabel={t("transfer.requested_amount")}
       footer={
         <>
           <Button disabled={send.isPending || !projectId || !form.payeeName.trim() || !(Number(form.amount) > 0) || !form.reason.trim()} onClick={() => send.mutate()}>
-            <Send className="w-4 h-4 mr-1" /> إرسال الطلب
+            <Send className="w-4 h-4 me-1" /> {t("common.send_request")}
           </Button>
-          <Button variant="outline" onClick={onClose}>إلغاء</Button>
+          <Button variant="outline" onClick={onClose}>{t("common.cancel")}</Button>
         </>
       }
     >
         <div className="grid gap-3">
           {!context.projectId && (
-            <Field label="المشروع">
+            <Field label={t("common.project")}>
               <Select value={projectId} onValueChange={(v) => { setProjectId(v); setForm((f) => ({ ...f, supplierId: "", purchaseOrderId: "" })); }}>
-                <SelectTrigger><SelectValue placeholder="اختر المشروع" /></SelectTrigger>
+                <SelectTrigger><SelectValue placeholder={t("common.select_project")} /></SelectTrigger>
                 <SelectContent>{ctx.projects.filter((p) => p.canRequest).map((p) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent>
               </Select>
             </Field>
           )}
-          <Field label="نوع الطلب">
+          <Field label={t("transfer.request_type")}>
             <Select value={form.purpose} onValueChange={set("purpose")}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="advance">دفعة مقدمة</SelectItem>
-                <SelectItem value="other">تحويل آخر</SelectItem>
+                <SelectItem value="advance">{t("transfer.advance")}</SelectItem>
+                <SelectItem value="other">{t("transfer.other")}</SelectItem>
               </SelectContent>
             </Select>
           </Field>
           {(sources?.suppliers.length ?? 0) > 0 && (
-            <Field label="المورد (من سجل الموردين)">
+            <Field label={t("bill_requests.supplier_from_register")}>
               <Select
                 value={form.supplierId || "none"}
                 onValueChange={(v) => {
@@ -229,14 +232,14 @@ function RequestTransferDialog({ ctx, context, onClose }: { ctx: PaymentsContext
               >
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="none">— غير محدد —</SelectItem>
+                  <SelectItem value="none">{t("common.unspecified")}</SelectItem>
                   {sources?.suppliers.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
                 </SelectContent>
               </Select>
             </Field>
           )}
           {(sources?.purchaseOrders.length ?? 0) > 0 && (
-            <Field label="أمر شراء (اختياري)">
+            <Field label={t("bill_requests.po_optional")}>
               <Select
                 value={form.purchaseOrderId || "none"}
                 onValueChange={(v) => {
@@ -253,12 +256,12 @@ function RequestTransferDialog({ ctx, context, onClose }: { ctx: PaymentsContext
             </Field>
           )}
           <div className="grid sm:grid-cols-2 gap-3">
-            <Field label="المستفيد"><Input value={form.payeeName} onChange={(e) => set("payeeName")(e.target.value)} /></Field>
-            <Field label="المبلغ المطلوب"><Input type="number" min="0" step="0.01" value={form.amount} onChange={(e) => set("amount")(e.target.value)} /></Field>
+            <Field label={t("common.payee")}><Input value={form.payeeName} onChange={(e) => set("payeeName")(e.target.value)} /></Field>
+            <Field label={t("transfer.requested_amount")}><Input type="number" min="0" step="0.01" value={form.amount} onChange={(e) => set("amount")(e.target.value)} /></Field>
           </div>
-          {po && <p className="text-xs text-muted-foreground">قيمة أمر الشراء {po.poNumber}: {money(po.totalAmount)}</p>}
-          <Field label="سبب الطلب">
-            <Textarea rows={3} value={form.reason} onChange={(e) => set("reason")(e.target.value)} placeholder="لماذا يلزم التحويل؟ مثال: دفعة مقدمة لتوريد الألواح حسب شروط أمر الشراء." />
+          {po && <p className="text-xs text-muted-foreground">{t("transfer.po_value_hint", { poNumber: po.poNumber, amount: money(po.totalAmount) })}</p>}
+          <Field label={t("transfer.reason_label")}>
+            <Textarea rows={3} value={form.reason} onChange={(e) => set("reason")(e.target.value)} placeholder={t("transfer.reason_placeholder")} />
           </Field>
         </div>
     </PaymentDialog>
@@ -268,6 +271,7 @@ function RequestTransferDialog({ ctx, context, onClose }: { ctx: PaymentsContext
 // The payments side of one purchase order, for its own page: where it stands, what was asked and paid on it,
 // and the actions this person may take.
 export function PoPaymentsPanel({ projectId, poId, poNumber, supplierId, supplierName }: { projectId: string; poId: string; poNumber: string; supplierId?: string | null; supplierName?: string | null }) {
+  const { t } = useTranslation("payments");
   const { overview, mode } = usePaymentRoles(projectId);
   if (!overview) return null;
 
@@ -280,7 +284,7 @@ export function PoPaymentsPanel({ projectId, poId, poNumber, supplierId, supplie
   return (
     <Card className="rounded-2xl border-border/60">
       <CardHeader className="flex-row flex-wrap items-center justify-between gap-2 space-y-0 pb-3">
-        <CardTitle className="text-base">المدفوعات المرتبطة بأمر الشراء</CardTitle>
+        <CardTitle className="text-base">{t("po_payments.title")}</CardTitle>
         {mode && (
           <div className="flex flex-wrap gap-2">
             <PaymentActionButtons
@@ -290,7 +294,7 @@ export function PoPaymentsPanel({ projectId, poId, poNumber, supplierId, supplie
                 supplierId: supplierId ?? undefined,
                 payeeName: supplierName ?? undefined,
                 amount: toInvoice && toInvoice > 0 ? toInvoice : undefined,
-                description: `أصل فاتورة أمر الشراء ${poNumber}`,
+                description: t("actions.original_invoice_for_po", { poNumber }),
                 sourceType: "purchase_order",
                 sourceId: poId,
               }}
@@ -299,15 +303,15 @@ export function PoPaymentsPanel({ projectId, poId, poNumber, supplierId, supplie
         )}
       </CardHeader>
       <CardContent className="space-y-4">
-        {summary ? <PoCard po={summary} /> : <p className="text-sm text-muted-foreground">لم يُطلب أو يُدفع شيء على هذا الأمر بعد.</p>}
+        {summary ? <PoCard po={summary} /> : <p className="text-sm text-muted-foreground">{t("po_payments.none")}</p>}
         {bills.length > 0 && (
           <div className="space-y-1.5">
-            <div className="text-sm font-bold">طلبات أصول الفواتير</div>
+            <div className="text-sm font-bold">{t("po_payments.bill_requests_title")}</div>
             {bills.map((b) => (
               <div key={b.id} className="flex items-center gap-3 rounded-xl border px-3 py-2 text-sm">
                 <span className="font-mono">{b.requestNo}</span>
-                <StatusBadge status={b.status} labels={BILL_REQUEST_LABELS} />
-                <span className="text-muted-foreground">{b.invoices.length} فاتورة</span>
+                <StatusBadge status={b.status} group="bill_request" />
+                <span className="text-muted-foreground">{t("po_payments.invoice_count", { count: b.invoices.length })}</span>
                 <span className="ms-auto tabular-nums">{money(b.invoiceTotal > 0 ? b.invoiceTotal : b.amount)}</span>
               </div>
             ))}
@@ -315,12 +319,12 @@ export function PoPaymentsPanel({ projectId, poId, poNumber, supplierId, supplie
         )}
         {orders.length > 0 && (
           <div className="space-y-1.5">
-            <div className="text-sm font-bold">أوامر الدفع وطلبات التحويل</div>
+            <div className="text-sm font-bold">{t("po_payments.orders_title")}</div>
             {orders.map((o) => (
               <div key={o.id} className="flex items-center gap-3 rounded-xl border px-3 py-2 text-sm">
                 <span className="font-mono">{o.orderNo}</span>
-                <StatusBadge status={o.status} labels={PAYMENT_ORDER_LABELS} />
-                <span className="text-muted-foreground">{o.purpose === "advance" ? "دفعة مقدمة" : o.billRequestId ? "فواتير" : "أخرى"}{o.paidDate ? ` · ${fmtDate(o.paidDate)}` : ""}</span>
+                <StatusBadge status={o.status} group="payment_order" />
+                <span className="text-muted-foreground">{o.purpose === "advance" ? t("orders.purpose_advance") : o.billRequestId ? t("orders.purpose_invoices") : t("orders.purpose_other")}{o.paidDate ? ` · ${fmtDate(o.paidDate)}` : ""}</span>
                 <span className="ms-auto tabular-nums">{money(o.amount)}</span>
               </div>
             ))}
@@ -333,14 +337,15 @@ export function PoPaymentsPanel({ projectId, poId, poNumber, supplierId, supplie
 
 // "Log a deduction" for a page that found a reason for one (a snag item, an NCR). Opens the deduction form
 // with the project, the reason and the party at fault already filled in.
-export function DeductionButton({ projectId, prefill, label = "تسجيل خصم", size = "sm" }: { projectId: string; prefill: DeductionPrefill; label?: string; size?: "sm" | "default" }) {
+export function DeductionButton({ projectId, prefill, label, size = "sm" }: { projectId: string; prefill: DeductionPrefill; label?: string; size?: "sm" | "default" }) {
+  const { t } = useTranslation("payments");
   const { ctx } = usePaymentRoles(projectId);
   const [open, setOpen] = useState(false);
   if (!ctx || !ctx.projects.some((p) => p.id === projectId)) return null;
   return (
     <>
       <Button variant="outline" size={size} className="rounded-xl gap-1.5" onClick={() => setOpen(true)}>
-        <HandCoins className="w-4 h-4" /> {label}
+        <HandCoins className="w-4 h-4" /> {label ?? t("fines.log_deduction")}
       </Button>
       {open && <FineDialog ctx={ctx} defaultProjectId={projectId} row={null} orders={[]} onClose={() => setOpen(false)} onRequestPayment={() => setOpen(false)} prefill={prefill} />}
     </>

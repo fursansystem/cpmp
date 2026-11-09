@@ -52,7 +52,7 @@ export function MaterialCombobox({
               <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 fill-emerald-500/10 shrink-0" />
             )}
           </span>
-          <ChevronsUpDown className="ml-1 h-3.5 w-3.5 shrink-0 opacity-40" />
+          <ChevronsUpDown className="ms-1 h-3.5 w-3.5 shrink-0 opacity-40" />
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-[300px] sm:w-[360px] p-0 rounded-xl shadow-xl border border-slate-200 dark:border-slate-800 overflow-hidden" align="start">
@@ -71,14 +71,14 @@ export function MaterialCombobox({
                     type="button"
                     variant="ghost"
                     size="sm"
-                    className="w-full justify-start text-xs font-bold text-primary py-2.5 px-3 h-auto hover:bg-primary/10 rounded-lg text-left"
+                    className="w-full justify-start text-xs font-bold text-primary py-2.5 px-3 h-auto hover:bg-primary/10 rounded-lg text-start"
                     onClick={() => {
                       onAddCustomMaterial(search.trim());
                       setOpen(false);
                       setSearch("");
                     }}
                   >
-                    <Plus className="w-4 h-4 mr-2 shrink-0" />
+                    <Plus className="w-4 h-4 me-2 shrink-0" />
                     Add "{search.trim()}" as New Material
                   </Button>
                 ) : (
@@ -90,14 +90,14 @@ export function MaterialCombobox({
                     type="button"
                     variant="ghost"
                     size="sm"
-                    className="w-full justify-start text-xs font-medium text-muted-foreground py-2 px-3 h-auto hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-left"
+                    className="w-full justify-start text-xs font-medium text-muted-foreground py-2 px-3 h-auto hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-start"
                     onClick={() => {
                       onQuickAddMaterial();
                       setOpen(false);
                       setSearch("");
                     }}
                   >
-                    <Plus className="w-3.5 h-3.5 mr-2 text-primary shrink-0" />
+                    <Plus className="w-3.5 h-3.5 me-2 text-primary shrink-0" />
                     Create Approved Project Material...
                   </Button>
                 )}
@@ -114,7 +114,7 @@ export function MaterialCombobox({
                   }}
                   className="text-xs py-2.5 px-3 font-bold text-primary cursor-pointer hover:bg-primary/5 flex items-center"
                 >
-                  <Plus className="w-4 h-4 mr-2 shrink-0" />
+                  <Plus className="w-4 h-4 me-2 shrink-0" />
                   Add "{search.trim()}" as New Material
                 </CommandItem>
               )}
@@ -142,7 +142,7 @@ export function MaterialCombobox({
                   </div>
                   <Check
                     className={cn(
-                      "h-3.5 w-3.5 text-primary shrink-0 ml-2",
+                      "h-3.5 w-3.5 text-primary shrink-0 ms-2",
                       m.id === selectedMaterialId ? "opacity-100" : "opacity-0"
                     )}
                   />

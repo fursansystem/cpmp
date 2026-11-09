@@ -10,7 +10,7 @@ import { CompletedCard } from "@/components/completed-card";
 import { TotalRequestsCard } from "@/components/total-requests-card";
 import type { Project, Task, Request, WorkflowStep, Activity } from "@shared/schema";
 import { useState, useEffect, useMemo } from "react";
-import { format } from "date-fns";
+import { format } from "@/lib/date-format";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, LabelList, Cell } from "recharts";
 import { cn } from "@/lib/utils";
 
@@ -125,7 +125,7 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-transparent px-6 lg:px-10 py-8 space-y-10 animate-in fade-in duration-700 relative overflow-hidden">
       {/* Background Decorative Elements */}
-      <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none -z-10">
+      <div className="absolute top-0 start-0 w-full h-full overflow-hidden pointer-events-none -z-10">
         <div className="absolute top-[-10%] right-[-10%] w-[40%] h-[40%] bg-primary/5 rounded-full blur-[120px]" />
         <div className="absolute bottom-[-10%] left-[-10%] w-[40%] h-[40%] bg-blue-500/5 rounded-full blur-[120px]" />
       </div>
@@ -139,7 +139,7 @@ export default function Home() {
 
         {projects.length > 1 && (
           <div className="flex items-center gap-3 bg-white dark:bg-muted/10 p-1.5 rounded-2xl shadow-sm border border-white dark:border-muted/20">
-            <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-3">Project Scope:</span>
+            <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ms-3">Project Scope:</span>
             <Select value={selectedProjectId} onValueChange={setSelectedProjectId}>
               <SelectTrigger className="w-[220px] bg-primary text-primary-foreground border-none rounded-xl h-10 font-bold shadow-lg shadow-primary/20" data-testid="select-project-filter">
                 <SelectValue placeholder="All Projects" />
@@ -351,7 +351,7 @@ export default function Home() {
                             <div className="w-11 h-11 bg-white dark:bg-background rounded-xl shadow-sm border border-muted/20 flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform">
                               <div className="relative">
                                 <FileText className="w-6 h-6 text-sky-600" />
-                                <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-emerald-500 rounded-full border-2 border-white dark:border-background" />
+                                <div className="absolute -bottom-1 -end-1 w-3 h-3 bg-emerald-500 rounded-full border-2 border-white dark:border-background" />
                               </div>
                             </div>
                             <div className="flex-1 min-w-0">

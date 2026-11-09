@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { useLocation, useSearch } from "wouter";
-import { BarChart3, Wallet, Hourglass, FileText, Banknote, ShieldAlert } from "lucide-react";
+import { Link, useLocation, useSearch } from "wouter";
+import { ArrowLeft, BarChart3, Wallet, Hourglass, FileText, Banknote, ShieldAlert, Landmark } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { StatCard } from "@/components/stat-card";
@@ -10,12 +11,14 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { BillRequestsTab } from "@/components/payments/bill-requests-tab";
 import { OrdersTab, type OrderDraft } from "@/components/payments/orders-tab";
-import { ClearancesTab, FinesTab, clearanceAttention } from "@/components/payments/clearances-fines-tab";
+import { FinesTab } from "@/components/payments/clearances-fines-tab";
+import { OPEN_PERMIT } from "@shared/permits";
 import { SubcontractorCertificatesTab } from "@/components/payments/subcontractor-certificates-tab";
 import { ReportsTab } from "@/components/payments/reports-tab";
 import type { ReportId } from "@/components/payments/reports-library-tab";
 import { PaymentActionButtons } from "@/components/payments/payment-actions";
 import { getJson, money, paymentsQuery, type PaymentsContext, type PaymentsOverview } from "@/components/payments/payments-common";
+import { useTranslation } from "react-i18next";
 
 const query = (key: string) => {
   try {
@@ -52,6 +55,12 @@ function CountBadge({ n }: { n: number }) {
 }
 
 export default function Payments() {
+  const { t } = useTranslation("payments");
+  const [, navigate] = useLocation();
+  // Licences moved to their own section (الرخص والمعاملات); old links to the tab land there
+  useEffect(() => {
+    if (query("tab") === "clearances") navigate(`/permits${query("project") ? `?project=${query("project")}` : ""}`, { replace: true });
+  }, []);
   const [tab, setTab] = useState(["reports", null, ""].includes(query("tab")) ? "dashboard" : (query("tab") as string)); // reports moved to /reports
   const [projectId, setProjectId] = useState(query("project") || "all");
   // A notification can point at another tab or project while this page is already open
@@ -89,8 +98,8 @@ export default function Payments() {
     );
   }
 
-  const overview: PaymentsOverview = data ?? { billRequests: [], orders: [], subcontractorCertificates: [], subcontractors: [], chargebacks: [], clearances: [], fines: [], purchaseOrders: [], suppliers: [] };
-  const projectName = projectId === "all" ? "كل المشاريع" : ctx.projects.find((p) => p.id === projectId)?.name ?? "";
+  const overview: PaymentsOverview = data ?? { billRequests: [], orders: [], subcontractorCertificates: [], subcontractors: [], chargebacks: [], permits: [], fines: [], purchaseOrders: [], suppliers: [] };
+  const projectName = projectId === "all" ? t("common.all_projects") : ctx.projects.find((p) => p.id === projectId)?.name ?? "";
 
   // What is waiting on somebody, shown on the tabs
   const actionable = {
@@ -101,17 +110,21 @@ export default function Payments() {
     orders: overview.orders.filter((o) =>
       (ctx.perms.canApprove && (o.status === "pending_approval" || o.status === "requested")) ||
       (ctx.perms.isAccounting && (o.status === "approved" || o.status === "request_approved"))).length,
-    clearances: overview.clearances.filter((c) => clearanceAttention(c)).length,
     fines: overview.fines.filter((f) => ["open", "under_appeal"].includes(f.status) || (ctx.perms.canApprove && f.status === "waiver_requested")).length,
   };
 
   // The summary row above the tabs, for the project selected
   const stats = {
-    waiting: actionable.bills + actionable.orders + actionable.subCerts + actionable.clearances + actionable.fines,
+    waiting: actionable.bills + actionable.orders + actionable.subCerts + actionable.fines,
     openOrders: overview.orders.filter((o) => ["requested", "request_approved", "pending_approval", "approved"].includes(o.status)).length,
     paid: overview.orders.filter((o) => o.status === "paid").reduce((sum, o) => sum + Number(o.amount ?? 0), 0),
-    attention: actionable.clearances + actionable.fines,
+    attention: actionable.fines,
   };
+
+  // Licence / transaction fees nobody has raised an order for yet
+  const unpaidPermitFees = overview.permits.filter((p) =>
+    Number(p.feeAmount) > 0 && !p.feePaid && (OPEN_PERMIT as readonly string[]).includes(p.status) &&
+    !overview.orders.some((o) => o.permitTransactionId === p.id && !["rejected", "cancelled"].includes(o.status)));
 
   const startOrder = (d: OrderDraft) => {
     setDraft(d);
@@ -120,11 +133,21 @@ export default function Payments() {
 
   return (
     <div className="p-6 lg:p-8 space-y-6" data-testid="page-payments">
+      <Button
+        variant="ghost"
+        size="sm"
+        className="-ms-2 h-8 w-8 p-0 md:h-auto md:w-auto md:px-3 md:py-2 text-muted-foreground hover:text-foreground shrink-0 shadow-sm"
+        onClick={() => navigate(projectId === "all" ? "/projects" : `/projects/${projectId}`)}
+        data-testid="button-back-to-project"
+      >
+        <ArrowLeft className="w-5 h-5 md:me-2 rtl:rotate-180" />
+        <span className="hidden md:inline font-semibold">{projectId === "all" ? t("page.back_to_projects") : t("page.back_to_project")}</span>
+      </Button>
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div>
-          <h1 className="text-3xl font-bold font-display mb-2">المدفوعات</h1>
+          <h1 className="text-3xl font-bold font-display mb-2">{t("page.title")}</h1>
           <p className="text-muted-foreground">
-            {ctx.perms.isAccounting ? "طلب أصول الفواتير، أوامر الدفع، مستخلصات الباطن، الرخص والخصومات" : "الرد على طلبات المحاسبة، ومتابعة الرخص والخصومات"}
+            {ctx.perms.isAccounting ? t("page.description_accounting") : t("page.description_requester")}
           </p>
         </div>
         {ctx.projects.length > 0 && (
@@ -132,7 +155,7 @@ export default function Payments() {
             <Select value={projectId} onValueChange={setProjectId}>
               <SelectTrigger className="w-[260px]" data-testid="select-payments-project"><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">كل المشاريع</SelectItem>
+                <SelectItem value="all">{t("common.all_projects")}</SelectItem>
                 {ctx.projects.map((p) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
               </SelectContent>
             </Select>
@@ -142,11 +165,26 @@ export default function Payments() {
 
       {ctx.projects.length > 0 && !isLoading && (
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <StatCard title="بانتظار إجراء منك" value={stats.waiting} icon={Hourglass} />
-          <StatCard title="أوامر دفع مفتوحة" value={stats.openOrders} icon={FileText} />
-          <StatCard title="المصروف" value={money(stats.paid)} icon={Banknote} />
-          <StatCard title="رخص وخصومات تحتاج انتباه" value={stats.attention} icon={ShieldAlert} />
+          <StatCard title={t("stats.waiting")} value={stats.waiting} icon={Hourglass} />
+          <StatCard title={t("stats.open_orders")} value={stats.openOrders} icon={FileText} />
+          <StatCard title={t("stats.spent")} value={money(stats.paid)} icon={Banknote} />
+          <StatCard title={t("stats.fines_attention")} value={stats.attention} icon={ShieldAlert} />
         </div>
+      )}
+
+      {unpaidPermitFees.length > 0 && (
+        <Card className="rounded-2xl border-dashed border-primary/30 bg-primary/5">
+          <div className="p-4 flex flex-wrap items-center gap-3">
+            <Landmark className="w-5 h-5 text-primary" />
+            <div className="flex-1 min-w-[220px] text-sm">
+              <span className="font-semibold">{t("permits_banner.fees_pending", { count: unpaidPermitFees.length })}</span>
+              <span className="text-muted-foreground"> · {money(unpaidPermitFees.reduce((s, p) => s + Number(p.feeAmount), 0))} — {ctx.perms.isAccounting ? t("permits_banner.hint_accounting") : t("permits_banner.hint_requester")}</span>
+            </div>
+            <Button asChild variant="outline" size="sm">
+              <Link href={`/permits${projectId !== "all" ? `?project=${projectId}` : ""}`}>{t("permits_banner.link")} <ArrowLeft className="w-4 h-4 ms-1 rtl:rotate-180" /></Link>
+            </Button>
+          </div>
+        </Card>
       )}
 
       {ctx.projects.length === 0 ? (
@@ -156,20 +194,19 @@ export default function Payments() {
               <Wallet className="w-7 h-7 text-primary" />
             </div>
             <div>
-              <h3 className="font-semibold font-display">لا توجد مشاريع متاحة لك</h3>
-              <p className="text-sm text-muted-foreground mt-1">تظهر المدفوعات هنا عندما تُضاف إلى مشروع.</p>
+              <h3 className="font-semibold font-display">{t("page.no_projects_title")}</h3>
+              <p className="text-sm text-muted-foreground mt-1">{t("page.no_projects_desc")}</p>
             </div>
           </div>
         </Card>
       ) : (
         <Tabs value={tab} onValueChange={setTab} className="space-y-4">
           <TabsList className="h-auto flex-wrap justify-start">
-            <TabsTrigger value="dashboard">لوحة المتابعة<TabReportIcon report="approvals" projectId={projectId} title="تقرير: أداء الموافقات" /></TabsTrigger>
-            <TabsTrigger value="bills">أصول الفواتير<CountBadge n={actionable.bills} /><TabReportIcon report="aging" projectId={projectId} title="تقرير: أعمار الالتزامات" /></TabsTrigger>
-            <TabsTrigger value="orders">أوامر الدفع<CountBadge n={actionable.orders} /><TabReportIcon report="cashflow" projectId={projectId} title="تقرير: تدفق نقدي متوقع" /></TabsTrigger>
-            <TabsTrigger value="subcontractors">مستخلصات الباطن<CountBadge n={actionable.subCerts} /><TabReportIcon report="sub" projectId={projectId} title="تقرير: كشف مقاول باطن" /></TabsTrigger>
-            <TabsTrigger value="clearances">الرخص<CountBadge n={actionable.clearances} /><TabReportIcon report="licences" projectId={projectId} title="تقرير: متابعة الرخص" /></TabsTrigger>
-            <TabsTrigger value="fines">الخصومات<CountBadge n={actionable.fines} /><TabReportIcon report="deductions" projectId={projectId} title="تقرير: الخصومات حسب الجهة والمتحمّل" /></TabsTrigger>
+            <TabsTrigger value="dashboard">{t("tabs.dashboard")}<TabReportIcon report="approvals" projectId={projectId} title={t("tabs.report_approvals")} /></TabsTrigger>
+            <TabsTrigger value="bills">{t("tabs.bills")}<CountBadge n={actionable.bills} /><TabReportIcon report="aging" projectId={projectId} title={t("tabs.report_aging")} /></TabsTrigger>
+            <TabsTrigger value="orders">{t("tabs.orders")}<CountBadge n={actionable.orders} /><TabReportIcon report="cashflow" projectId={projectId} title={t("tabs.report_cashflow")} /></TabsTrigger>
+            <TabsTrigger value="subcontractors">{t("tabs.subcontractors")}<CountBadge n={actionable.subCerts} /><TabReportIcon report="sub" projectId={projectId} title={t("tabs.report_sub")} /></TabsTrigger>
+            <TabsTrigger value="fines">{t("tabs.fines")}<CountBadge n={actionable.fines} /><TabReportIcon report="deductions" projectId={projectId} title={t("tabs.report_deductions")} /></TabsTrigger>
           </TabsList>
 
           <TabsContent value="dashboard"><ReportsTab projectId={projectId} projectName={projectName} /></TabsContent>
@@ -186,9 +223,6 @@ export default function Payments() {
               </TabsContent>
               <TabsContent value="subcontractors">
                 <SubcontractorCertificatesTab ctx={ctx} projectId={projectId} rows={overview.subcontractorCertificates} chargebacks={overview.chargebacks ?? []} fines={overview.fines} subcontractors={overview.subcontractors ?? []} orders={overview.orders} onRequestOrder={(id) => startOrder({ subcontractorCertificateId: id })} />
-              </TabsContent>
-              <TabsContent value="clearances">
-                <ClearancesTab ctx={ctx} projectId={projectId} rows={overview.clearances} orders={overview.orders} onRequestPayment={(id) => startOrder({ clearanceId: id })} />
               </TabsContent>
               <TabsContent value="fines">
                 <FinesTab ctx={ctx} projectId={projectId} rows={overview.fines} orders={overview.orders} onRequestPayment={(id) => startOrder({ fineId: id })} />

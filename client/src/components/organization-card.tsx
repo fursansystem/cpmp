@@ -106,7 +106,7 @@ export function OrganizationCard({
             </div>
           </div>
           {canEdit && (
-            <div className="absolute right-0 top-0" onClick={(e) => e.stopPropagation()}>
+            <div className="absolute end-0 top-0" onClick={(e) => e.stopPropagation()}>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" size="icon" data-testid={`button-options-${id}`}>
@@ -115,7 +115,7 @@ export function OrganizationCard({
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
                   <DropdownMenuItem onClick={onEdit} data-testid={`menu-edit-${id}`}>
-                    <Pencil className="w-4 h-4 mr-2" />
+                    <Pencil className="w-4 h-4 me-2" />
                     Edit
                   </DropdownMenuItem>
                   {canDelete && (
@@ -124,7 +124,7 @@ export function OrganizationCard({
                       className="text-destructive focus:text-destructive"
                       data-testid={`menu-delete-${id}`}
                     >
-                      <Trash2 className="w-4 h-4 mr-2" />
+                      <Trash2 className="w-4 h-4 me-2" />
                       Delete
                     </DropdownMenuItem>
                   )}

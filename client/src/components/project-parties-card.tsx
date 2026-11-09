@@ -1,4 +1,5 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Hammer, Briefcase, Lightbulb, Clock, X } from "lucide-react";
@@ -19,6 +20,7 @@ interface PendingInvitation {
 // is waiting on an answer reads as waiting — not as empty, which would suggest nobody
 // was approached, and not as filled, which would be untrue until they accept.
 export function ProjectPartiesCard({ project }: { project: Project }) {
+  const { t } = useTranslation("projects");
   const { user } = useAuth();
 
   const { data: organizations = [] } = useQuery<Organization[]>({
@@ -38,8 +40,8 @@ export function ProjectPartiesCard({ project }: { project: Project }) {
       queryClient.invalidateQueries({ queryKey: [`/api/projects/${project.id}/invitations`] });
       queryClient.invalidateQueries({ queryKey: ["/api/project-invitations?scope=sent"] });
       toast({
-        title: "Invitation withdrawn",
-        description: "The role is open again, so you can invite someone else.",
+        title: t("parties.invitation_withdrawn_title"),
+        description: t("parties.invitation_withdrawn_desc"),
       });
     },
     onError: (error: Error) => {
@@ -61,21 +63,21 @@ export function ProjectPartiesCard({ project }: { project: Project }) {
   const rows = [
     {
       key: "developer",
-      label: "Developer",
+      label: t("parties.developer"),
       icon: Lightbulb,
       assigned: nameOf(project.organizationId),
       invitation: undefined as PendingInvitation | undefined,
     },
     {
       key: "contractor",
-      label: "Contractor",
+      label: t("parties.contractor"),
       icon: Hammer,
       assigned: nameOf(project.contractorId),
       invitation: invitations.find((i) => i.role === "contractor"),
     },
     {
       key: "consultant",
-      label: "Consultant",
+      label: t("parties.consultant"),
       icon: Briefcase,
       assigned: nameOf(project.consultantId),
       invitation: invitations.find((i) => i.role === "consultant"),
@@ -87,7 +89,7 @@ export function ProjectPartiesCard({ project }: { project: Project }) {
       <div className="flex items-center gap-2 mb-4">
         <div className="w-1.5 h-1.5 rounded-full bg-primary" />
         <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest opacity-60">
-          Project Parties
+          {t("parties.title")}
         </p>
       </div>
 
@@ -96,7 +98,7 @@ export function ProjectPartiesCard({ project }: { project: Project }) {
         {rows.map((row) => (
           <div
             key={row.key}
-            className="flex min-w-0 flex-col gap-1 py-3 first:pt-0 last:pb-0 sm:px-4 sm:py-0 sm:first:pl-0 sm:last:pr-0"
+            className="flex min-w-0 flex-col gap-1 py-3 first:pt-0 last:pb-0 sm:px-4 sm:py-0 sm:first:ps-0 sm:last:pe-0"
             data-testid={`party-${row.key}`}
           >
             <div className="flex items-center gap-2">
@@ -112,13 +114,11 @@ export function ProjectPartiesCard({ project }: { project: Project }) {
               <p className="flex items-center gap-1.5 text-sm text-amber-600 dark:text-amber-400">
                 <Clock className="w-3.5 h-3.5 shrink-0" />
                 <span className="truncate">
-                  Waiting for{" "}
-                  {row.invitation.invitedOrganizationName || row.invitation.email} to
-                  accept
+                  {t("parties.waiting_accept", { name: row.invitation.invitedOrganizationName || row.invitation.email })}
                 </span>
               </p>
             ) : (
-              <p className="text-sm text-muted-foreground">Not assigned</p>
+              <p className="text-sm text-muted-foreground">{t("parties.not_assigned")}</p>
             )}
 
             {/* Withdrawing only makes sense while an answer is still outstanding */}
@@ -126,13 +126,13 @@ export function ProjectPartiesCard({ project }: { project: Project }) {
               <Button
                 variant="ghost"
                 size="sm"
-                className="-ml-2 mt-1 self-start"
+                className="-ms-2 mt-1 self-start"
                 onClick={() => withdraw.mutate(row.invitation!.id)}
                 disabled={withdraw.isPending}
                 data-testid={`button-withdraw-${row.key}`}
               >
-                <X className="w-4 h-4 mr-1" />
-                Withdraw
+                <X className="w-4 h-4 me-1" />
+                {t("parties.withdraw")}
               </Button>
             )}
           </div>

@@ -1,5 +1,6 @@
 import { PoPaymentsPanel } from "@/components/payments/payment-actions";
 import { useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useParams, useLocation } from "wouter";
 import {
@@ -39,20 +40,11 @@ import { apiRequest } from "@/lib/queryClient";
 import { cn } from "@/lib/utils";
 
 const STATUS_STEPS = [
-  { key: "draft", label: "مسودة" },
-  { key: "approved", label: "معتمد" },
-  { key: "partially_received", label: "مستلم جزئيًا" },
-  { key: "completed", label: "مكتمل" },
+  { key: "draft", labelKey: "po_status.draft" as const },
+  { key: "approved", labelKey: "po_status.approved" as const },
+  { key: "partially_received", labelKey: "po_status.partially_received" as const },
+  { key: "completed", labelKey: "po_status.completed" as const },
 ];
-
-const STATUS_LABELS: Record<string, string> = {
-  draft: "مسودة",
-  approved: "معتمد",
-  issued: "صادر",
-  partially_received: "مستلم جزئيًا",
-  completed: "مكتمل",
-  cancelled: "ملغي",
-};
 
 const STATUS_STYLES: Record<string, string> = {
   draft: "bg-muted text-muted-foreground",
@@ -67,6 +59,7 @@ const num = (v: unknown) =>
   Number(v ?? 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 export default function ProjectPurchaseOrderDetail() {
+  const { t } = useTranslation(["procurement", "common"]);
   const { projectId, poId } = useParams<{ projectId: string; poId: string }>();
   const [, navigate] = useLocation();
   const { toast } = useToast();
@@ -86,11 +79,11 @@ export default function ProjectPurchaseOrderDetail() {
       queryClient.invalidateQueries({ queryKey: ["/api/purchase-orders", poId] });
       queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "purchase-orders"] });
       setApproveOpen(false);
-      toast({ title: "تم اعتماد أمر الشراء", description: "يمكن الآن تسجيل الاستلام عليه في المستودع." });
+      toast({ title: t("detail.toasts.approve_success_title"), description: t("detail.toasts.approve_success_desc") });
     },
     onError: (e: any) => {
       setApproveOpen(false);
-      toast({ title: "تعذّر الاعتماد", description: e?.message || "حدث خطأ", variant: "destructive" });
+      toast({ title: t("detail.toasts.approve_error_title"), description: e?.message || t("detail.toasts.error_generic"), variant: "destructive" });
     },
   });
 
@@ -123,9 +116,9 @@ export default function ProjectPurchaseOrderDetail() {
   if (!po) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center gap-4">
-        <p className="text-muted-foreground font-bold">أمر الشراء غير موجود</p>
+        <p className="text-muted-foreground font-bold">{t("detail.not_found")}</p>
         <Button variant="outline" onClick={() => navigate(`/projects/${projectId}/purchase-orders`)}>
-          العودة لأوامر الشراء
+          {t("detail.back_to_pos")}
         </Button>
       </div>
     );
@@ -136,7 +129,7 @@ export default function ProjectPurchaseOrderDetail() {
   );
 
   return (
-    <div dir="rtl" className="min-h-screen px-4 lg:px-10 pt-4 pb-12 space-y-5">
+    <div className="min-h-screen px-4 lg:px-10 pt-4 pb-12 space-y-5">
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3 min-w-0">
@@ -146,14 +139,14 @@ export default function ProjectPurchaseOrderDetail() {
             onClick={() => navigate(`/projects/${projectId}/purchase-orders?tab=purchase_orders`)}
             className="rounded-xl gap-1.5 shrink-0"
           >
-            <ArrowRight className="w-4 h-4" />
-            رجوع
+            <ArrowRight className="w-4 h-4 ltr:rotate-180" />
+            {t("detail.back")}
           </Button>
           <div className="min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
               <h1 className="text-xl lg:text-2xl font-black truncate">{po.poNumber}</h1>
               <Badge className={cn("rounded-full font-bold border-none", STATUS_STYLES[po.status])}>
-                {STATUS_LABELS[po.status] || po.status}
+                {t(`po_status.${po.status}` as any, { defaultValue: po.status })}
               </Badge>
             </div>
             <p className="text-sm text-muted-foreground truncate">{po.title}</p>
@@ -163,12 +156,12 @@ export default function ProjectPurchaseOrderDetail() {
         <div className="flex items-center gap-2">
           <Button variant="outline" onClick={() => setPrintOpen(true)} className="rounded-xl gap-1.5">
             <Printer className="w-4 h-4" />
-            طباعة
+            {t("detail.print")}
           </Button>
           {po.status === "draft" && (
             <Button onClick={() => setApproveOpen(true)} className="rounded-xl gap-1.5 font-bold">
               <CheckCircle2 className="w-4 h-4" />
-              اعتماد أمر الشراء
+              {t("detail.approve_btn")}
             </Button>
           )}
           {/* Hidden once every line is fully received: a completed order has nothing left
@@ -176,7 +169,7 @@ export default function ProjectPurchaseOrderDetail() {
           {po.isReceivable && !po.fullyReceived && (
             <Button onClick={() => setReceiveOpen(true)} className="rounded-xl gap-1.5 font-bold">
               <Warehouse className="w-4 h-4" />
-              تسجيل استلام
+              {t("detail.receive_btn")}
             </Button>
           )}
         </div>
@@ -205,7 +198,7 @@ export default function ProjectPurchaseOrderDetail() {
                         done ? "text-foreground" : "text-muted-foreground"
                       )}
                     >
-                      {step.label}
+                      {t(step.labelKey as any)}
                     </span>
                   </div>
                   {idx < STATUS_STEPS.length - 1 && (
@@ -224,12 +217,12 @@ export default function ProjectPurchaseOrderDetail() {
           {po.status === "draft" && (
             <p className="mt-4 text-xs text-muted-foreground flex items-center gap-2 justify-center">
               <AlertTriangle className="w-3.5 h-3.5 text-amber-500" />
-              لا يمكن تسجيل استلام على هذا الأمر قبل اعتماده.
+              {t("detail.cannot_receive_before_approval")}
             </p>
           )}
           {po.approvedAt && (
             <p className="mt-4 text-xs text-muted-foreground text-center">
-              اعتُمد بواسطة <span className="font-bold text-foreground">{po.approverName || "—"}</span>
+              {t("detail.approved_by", { name: po.approverName || "—" })}
               {" · "}
               {new Date(po.approvedAt).toLocaleDateString("en-GB")}
             </p>
@@ -243,7 +236,7 @@ export default function ProjectPurchaseOrderDetail() {
           <CardHeader className="pb-2">
             <CardTitle className="text-xs font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2">
               <Building2 className="w-3.5 h-3.5" />
-              المورد
+              {t("detail.supplier")}
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-1">
@@ -259,16 +252,16 @@ export default function ProjectPurchaseOrderDetail() {
           <CardHeader className="pb-2">
             <CardTitle className="text-xs font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2">
               <Calendar className="w-3.5 h-3.5" />
-              التواريخ
+              {t("detail.dates")}
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-1 text-xs">
             <div className="flex justify-between">
-              <span className="text-muted-foreground">تاريخ الطلب:</span>
+              <span className="text-muted-foreground">{t("detail.order_date")}</span>
               <span className="font-bold">{po.orderDate}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-muted-foreground">التسليم المتوقع:</span>
+              <span className="text-muted-foreground">{t("detail.expected_delivery")}</span>
               <span className="font-bold">{po.expectedDeliveryDate || "—"}</span>
             </div>
           </CardContent>
@@ -278,19 +271,19 @@ export default function ProjectPurchaseOrderDetail() {
           <CardHeader className="pb-2">
             <CardTitle className="text-xs font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2">
               <Package className="w-3.5 h-3.5" />
-              نسبة الاستلام
+              {t("detail.receipt_rate")}
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
             <Progress value={totals.percent} className="h-2" />
             <div className="flex justify-between text-xs">
-              <span className="text-muted-foreground">{totals.percent.toFixed(0)}% مستلم</span>
+              <span className="text-muted-foreground">{t("detail.percent_received", { percent: totals.percent.toFixed(0) })}</span>
               <span className="font-bold">
                 {num(totals.received)} / {num(totals.ordered)}
               </span>
             </div>
             <div className="flex justify-between font-black text-sm text-primary pt-1 border-t border-border/40">
-              <span>الإجمالي:</span>
+              <span>{t("detail.total")}</span>
               <span>{num(po.totalAmount)} SAR</span>
             </div>
           </CardContent>
@@ -303,29 +296,29 @@ export default function ProjectPurchaseOrderDetail() {
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-black flex items-center gap-2">
               <FileSignature className="w-4 h-4" />
-              عرض المورد
+              {t("detail.supplier_quote")}
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
             <div className="flex flex-wrap items-center gap-2 text-[11px]">
               {po.rfqNumber && (
                 <Badge variant="secondary" className="rounded-full font-bold">
-                  طلب عرض: {po.rfqNumber}
+                  {t("detail.rfq_label", { number: po.rfqNumber })}
                 </Badge>
               )}
               {po.quotation?.quotationNumber && (
                 <Badge variant="secondary" className="rounded-full font-bold">
-                  عرض سعر: {po.quotation.quotationNumber}
+                  {t("detail.quote_label", { number: po.quotation.quotationNumber })}
                 </Badge>
               )}
               {po.quotation?.submissionDate && (
-                <span className="text-muted-foreground">تاريخ العرض: {po.quotation.submissionDate}</span>
+                <span className="text-muted-foreground">{t("detail.quote_date", { date: po.quotation.submissionDate })}</span>
               )}
               {po.quotation?.validUntil && (
-                <span className="text-muted-foreground">صالح حتى: {po.quotation.validUntil}</span>
+                <span className="text-muted-foreground">{t("detail.valid_until", { date: po.quotation.validUntil })}</span>
               )}
               {po.quotation?.leadTimeDays != null && (
-                <span className="text-muted-foreground">مدة التوريد: {po.quotation.leadTimeDays} يوم</span>
+                <span className="text-muted-foreground">{t("detail.lead_time", { days: po.quotation.leadTimeDays })}</span>
               )}
             </div>
 
@@ -347,13 +340,13 @@ export default function ProjectPurchaseOrderDetail() {
                     {po.quotation.document.type} · {po.quotation.document.size}
                   </p>
                 </div>
-                <span className="text-[11px] font-bold text-primary shrink-0">فتح</span>
+                <span className="text-[11px] font-bold text-primary shrink-0">{t("detail.open_doc")}</span>
               </a>
             ) : (
               <div className="rounded-xl border border-dashed border-border p-3 flex items-center gap-2">
                 <Paperclip className="w-4 h-4 text-muted-foreground/50 shrink-0" />
                 <p className="text-[11px] text-muted-foreground">
-                  لم يُرفق مستند العرض من المورد. يمكن إرفاقه من شاشة عرض السعر.
+                  {t("detail.no_quote_doc")}
                 </p>
               </div>
             )}
@@ -365,8 +358,7 @@ export default function ProjectPurchaseOrderDetail() {
         <div className="rounded-xl border border-amber-500/40 bg-amber-50 dark:bg-amber-900/10 p-3 flex items-start gap-2">
           <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
           <p className="text-xs text-amber-800 dark:text-amber-300">
-            <span className="font-black">{totals.unlinkedLines} بند بلا مادة من الكتالوج.</span>{" "}
-            هذه البنود لا يمكن استلامها في المخزون، ويجب ربطها بمواد قبل الاعتماد.
+            <span className="font-black">{t("detail.unlinked_warning", { count: totals.unlinkedLines })}</span>
           </p>
         </div>
       )}
@@ -376,7 +368,7 @@ export default function ProjectPurchaseOrderDetail() {
         <CardHeader className="pb-3">
           <CardTitle className="text-sm font-black flex items-center gap-2">
             <FileText className="w-4 h-4" />
-            البنود ({items.length})
+            {t("detail.items_title", { count: items.length })}
           </CardTitle>
         </CardHeader>
         <CardContent className="p-0">
@@ -384,13 +376,13 @@ export default function ProjectPurchaseOrderDetail() {
             <Table>
               <TableHeader>
                 <TableRow className="bg-muted/30 hover:bg-muted/30">
-                  <TableHead className="text-right text-[11px] font-black">#</TableHead>
-                  <TableHead className="text-right text-[11px] font-black">المادة</TableHead>
-                  <TableHead className="text-right text-[11px] font-black">الوحدة</TableHead>
-                  <TableHead className="text-right text-[11px] font-black">المطلوب</TableHead>
-                  <TableHead className="text-right text-[11px] font-black">المستلم</TableHead>
-                  <TableHead className="text-right text-[11px] font-black">المتبقي</TableHead>
-                  <TableHead className="text-right text-[11px] font-black">الحالة</TableHead>
+                  <TableHead className="text-end text-[11px] font-black">#</TableHead>
+                  <TableHead className="text-end text-[11px] font-black">{t("detail.items_table.material")}</TableHead>
+                  <TableHead className="text-end text-[11px] font-black">{t("detail.items_table.unit")}</TableHead>
+                  <TableHead className="text-end text-[11px] font-black">{t("detail.items_table.ordered")}</TableHead>
+                  <TableHead className="text-end text-[11px] font-black">{t("detail.items_table.received")}</TableHead>
+                  <TableHead className="text-end text-[11px] font-black">{t("detail.items_table.remaining")}</TableHead>
+                  <TableHead className="text-end text-[11px] font-black">{t("detail.items_table.status")}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -408,7 +400,7 @@ export default function ProjectPurchaseOrderDetail() {
                           </span>
                         )}
                         {!item.materialId && (
-                          <span className="text-[10px] font-bold text-amber-600">بلا مادة من الكتالوج</span>
+                          <span className="text-[10px] font-bold text-amber-600">{t("detail.items_table.unlinked_badge")}</span>
                         )}
                       </div>
                     </TableCell>
@@ -428,19 +420,19 @@ export default function ProjectPurchaseOrderDetail() {
                     <TableCell>
                       {item.isOverReceived ? (
                         <Badge className="rounded-full border-none bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300 text-[10px] font-bold">
-                          زيادة
+                          {t("detail.item_status.over")}
                         </Badge>
                       ) : item.isFullyReceived ? (
                         <Badge className="rounded-full border-none bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300 text-[10px] font-bold">
-                          مكتمل
+                          {t("detail.item_status.completed")}
                         </Badge>
                       ) : item.receivedQuantity > 0 ? (
                         <Badge className="rounded-full border-none bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 text-[10px] font-bold">
-                          جزئي
+                          {t("detail.item_status.partial")}
                         </Badge>
                       ) : (
                         <Badge variant="secondary" className="rounded-full text-[10px] font-bold">
-                          لم يُستلم
+                          {t("detail.item_status.unreceived")}
                         </Badge>
                       )}
                     </TableCell>
@@ -457,16 +449,16 @@ export default function ProjectPurchaseOrderDetail() {
         <CardHeader className="pb-3">
           <CardTitle className="text-sm font-black flex items-center gap-2">
             <Truck className="w-4 h-4" />
-            الشحنات المستلمة ({receipts.length})
+            {t("detail.receipts_title", { count: receipts.length })}
           </CardTitle>
         </CardHeader>
         <CardContent>
           {receipts.length === 0 ? (
             <div className="rounded-xl border border-dashed border-border py-10 flex flex-col items-center gap-2">
               <Truck className="w-8 h-8 text-muted-foreground/40" />
-              <p className="text-xs text-muted-foreground font-bold">لم تُسجَّل أي شحنة بعد</p>
+              <p className="text-xs text-muted-foreground font-bold">{t("detail.receipts_empty")}</p>
               {!po.isReceivable && (
-                <p className="text-[11px] text-muted-foreground">يجب اعتماد أمر الشراء أولًا</p>
+                <p className="text-[11px] text-muted-foreground">{t("detail.must_approve_first")}</p>
               )}
             </div>
           ) : (
@@ -487,7 +479,7 @@ export default function ProjectPurchaseOrderDetail() {
                           {r.warehouseName}
                         </span>
                       )}
-                      {r.deliveryInvoiceNumber && <span>فاتورة: {r.deliveryInvoiceNumber}</span>}
+                      {r.deliveryInvoiceNumber && <span>{t("detail.invoice_label", { number: r.deliveryInvoiceNumber })}</span>}
                       {r.noteDocument ? (
                         <a
                           href={r.noteDocument.fileUrl || "#"}
@@ -496,12 +488,12 @@ export default function ProjectPurchaseOrderDetail() {
                           className="flex items-center gap-1 font-bold text-primary hover:underline"
                         >
                           <Paperclip className="w-3 h-3" />
-                          مذكرة التسليم
+                          {t("detail.delivery_note")}
                         </a>
                       ) : (
                         <span className="flex items-center gap-1 opacity-60">
                           <Paperclip className="w-3 h-3" />
-                          بلا مذكرة
+                          {t("detail.no_delivery_note")}
                         </span>
                       )}
                     </div>
@@ -540,15 +532,15 @@ export default function ProjectPurchaseOrderDetail() {
       />
 
       <AlertDialog open={approveOpen} onOpenChange={setApproveOpen}>
-        <AlertDialogContent dir="rtl">
+        <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>اعتماد أمر الشراء {po.poNumber}؟</AlertDialogTitle>
+            <AlertDialogTitle>{t("detail.approve_dialog.title", { poNumber: po.poNumber })}</AlertDialogTitle>
             <AlertDialogDescription>
-              بعد الاعتماد يصبح الأمر جاهزًا لتسجيل الاستلام في المستودع، ولا يمكن التراجع عن الاعتماد.
+              {t("detail.approve_dialog.description")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>إلغاء</AlertDialogCancel>
+            <AlertDialogCancel>{t("detail.approve_dialog.cancel")}</AlertDialogCancel>
             <AlertDialogAction
               onClick={(e) => {
                 e.preventDefault();
@@ -556,7 +548,7 @@ export default function ProjectPurchaseOrderDetail() {
               }}
               disabled={approveMutation.isPending}
             >
-              {approveMutation.isPending ? "جارٍ الاعتماد..." : "اعتماد"}
+              {approveMutation.isPending ? t("detail.approve_dialog.submitting") : t("detail.approve_dialog.confirm")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

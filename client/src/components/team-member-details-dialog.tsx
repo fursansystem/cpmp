@@ -68,7 +68,7 @@ export function TeamMemberDetailsDialog({
               )}
               {organizationName && (
                 <Badge variant="secondary" className="mt-2 max-w-full">
-                  <Building2 className="w-3 h-3 mr-1 flex-shrink-0" />
+                  <Building2 className="w-3 h-3 me-1 flex-shrink-0" />
                   <span className="truncate">{organizationName}</span>
                 </Badge>
               )}
@@ -124,7 +124,7 @@ export function TeamMemberDetailsDialog({
               </div>
 
               {activeTasks.length > 0 ? (
-                <div className="space-y-2 mt-3 pl-8">
+                <div className="space-y-2 mt-3 ps-8">
                   {activeTasks.map((task) => (
                     <div key={task.id} className="flex items-center gap-2">
                       <div className="flex-1 min-w-0">
@@ -140,7 +140,7 @@ export function TeamMemberDetailsDialog({
                   ))}
                 </div>
               ) : (
-                <p className="text-sm text-muted-foreground/60 mt-3 pl-8">
+                <p className="text-sm text-muted-foreground/60 mt-3 ps-8">
                   No active tasks
                 </p>
               )}

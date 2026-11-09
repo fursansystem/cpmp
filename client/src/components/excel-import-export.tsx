@@ -197,7 +197,7 @@ export function ExcelImportExport({
         disabled={isImporting}
         data-testid={`button-import-${entityName.toLowerCase().replace(/\s+/g, "-")}`}
       >
-        <Upload className="h-4 w-4 mr-2" />
+        <Upload className="h-4 w-4 me-2" />
         Import
       </Button>
       
@@ -207,7 +207,7 @@ export function ExcelImportExport({
         onClick={handleExport}
         data-testid={`button-export-${entityName.toLowerCase().replace(/\s+/g, "-")}`}
       >
-        <Download className="h-4 w-4 mr-2" />
+        <Download className="h-4 w-4 me-2" />
         Export
       </Button>
 

@@ -1,0 +1,246 @@
+{
+  "title": "Warehouse",
+  "back": "Back",
+  "kpis": {
+    "stocked_materials": "Stocked Materials",
+    "low_stock": "Below Minimum Stock",
+    "pending_issues": "Issues Pending Approval",
+    "warehouses": "Warehouses"
+  },
+  "conflicts_alert": "<0>{{count}} materials with conflicting units:</0> {{items}}. Stock balances are inaccurate until units are unified.",
+  "low_stock_title": "Materials Below Minimum Stock",
+  "actions": {
+    "issue_materials": "Issue Materials",
+    "transfer": "Transfer",
+    "manual_movement": "Manual Movement",
+    "approvers_settings": "Configure Authorized Approvers",
+    "export_excel": "Export Excel"
+  },
+  "tabs": {
+    "overview": "Overview",
+    "balances": "Balances",
+    "deliveries": "Deliveries",
+    "issues": "Material Issues",
+    "transfers": "Transfers",
+    "warehouses": "Warehouses",
+    "ledger": "Movement Ledger"
+  },
+  "balances": {
+    "search_placeholder": "Search material...",
+    "all_warehouses": "All Warehouses (Total)",
+    "empty": "No stock balances",
+    "unit_conflict": "Conflicting Units",
+    "low_stock": "Low Stock",
+    "normal": "Normal",
+    "ledger_hint": "Click on any material to view all its movements in the ledger.",
+    "table": {
+      "material": "Material",
+      "unit": "Unit",
+      "in": "In",
+      "out": "Out",
+      "balance": "Balance",
+      "min_stock": "Min Stock",
+      "status": "Status"
+    }
+  },
+  "issues": {
+    "pending_notice": "<0>{{count}} issue notes pending approval</0> and your position cannot approve them.",
+    "pending_notice_manage": " Configure authorized approvers using the shield button above.",
+    "configure_approvers": "Configure Approvers",
+    "empty": "No material issue notes",
+    "recipient": "Recipient:",
+    "warehouse": "Warehouse:",
+    "purpose": "Purpose:",
+    "rejection_reason": "Rejection reason: {{reason}}",
+    "approve": "Approve",
+    "reject": "Reject",
+    "cancel": "Cancel",
+    "status": {
+      "pending_approval": "Pending Approval",
+      "issued": "Issued",
+      "rejected": "Rejected",
+      "cancelled": "Cancelled"
+    },
+    "reject_dialog": {
+      "title": "Reject issue note {{number}}?",
+      "description": "Rejection reason is mandatory and recorded on the note.",
+      "placeholder": "Rejection reason",
+      "cancel": "Cancel",
+      "confirm": "Reject"
+    },
+    "cancel_dialog": {
+      "title": "Cancel issue note {{number}}?",
+      "issued_description": "A reverse movement will be recorded returning quantities to stock, and the note remains as cancelled.",
+      "pending_description": "The note will be cancelled with no impact on stock balances.",
+      "cancel": "Back",
+      "confirm": "Confirm Cancellation"
+    },
+    "toasts": {
+      "approved": "Issue note approved",
+      "rejected": "Issue note rejected",
+      "cancelled": "Issue note cancelled",
+      "action_failed": "Action failed"
+    }
+  },
+  "transfers": {
+    "empty": "No transfers"
+  },
+  "warehouses_tab": {
+    "default": "Default",
+    "keeper": "Storekeeper: {{name}}",
+    "material_count": "{{count}} materials",
+    "movement_count": "{{count}} movements"
+  },
+  "ledger": {
+    "all_materials": "All Materials",
+    "empty": "No movements",
+    "table": {
+      "date": "Date",
+      "material": "Material",
+      "type": "Type",
+      "quantity": "Quantity",
+      "warehouse": "Warehouse",
+      "performed_by": "Performed By",
+      "notes": "Notes"
+    },
+    "movements": {
+      "in": "Receipt",
+      "out": "Issue",
+      "transfer_in": "Transfer In",
+      "transfer_out": "Transfer Out"
+    }
+  },
+  "approvers_dialog": {
+    "title": "Authorized Positions for Material Issues",
+    "description": "Team members holding any of these positions in the project can approve material issues and post adjustments",
+    "empty_title": "No filled positions in this project",
+    "empty_desc": "Add team members and assign their positions first, then return to configure approvers.",
+    "member_count": "{{count}} members",
+    "no_account": "No account",
+    "user_count": "{{count}} users",
+    "no_approvers_warning": "Without authorized positions, <0>no one will be able to approve material issues</0> except super admin — and issues containing materials requiring approval will remain pending.",
+    "no_account_warning": "— holders have no login accounts, so they cannot actually approve until accounts are linked.",
+    "save": "Save",
+    "saving": "Saving...",
+    "cancel": "Cancel",
+    "toasts": {
+      "saved": "Authorized positions saved",
+      "failed": "Failed to save"
+    }
+  },
+  "adjustment_dialog": {
+    "title": "Manual Stock Movement",
+    "description": "Stock count adjustment, damage, return or opening balance — reason is mandatory",
+    "warehouse": "Warehouse",
+    "movement_type": "Movement Type",
+    "select_placeholder": "Select",
+    "material": "Material",
+    "select_material_placeholder": "Select material from catalog",
+    "current_balance": "Current balance in this warehouse: <0>{{balance}} {{unit}}</0>",
+    "quantity": "Quantity",
+    "quantity_exceeds": "Quantity exceeds available stock",
+    "date": "Date",
+    "reason": "Reason",
+    "reason_placeholder": "e.g. Rain damage · October count difference · Return from Villa 12",
+    "reason_hint": "A movement changing balance without explanation makes the ledger untrustworthy — reason is mandatory.",
+    "opening_balance_warning": "Opening balance is only accepted for a material with no prior movements in this warehouse. If it has movements, use 'Stock Adjustment' instead.",
+    "submit": "Record Movement",
+    "submitting": "Recording...",
+    "cancel": "Cancel",
+    "errors": {
+      "choose_warehouse": "Select warehouse",
+      "choose_material": "Select material",
+      "valid_quantity": "Enter a valid quantity",
+      "reason_required": "Reason is required",
+      "failed": "Could not record movement"
+    },
+    "toasts": {
+      "recorded": "Movement recorded",
+      "balance_updated": "Stock balance updated."
+    }
+  },
+  "transfer_dialog": {
+    "title": "Inter-Warehouse Transfer",
+    "description": "Transfers balance between two warehouses — project total remains unchanged",
+    "from_warehouse": "From Warehouse",
+    "to_warehouse": "To Warehouse",
+    "select_placeholder": "Select",
+    "date": "Date",
+    "add_material": "Add Material",
+    "select_from_source": "Select material from source stock",
+    "select_source_first": "Select source warehouse first",
+    "no_available_materials": "No materials with available stock",
+    "table": {
+      "material": "Material",
+      "available": "Available",
+      "quantity": "Quantity",
+      "exceeds_available": "Exceeds available"
+    },
+    "notes": "Notes",
+    "optional": "Optional",
+    "same_warehouse_error": "Source and destination warehouses are identical.",
+    "submit": "Execute Transfer",
+    "submitting": "Transferring...",
+    "cancel": "Cancel",
+    "errors": {
+      "choose_both": "Select source and destination warehouses",
+      "cannot_same": "Cannot transfer to the same warehouse",
+      "enter_at_least_one": "Enter quantity for at least one material",
+      "failed": "Could not execute transfer"
+    },
+    "toasts": {
+      "title": "Transfer completed — {{number}}",
+      "description": "{{from}} ← {{to}}. Project total remains unchanged."
+    }
+  },
+  "issue_dialog": {
+    "title": "Material Issue Note",
+    "description": "Quantities are deducted from the specified warehouse only",
+    "warehouse": "Warehouse",
+    "default_suffix": " (Default)",
+    "select_placeholder": "Select",
+    "issue_date": "Issue Date",
+    "recipient": "Recipient",
+    "recipient_name_placeholder": "Recipient name",
+    "recipient_type": "Recipient Type",
+    "recipient_types": {
+      "subcontractor": "Subcontractor",
+      "internal": "Internal Team",
+      "other": "Other"
+    },
+    "work_location": "Work Location (Optional)",
+    "unassigned": "Unassigned",
+    "purpose": "Purpose",
+    "optional": "Optional",
+    "add_material": "Add Material",
+    "select_from_warehouse": "Select material from warehouse stock",
+    "select_warehouse_first": "Select warehouse first",
+    "no_available_materials": "No materials with available stock",
+    "requires_approval": "Requires Approval",
+    "table": {
+      "material": "Material",
+      "available": "Available",
+      "quantity": "Quantity",
+      "note": "Note",
+      "exceeds_available": "Exceeds available"
+    },
+    "needs_approval_warning": "Issue contains materials requiring approval, so it will be saved as <0>pending</0> and stock will not change until approved — including other materials in the note.",
+    "submit_direct": "Issue & Record",
+    "submit_approval": "Submit for Approval",
+    "submitting": "Saving...",
+    "cancel": "Cancel",
+    "errors": {
+      "choose_warehouse": "Select warehouse",
+      "recipient_required": "Recipient name is required",
+      "enter_at_least_one": "Enter quantity for at least one material",
+      "quantity_exceeds": "Quantity exceeds available: {{items}}",
+      "failed": "Could not record material issue"
+    },
+    "toasts": {
+      "title": "Material issue note recorded — {{number}}",
+      "pending_desc": "Issue is pending approval. Stock balances will not change until approved.",
+      "deducted_desc": "Quantities deducted from warehouse stock."
+    }
+  }
+}
+

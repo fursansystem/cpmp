@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { useParams, useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { format } from "date-fns";
+import { format } from "@/lib/date-format";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -206,10 +206,10 @@ export function SupplierAttachmentsMenu({ supplierId }: { supplierId: string }) 
             <button
               key={att.id}
               onClick={() => setPreviewDoc(att)}
-              className="flex items-center gap-3 p-1.5 pr-4 bg-white dark:bg-background hover:bg-slate-50 dark:hover:bg-muted/50 rounded-full transition-all group max-w-[320px] w-fit text-left border border-slate-200 dark:border-muted shadow-sm"
+              className="flex items-center gap-3 p-1.5 pe-4 bg-white dark:bg-background hover:bg-slate-50 dark:hover:bg-muted/50 rounded-full transition-all group max-w-[320px] w-fit text-start border border-slate-200 dark:border-muted shadow-sm"
               title={fileName}
             >
-              <div className="flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform pl-1">
+              <div className="flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform ps-1">
                 <FileText className="w-5 h-5 text-[#C19B44] dark:text-primary" />
               </div>
               <div className="flex flex-col flex-1 min-w-0 justify-center">
@@ -229,7 +229,7 @@ export function SupplierAttachmentsMenu({ supplierId }: { supplierId: string }) 
                   )}
                 </div>
               </div>
-              <Eye className="w-4 h-4 text-[#C19B44]/60 dark:text-primary/60 group-hover:text-[#C19B44] dark:group-hover:text-primary transition-colors shrink-0 ml-1" />
+              <Eye className="w-4 h-4 text-[#C19B44]/60 dark:text-primary/60 group-hover:text-[#C19B44] dark:group-hover:text-primary transition-colors shrink-0 ms-1" />
             </button>
           );
         })}
@@ -266,7 +266,7 @@ export function SupplierAttachmentsMenu({ supplierId }: { supplierId: string }) 
               {previewDoc && (previewDoc.document?.fileUrl || previewDoc.document?.fileData) && (
                 <Button variant="outline" size="sm" className="rounded-full font-bold h-10 px-5 bg-card/80 border border-muted text-primary hover:bg-primary/5 hidden sm:flex shadow-sm" asChild>
                   <a href={previewDoc.document.fileUrl || previewDoc.document.fileData} target="_blank" rel="noopener noreferrer">
-                    <Link2 className="w-4 h-4 mr-2" />
+                    <Link2 className="w-4 h-4 me-2" />
                     Open Original
                   </a>
                 </Button>
@@ -325,7 +325,7 @@ export function SupplierAttachmentsMenu({ supplierId }: { supplierId: string }) 
                       </p>
                       <a href={url} target="_blank" rel="noopener noreferrer">
                         <Button variant="default" className="w-full mt-4 h-12 rounded-xl text-xs font-bold uppercase tracking-widest group shadow-md transition-all">
-                          <ExternalLink className="w-4 h-4 mr-2 group-hover:scale-110 transition-transform" />
+                          <ExternalLink className="w-4 h-4 me-2 group-hover:scale-110 transition-transform" />
                           Open in new tab
                         </Button>
                       </a>
@@ -375,10 +375,10 @@ export function MaterialAttachmentsMenu({ materialId }: { materialId: string }) 
             <button
               key={att.id}
               onClick={() => setPreviewDoc(att)}
-              className="flex items-center gap-3 p-1.5 pr-4 bg-white dark:bg-background hover:bg-slate-50 dark:hover:bg-muted/50 rounded-full transition-all group max-w-[320px] w-fit text-left border border-slate-200 dark:border-muted shadow-sm"
+              className="flex items-center gap-3 p-1.5 pe-4 bg-white dark:bg-background hover:bg-slate-50 dark:hover:bg-muted/50 rounded-full transition-all group max-w-[320px] w-fit text-start border border-slate-200 dark:border-muted shadow-sm"
               title={fileName}
             >
-              <div className="flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform pl-1">
+              <div className="flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform ps-1">
                 <FileText className="w-5 h-5 text-[#C19B44] dark:text-primary" />
               </div>
               <div className="flex flex-col flex-1 min-w-0 justify-center">
@@ -398,7 +398,7 @@ export function MaterialAttachmentsMenu({ materialId }: { materialId: string }) 
                   )}
                 </div>
               </div>
-              <Eye className="w-4 h-4 text-[#C19B44]/60 dark:text-primary/60 group-hover:text-[#C19B44] dark:group-hover:text-primary transition-colors shrink-0 ml-1" />
+              <Eye className="w-4 h-4 text-[#C19B44]/60 dark:text-primary/60 group-hover:text-[#C19B44] dark:group-hover:text-primary transition-colors shrink-0 ms-1" />
             </button>
           );
         })}
@@ -436,7 +436,7 @@ export function MaterialAttachmentsMenu({ materialId }: { materialId: string }) 
               {previewDoc && (previewDoc.document?.fileUrl || previewDoc.document?.fileData) && (
                 <Button variant="outline" size="sm" className="rounded-full font-bold h-10 px-5 bg-card/80 border border-muted text-primary hover:bg-primary/5 hidden sm:flex shadow-sm" asChild>
                   <a href={previewDoc.document.fileUrl || previewDoc.document.fileData} target="_blank" rel="noopener noreferrer">
-                    <Link2 className="w-4 h-4 mr-2" />
+                    <Link2 className="w-4 h-4 me-2" />
                     Open Original
                   </a>
                 </Button>
@@ -495,7 +495,7 @@ export function MaterialAttachmentsMenu({ materialId }: { materialId: string }) 
                       </p>
                       <a href={url} target="_blank" rel="noopener noreferrer">
                         <Button variant="default" className="w-full mt-4 h-12 rounded-xl text-xs font-bold uppercase tracking-widest group shadow-md transition-all">
-                          <ExternalLink className="w-4 h-4 mr-2 group-hover:scale-110 transition-transform" />
+                          <ExternalLink className="w-4 h-4 me-2 group-hover:scale-110 transition-transform" />
                           Open in new tab
                         </Button>
                       </a>
@@ -1400,7 +1400,7 @@ export default function CreateWirRequest() {
             onClick={() => navigate(`/projects/${activity?.projectId}/requests`)}
             className="rounded-2xl hover:bg-primary/10 hover:text-primary transition-all duration-300 active:scale-95"
           >
-            <ArrowLeft className="w-5 h-5" />
+            <ArrowLeft className="w-5 h-5 rtl:rotate-180" />
           </Button>
           <div className="flex flex-col">
             <h1 className="text-2xl font-display font-bold tracking-tight text-foreground/90">Create Request</h1>
@@ -1408,7 +1408,7 @@ export default function CreateWirRequest() {
               <span className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">{activityCode}</span>
             </div>
           </div>
-          <div className="flex items-center gap-3 bg-muted/30 p-1.5 rounded-2xl border border-border/40 min-w-[320px] ml-auto">
+          <div className="flex items-center gap-3 bg-muted/30 p-1.5 rounded-2xl border border-border/40 min-w-[320px] ms-auto">
             <div className="bg-primary/10 p-2 rounded-xl">
               <Target className="w-4 h-4 text-primary" />
             </div>
@@ -1477,7 +1477,7 @@ export default function CreateWirRequest() {
                           <TableHead className="font-bold">Material</TableHead>
                           <TableHead className="font-bold">Supplier</TableHead>
                           <TableHead className="font-bold">Arrival Date</TableHead>
-                          <TableHead className="w-16 text-right font-bold pr-6">Actions</TableHead>
+                          <TableHead className="w-16 text-end font-bold pe-6">Actions</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -1504,7 +1504,7 @@ export default function CreateWirRequest() {
                               <TableCell>
                                 {delivery.arrivalDate ? format(new Date(delivery.arrivalDate), "dd/MM/yyyy") : "---"}
                               </TableCell>
-                              <TableCell className="text-right">
+                              <TableCell className="text-end">
                                 <Button
                                   size="icon"
                                   variant="ghost"
@@ -1688,7 +1688,7 @@ export default function CreateWirRequest() {
 
                                 {/* Info */}
                                 <div className="flex flex-col gap-1.5 flex-1 min-w-0 justify-center">
-                                  <h4 className="font-bold text-base text-foreground/90 truncate pr-2 group-hover:text-primary transition-colors">{material.materialName}</h4>
+                                  <h4 className="font-bold text-base text-foreground/90 truncate pe-2 group-hover:text-primary transition-colors">{material.materialName}</h4>
                                   <div className="flex flex-wrap items-center gap-1.5">
                                     {material.materialCode && (
                                       <Badge variant="outline" className="bg-primary/5 text-primary/90 font-mono text-[10px] h-5 border-primary/20 px-1.5">
@@ -1713,7 +1713,7 @@ export default function CreateWirRequest() {
                               </div>
 
                               {/* Actions */}
-                              <div className="flex items-center gap-1 shrink-0 ml-2">
+                              <div className="flex items-center gap-1 shrink-0 ms-2">
                                 <Button
                                   size="icon"
                                   variant="ghost"
@@ -1753,7 +1753,7 @@ export default function CreateWirRequest() {
 
                             {/* Description (subtle) */}
                             {material.description && (
-                              <div className="pl-[72px] -mt-2">
+                              <div className="ps-[72px] -mt-2">
                                 <p className="text-xs text-muted-foreground/70 leading-relaxed line-clamp-2">
                                   {material.description}
                                 </p>
@@ -1819,12 +1819,12 @@ export default function CreateWirRequest() {
                                     </Badge>
                                     {supplier.taxNumber && (
                                       <Badge variant="outline" className="bg-muted/30 text-muted-foreground border-border/50 text-xs font-medium py-0.5 px-2.5" title="VAT Number">
-                                        <Hash className="w-3.5 h-3.5 mr-1.5 opacity-60" /> {supplier.taxNumber}
+                                        <Hash className="w-3.5 h-3.5 me-1.5 opacity-60" /> {supplier.taxNumber}
                                       </Badge>
                                     )}
                                     {supplier.experienceYears && (
                                       <Badge variant="outline" className="bg-muted/30 text-muted-foreground border-border/50 text-xs font-medium py-0.5 px-2.5" title="Experience Years">
-                                        <Briefcase className="w-3.5 h-3.5 mr-1.5 opacity-60" /> {supplier.experienceYears}+ XP
+                                        <Briefcase className="w-3.5 h-3.5 me-1.5 opacity-60" /> {supplier.experienceYears}+ XP
                                       </Badge>
                                     )}
                                   </div>
@@ -1920,7 +1920,7 @@ export default function CreateWirRequest() {
                           <TableHead className="font-bold">Building</TableHead>
                           <TableHead className="font-bold">Floor</TableHead>
                           <TableHead className="font-bold">Part</TableHead>
-                          <TableHead className="w-16 text-right font-bold pr-6">Actions</TableHead>
+                          <TableHead className="w-16 text-end font-bold pe-6">Actions</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -1946,7 +1946,7 @@ export default function CreateWirRequest() {
                               <TableCell>{loc.building}</TableCell>
                               <TableCell>{loc.floor}</TableCell>
                               <TableCell>{loc.part}</TableCell>
-                              <TableCell className="text-right pr-6">
+                              <TableCell className="text-end pe-6">
                                 <Button
                                   size="icon"
                                   variant="ghost"
@@ -1995,7 +1995,7 @@ export default function CreateWirRequest() {
                           data-testid="select-work-level"
                         >
                           <span className="text-muted-foreground">Select work levels...</span>
-                          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                          <ChevronsUpDown className="ms-2 h-4 w-4 shrink-0 opacity-50" />
                         </Button>
                       </PopoverTrigger>
                       <PopoverContent className="w-[400px] p-0 rounded-2xl border-primary/10 shadow-2xl overflow-hidden">
@@ -2035,7 +2035,7 @@ export default function CreateWirRequest() {
                         <Badge
                           key={level.id}
                           variant="secondary"
-                          className="pl-3 pr-1 py-1 gap-1 group/badge bg-primary/10 hover:bg-primary/20 text-primary border-none rounded-xl transition-all duration-300"
+                          className="ps-3 pe-1 py-1 gap-1 group/badge bg-primary/10 hover:bg-primary/20 text-primary border-none rounded-xl transition-all duration-300"
                         >
                           <span className="font-bold text-xs uppercase tracking-tight">{level.code}</span>
                           <span className="max-w-[150px] truncate">{level.title}</span>
@@ -2128,7 +2128,7 @@ export default function CreateWirRequest() {
                             <TableHead className="font-bold">Title</TableHead>
                             {(isDSR || isSD) && <TableHead className="font-bold">Doc Type</TableHead>}
                             <TableHead className="font-bold">File</TableHead>
-                            <TableHead className="w-16 text-right font-bold pr-6">Actions</TableHead>
+                            <TableHead className="w-16 text-end font-bold pe-6">Actions</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -2202,7 +2202,7 @@ export default function CreateWirRequest() {
                                 )}
                                 <TableCell>
                                   {attachment.files && attachment.files.length > 0 ? (
-                                    <div className="flex items-center gap-2 bg-background/50 p-1.5 pr-3 rounded-xl border border-border/50 max-w-[200px]">
+                                    <div className="flex items-center gap-2 bg-background/50 p-1.5 pe-3 rounded-xl border border-border/50 max-w-[200px]">
                                       <div className="w-8 h-8 rounded-lg flex items-center justify-center">
                                         <FileText className="w-4 h-4 text-primary" />
                                       </div>
@@ -2244,7 +2244,7 @@ export default function CreateWirRequest() {
                                     </div>
                                   )}
                                 </TableCell>
-                                <TableCell className="text-right pr-6">
+                                <TableCell className="text-end pe-6">
                                   <Button
                                     size="icon"
                                     variant="ghost"
@@ -2392,7 +2392,7 @@ export default function CreateWirRequest() {
                             <div className="flex items-center justify-between w-full">
                               <span>
                                 {location.unitCustomNumber || "N/A"} - {location.unitZone || ""} {location.floor || ""}
-                                <span className="text-xs text-muted-foreground ml-2">
+                                <span className="text-xs text-muted-foreground ms-2">
                                   ({location.buildingNo || "No Bldg"}, {location.part || "No Part"})
                                 </span>
                               </span>
@@ -2407,7 +2407,7 @@ export default function CreateWirRequest() {
 
                 <div className="flex flex-wrap gap-2 mt-2">
                   {selectedLocations.map((loc) => (
-                    <Badge key={loc.id} variant="secondary" className="gap-1 pr-1 shadow-sm">
+                    <Badge key={loc.id} variant="secondary" className="gap-1 pe-1 shadow-sm">
                       {loc.unit || loc.building}
                       <Button
                         variant="ghost"
@@ -2477,7 +2477,7 @@ export default function CreateWirRequest() {
 
                 <div className="flex flex-wrap gap-2 mt-2">
                   {selectedDeliveries.map((delivery) => (
-                    <Badge key={delivery.id} variant="secondary" className="gap-1 pr-1 bg-primary/10 text-primary hover:bg-primary/20 transition-colors shadow-sm">
+                    <Badge key={delivery.id} variant="secondary" className="gap-1 pe-1 bg-primary/10 text-primary hover:bg-primary/20 transition-colors shadow-sm">
                       {delivery.shipmentNumber}
                       <Button
                         variant="ghost"
@@ -2503,7 +2503,7 @@ export default function CreateWirRequest() {
           <Dialog open={addMaterialOpen} onOpenChange={setAddMaterialOpen}>
             <DialogContent className="max-w-2xl">
               <DialogHeader>
-                <div className="flex items-center justify-between w-full pr-6">
+                <div className="flex items-center justify-between w-full pe-6">
                   <DialogTitle className="flex items-center gap-2">
                     <Layers className="w-5 h-5 text-primary" />
                     Select Materials
@@ -2517,7 +2517,7 @@ export default function CreateWirRequest() {
                     variant="outline"
                     className="rounded-xl shadow-sm bg-primary/5 text-primary hover:bg-primary/10 border-primary/20 transition-all"
                   >
-                    <Plus className="w-4 h-4 mr-1" />
+                    <Plus className="w-4 h-4 me-1" />
                     Create New
                   </Button>
                 </div>
@@ -2586,7 +2586,7 @@ export default function CreateWirRequest() {
 
                 <div className="flex flex-wrap gap-2 mt-2">
                   {selectedMaterials.map((mat) => (
-                    <Badge key={mat.id} variant="secondary" className="gap-1 pr-1 shadow-sm bg-primary/5 text-primary border-primary/10">
+                    <Badge key={mat.id} variant="secondary" className="gap-1 pe-1 shadow-sm bg-primary/5 text-primary border-primary/10">
                       {mat.materialName}
                       <Button
                         variant="ghost"
@@ -2612,7 +2612,7 @@ export default function CreateWirRequest() {
           <Dialog open={addSupplierOpen} onOpenChange={setAddSupplierOpen}>
             <DialogContent className="max-w-2xl">
               <DialogHeader>
-                <div className="flex items-center justify-between w-full pr-6">
+                <div className="flex items-center justify-between w-full pe-6">
                   <DialogTitle className="flex items-center gap-2">
                     <Database className="w-5 h-5 text-primary" />
                     Select Suppliers
@@ -2626,7 +2626,7 @@ export default function CreateWirRequest() {
                     variant="outline"
                     className="rounded-xl shadow-sm bg-primary/5 text-primary hover:bg-primary/10 border-primary/20 transition-all"
                   >
-                    <Plus className="w-4 h-4 mr-1" />
+                    <Plus className="w-4 h-4 me-1" />
                     Create New
                   </Button>
                 </div>
@@ -2687,7 +2687,7 @@ export default function CreateWirRequest() {
 
                 <div className="flex flex-wrap gap-2 mt-2">
                   {selectedSuppliers.map((sup) => (
-                    <Badge key={sup.id} variant="secondary" className="gap-1 pr-1 shadow-sm bg-primary/5 text-primary border-primary/10">
+                    <Badge key={sup.id} variant="secondary" className="gap-1 pe-1 shadow-sm bg-primary/5 text-primary border-primary/10">
                       {sup.supplierName}
                       <Button
                         variant="ghost"
@@ -2807,7 +2807,7 @@ export default function CreateWirRequest() {
                   <p className="text-sm text-foreground font-medium mb-3">
                     You cannot submit this request because the following mandatory fields or documents are missing:
                   </p>
-                  <ul className="space-y-2 max-h-48 overflow-y-auto pr-2">
+                  <ul className="space-y-2 max-h-48 overflow-y-auto pe-2">
                     {missingFields.map((f, i) => (
                       <li key={i} className="text-sm text-destructive font-semibold flex items-start gap-2 bg-destructive/5 p-2 rounded-lg">
                         <span className="shrink-0 mt-0.5">•</span>

@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Dialog,
@@ -45,6 +46,7 @@ export function QuotationFormDialog({
   rfqId: initialRfqId,
   supplierId: initialSupplierId,
 }: QuotationFormDialogProps) {
+  const { t } = useTranslation("procurement");
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -169,15 +171,15 @@ export function QuotationFormDialog({
       queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "quotations"] });
       queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "rfqs"] });
       toast({
-        title: "Saved successfully",
-        description: "Supplier quotation recorded successfully",
+        title: t("quotation.toasts.save_success_title"),
+        description: t("quotation.toasts.save_success_desc"),
       });
       onOpenChange(false);
     },
     onError: (err: any) => {
       toast({
-        title: "Error",
-        description: err.message || "Failed to record quotation",
+        title: t("quotation.toasts.error_title"),
+        description: err.message || t("quotation.toasts.save_error_desc"),
         variant: "destructive",
       });
     },
@@ -189,7 +191,7 @@ export function QuotationFormDialog({
         <DialogHeader className="p-6 pb-4 border-b shrink-0">
           <DialogTitle className="text-xl font-bold flex items-center gap-2">
             <DollarSign className="w-5 h-5 text-amber-600" />
-            Record Supplier Quotation / Bid
+            {t("quotation.modal_title")}
           </DialogTitle>
         </DialogHeader>
 
@@ -199,11 +201,11 @@ export function QuotationFormDialog({
             {/* Select RFQ */}
             <div className="space-y-2">
               <Label className="font-bold text-sm">
-                Linked RFQ <span className="text-destructive">*</span>
+                {t("quotation.linked_rfq")} <span className="text-destructive">*</span>
               </Label>
               <Select value={selectedRfqId} onValueChange={setSelectedRfqId}>
                 <SelectTrigger className="h-11 rounded-xl">
-                  <SelectValue placeholder="Select RFQ..." />
+                  <SelectValue placeholder={t("quotation.select_rfq_placeholder")} />
                 </SelectTrigger>
                 <SelectContent>
                   {rfqs.map((rfq) => (
@@ -218,11 +220,11 @@ export function QuotationFormDialog({
             {/* Select Supplier */}
             <div className="space-y-2">
               <Label className="font-bold text-sm">
-                Quoting Supplier <span className="text-destructive">*</span>
+                {t("quotation.quoting_supplier")} <span className="text-destructive">*</span>
               </Label>
               <Select value={selectedSupplierId} onValueChange={setSelectedSupplierId}>
                 <SelectTrigger className="h-11 rounded-xl">
-                  <SelectValue placeholder="Select supplier..." />
+                  <SelectValue placeholder={t("quotation.select_supplier_placeholder")} />
                 </SelectTrigger>
                 <SelectContent>
                   {suppliers.map((s) => (
@@ -241,9 +243,9 @@ export function QuotationFormDialog({
 
             {/* Quotation Number */}
             <div className="space-y-2">
-              <Label className="font-bold text-sm">Supplier Quotation No.</Label>
+              <Label className="font-bold text-sm">{t("quotation.quote_number")}</Label>
               <Input
-                placeholder="e.g. QT-2026-9812"
+                placeholder={t("quotation.quote_number_placeholder")}
                 value={quotationNumber}
                 onChange={(e) => setQuotationNumber(e.target.value)}
                 className="h-11 rounded-xl"
@@ -254,7 +256,7 @@ export function QuotationFormDialog({
             <div className="space-y-2">
               <Label className="font-bold text-sm flex items-center gap-1.5">
                 <Calendar className="w-4 h-4 text-muted-foreground" />
-                Valid Until
+                {t("quotation.valid_until")}
               </Label>
               <Input
                 type="date"
@@ -266,7 +268,7 @@ export function QuotationFormDialog({
 
             {/* Terms */}
             <div className="space-y-2">
-              <Label className="font-bold text-sm">Payment Terms</Label>
+              <Label className="font-bold text-sm">{t("quotation.payment_terms")}</Label>
               <Input
                 value={paymentTerms}
                 onChange={(e) => setPaymentTerms(e.target.value)}
@@ -275,7 +277,7 @@ export function QuotationFormDialog({
             </div>
 
             <div className="space-y-2">
-              <Label className="font-bold text-sm">Delivery Terms</Label>
+              <Label className="font-bold text-sm">{t("quotation.delivery_terms")}</Label>
               <Input
                 value={deliveryTerms}
                 onChange={(e) => setDeliveryTerms(e.target.value)}
@@ -284,7 +286,7 @@ export function QuotationFormDialog({
             </div>
 
             <div className="space-y-2">
-              <Label className="font-bold text-sm">Lead Time (days)</Label>
+              <Label className="font-bold text-sm">{t("quotation.lead_time_days")}</Label>
               <Input
                 type="number"
                 min="0"
@@ -299,10 +301,10 @@ export function QuotationFormDialog({
           <div className="space-y-2">
             <Label className="font-bold text-sm flex items-center gap-1.5">
               <Paperclip className="w-4 h-4 text-muted-foreground" />
-              Supplier Quotation Document (Attachment)
+              {t("quotation.attachment_label")}
               <span className="text-destructive">*</span>
               {!attachedDoc && (
-                <span className="text-[11px] font-normal text-destructive">— مطلوب</span>
+                <span className="text-[11px] font-normal text-destructive">— {t("quotation.required_badge")}</span>
               )}
             </Label>
             {attachedDoc ? (
@@ -331,7 +333,7 @@ export function QuotationFormDialog({
                 className="w-full h-11 rounded-xl border-dashed gap-2 text-xs font-bold"
               >
                 <Paperclip className="w-4 h-4" />
-                Attach a document from project files
+                {t("quotation.attach_from_storage")}
               </Button>
             )}
           </div>
@@ -340,23 +342,23 @@ export function QuotationFormDialog({
           <div className="space-y-3 pt-2">
             <Label className="font-bold text-base flex items-center gap-2">
               <DollarSign className="w-4 h-4 text-amber-600" />
-              Item Pricing
+              {t("quotation.item_pricing")}
             </Label>
 
             {quoteItems.length === 0 ? (
               <div className="text-center p-6 border border-dashed rounded-xl text-muted-foreground text-xs">
-                Select an RFQ first to load the requested items.
+                {t("quotation.select_rfq_first")}
               </div>
             ) : (
               <div className="border rounded-xl overflow-hidden bg-white dark:bg-slate-950">
-                <table className="w-full text-right text-xs">
+                <table className="w-full text-end text-xs">
                   <thead className="bg-slate-100 dark:bg-slate-900 border-b font-bold text-slate-700 dark:text-slate-300">
                     <tr>
                       <th className="p-3">#</th>
-                      <th className="p-3">Item Description & Specification</th>
-                      <th className="p-3">Qty</th>
-                      <th className="p-3 w-32">Unit Price (SAR)</th>
-                      <th className="p-3 w-32">Total (SAR)</th>
+                      <th className="p-3">{t("quotation.table.desc_spec")}</th>
+                      <th className="p-3">{t("quotation.table.qty")}</th>
+                      <th className="p-3 w-32">{t("quotation.table.unit_price")}</th>
+                      <th className="p-3 w-32">{t("quotation.table.total")}</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -379,7 +381,7 @@ export function QuotationFormDialog({
                             step="any"
                             value={item.unitPrice}
                             onChange={(e) => handlePriceChange(idx, e.target.value)}
-                            className="h-8 rounded-lg text-xs font-bold text-left bg-slate-50 dark:bg-slate-900"
+                            className="h-8 rounded-lg text-xs font-bold text-start bg-slate-50 dark:bg-slate-900"
                           />
                         </td>
                         <td className="p-3 font-bold text-emerald-600 dark:text-emerald-400">
@@ -400,7 +402,7 @@ export function QuotationFormDialog({
           <div className="bg-slate-50 dark:bg-slate-900/40 p-4 rounded-xl border space-y-3">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
               <div>
-                <Label className="text-xs mb-1 block">Discount, if any (SAR)</Label>
+                <Label className="text-xs mb-1 block">{t("quotation.discount_label")}</Label>
                 <Input
                   type="number"
                   min="0"
@@ -412,7 +414,7 @@ export function QuotationFormDialog({
               </div>
 
               <div>
-                <Label className="text-xs mb-1 block">VAT Rate (%)</Label>
+                <Label className="text-xs mb-1 block">{t("quotation.vat_rate_label")}</Label>
                 <Input
                   type="number"
                   min="0"
@@ -423,23 +425,23 @@ export function QuotationFormDialog({
                 />
               </div>
 
-              <div className="flex flex-col justify-end space-y-1 text-left">
+              <div className="flex flex-col justify-end space-y-1 text-start">
                 <div className="flex justify-between text-muted-foreground">
-                  <span>Subtotal:</span>
+                  <span>{t("quotation.subtotal")}</span>
                   <span className="font-semibold">{subtotal.toFixed(2)} SAR</span>
                 </div>
                 {discount > 0 && (
                   <div className="flex justify-between text-amber-600">
-                    <span>Discount:</span>
+                    <span>{t("quotation.discount")}</span>
                     <span className="font-semibold">-{discount.toFixed(2)} SAR</span>
                   </div>
                 )}
                 <div className="flex justify-between text-muted-foreground">
-                  <span>VAT ({taxRate}%):</span>
+                  <span>{t("quotation.tax", { rate: taxRate })}</span>
                   <span className="font-semibold">+{tax.toFixed(2)} SAR</span>
                 </div>
                 <div className="flex justify-between font-bold text-base text-primary border-t pt-1">
-                  <span>Grand Total:</span>
+                  <span>{t("quotation.grand_total")}</span>
                   <span>{grandTotal.toFixed(2)} SAR</span>
                 </div>
               </div>
@@ -454,16 +456,16 @@ export function QuotationFormDialog({
             onClick={() => onOpenChange(false)}
             className="rounded-xl font-bold"
           >
-            Cancel
+            {t("quotation.cancel")}
           </Button>
           <Button
             type="button"
             onClick={() => createQuotationMutation.mutate()}
             disabled={createQuotationMutation.isPending || !attachedDoc}
-            title={!attachedDoc ? "أرفق مستند عرض المورد أولًا" : undefined}
+            title={!attachedDoc ? t("quotation.attach_supplier_first") : undefined}
             className="rounded-xl font-bold gap-2 bg-amber-600 hover:bg-amber-700 text-white"
           >
-            {createQuotationMutation.isPending ? "Saving..." : "Save Quotation"}
+            {createQuotationMutation.isPending ? t("quotation.saving") : t("quotation.save_quote")}
           </Button>
         </DialogFooter>
       </DialogContent>

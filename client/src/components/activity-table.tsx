@@ -85,13 +85,13 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { format, formatDistanceToNow } from "date-fns";
+import { format, formatDistanceToNow } from "@/lib/date-format";
 import { useLocation, Link } from "wouter";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
 import { Calendar } from "@/components/ui/calendar";
 import { DateRange } from "react-day-picker";
-import { isWithinInterval, startOfDay, endOfDay } from "date-fns";
+import { isWithinInterval, startOfDay, endOfDay } from "@/lib/date-format";
 import { cn } from "@/lib/utils";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { parseDbTimestamp } from "@/lib/date-utils";
@@ -1410,7 +1410,7 @@ export function ActivityTable({ projectId, activeTab: externalActiveTab, onTabCh
                           "Select statuses"
                         )}
                       </span>
-                      <ChevronDown className="h-3 w-3 opacity-50 shrink-0 ml-2" />
+                      <ChevronDown className="h-3 w-3 opacity-50 shrink-0 ms-2" />
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent className="w-[--radix-popover-trigger-width] min-w-[200px]" align="start">
@@ -1457,7 +1457,7 @@ export function ActivityTable({ projectId, activeTab: externalActiveTab, onTabCh
                           "Select code"
                         )}
                       </span>
-                      <ChevronDown className="h-3 w-3 opacity-50 shrink-0 ml-2" />
+                      <ChevronDown className="h-3 w-3 opacity-50 shrink-0 ms-2" />
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent className="w-[--radix-popover-trigger-width] min-w-[200px]" align="start">
@@ -1509,7 +1509,7 @@ export function ActivityTable({ projectId, activeTab: externalActiveTab, onTabCh
                           "All Purposes"
                         )}
                       </span>
-                      <ChevronDown className="h-3 w-3 opacity-50 shrink-0 ml-2" />
+                      <ChevronDown className="h-3 w-3 opacity-50 shrink-0 ms-2" />
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent className="w-[--radix-popover-trigger-width] min-w-[200px]" align="start">
@@ -1569,7 +1569,7 @@ export function ActivityTable({ projectId, activeTab: externalActiveTab, onTabCh
                           return "All Steps";
                         })()}
                       </span>
-                      <ChevronDown className="h-3 w-3 opacity-50 shrink-0 ml-2" />
+                      <ChevronDown className="h-3 w-3 opacity-50 shrink-0 ms-2" />
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent className="w-[--radix-popover-trigger-width] min-w-[200px]" align="start">
@@ -1631,7 +1631,7 @@ export function ActivityTable({ projectId, activeTab: externalActiveTab, onTabCh
                           "All Writers"
                         )}
                       </span>
-                      <ChevronDown className="h-3 w-3 opacity-50 shrink-0 ml-2" />
+                      <ChevronDown className="h-3 w-3 opacity-50 shrink-0 ms-2" />
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent className="w-[--radix-popover-trigger-width] min-w-[200px]" align="start">
@@ -1682,7 +1682,7 @@ export function ActivityTable({ projectId, activeTab: externalActiveTab, onTabCh
                           "All Buildings"
                         )}
                       </span>
-                      <ChevronDown className="h-3 w-3 opacity-50 shrink-0 ml-2" />
+                      <ChevronDown className="h-3 w-3 opacity-50 shrink-0 ms-2" />
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent className="w-[--radix-popover-trigger-width] min-w-[200px]" align="start">
@@ -1727,7 +1727,7 @@ export function ActivityTable({ projectId, activeTab: externalActiveTab, onTabCh
                           "All Floors"
                         )}
                       </span>
-                      <ChevronDown className="h-3 w-3 opacity-50 shrink-0 ml-2" />
+                      <ChevronDown className="h-3 w-3 opacity-50 shrink-0 ms-2" />
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent className="w-[--radix-popover-trigger-width] min-w-[200px]" align="start">
@@ -1772,7 +1772,7 @@ export function ActivityTable({ projectId, activeTab: externalActiveTab, onTabCh
                           "All Parts"
                         )}
                       </span>
-                      <ChevronDown className="h-3 w-3 opacity-50 shrink-0 ml-2" />
+                      <ChevronDown className="h-3 w-3 opacity-50 shrink-0 ms-2" />
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent className="w-[--radix-popover-trigger-width] min-w-[200px]" align="start">
@@ -1836,7 +1836,7 @@ export function ActivityTable({ projectId, activeTab: externalActiveTab, onTabCh
                 className="h-10 shadow-sm bg-background flex-1 sm:flex-initial rounded-[1.5rem]"
                 onClick={() => setExportDialogOpen(true)}
               >
-                <Download className="w-4 h-4 mr-2" />
+                <Download className="w-4 h-4 me-2" />
                 <span>Export</span>
               </Button>
               <Button
@@ -1848,10 +1848,10 @@ export function ActivityTable({ projectId, activeTab: externalActiveTab, onTabCh
                 )}
                 onClick={handleOpenFilterPopup}
               >
-                <Filter className="w-4 h-4 mr-2" />
+                <Filter className="w-4 h-4 me-2" />
                 <span>Filter</span>
                 {activeFilterCount > 0 && (
-                  <Badge variant="default" className="absolute -top-2 -right-2 h-5 w-5 p-0 flex items-center justify-center text-xs">
+                  <Badge variant="default" className="absolute -top-2 -end-2 h-5 w-5 p-0 flex items-center justify-center text-xs">
                     {activeFilterCount}
                   </Badge>
                 )}
@@ -1894,16 +1894,16 @@ export function ActivityTable({ projectId, activeTab: externalActiveTab, onTabCh
 
             <div className="flex items-center gap-2 w-full sm:w-auto">
               <div className="relative flex-1 sm:w-[180px] lg:w-[200px] xl:w-[220px]">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Search className="absolute start-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <Input
                   placeholder="Search..."
                   value={searchInput}
                   onChange={(e) => setSearchInput(e.target.value)}
-                  className="pl-9 h-10 shadow-sm bg-background w-full rounded-[1.5rem]"
+                  className="ps-9 h-10 shadow-sm bg-background w-full rounded-[1.5rem]"
                 />
               </div>
 
-              <div className="flex items-center gap-2 ml-auto sm:ml-2 bg-background border shadow-sm rounded-[1.5rem] px-3 h-10 shrink-0">
+              <div className="flex items-center gap-2 ms-auto sm:ms-2 bg-background border shadow-sm rounded-[1.5rem] px-3 h-10 shrink-0">
                 <Switch id="show-writer" checked={showWriter} onCheckedChange={setShowWriter} className="scale-100" />
                 <Label htmlFor="show-writer" className="text-xs cursor-pointer text-muted-foreground whitespace-nowrap font-medium">Writer</Label>
               </div>
@@ -1925,7 +1925,7 @@ export function ActivityTable({ projectId, activeTab: externalActiveTab, onTabCh
                 {format(dateRange.from, "dd/MM/yyyy")}
                 {dateRange.to && ` - ${format(dateRange.to, "dd/MM/yyyy")}`}
               </span>
-              <button onClick={() => setDateRange(undefined)} className="ml-1 hover:bg-amber-200/50 rounded-full p-0.5">
+              <button onClick={() => setDateRange(undefined)} className="ms-1 hover:bg-amber-200/50 rounded-full p-0.5">
                 <X className="w-3 h-3" />
               </button>
             </Badge>
@@ -1957,7 +1957,7 @@ export function ActivityTable({ projectId, activeTab: externalActiveTab, onTabCh
                 onClick={() => setSelectedRequests(new Set())}
                 data-testid="button-deselect-all"
               >
-                <X className="w-3 h-3 mr-1" />
+                <X className="w-3 h-3 me-1" />
                 Deselect
               </Button>
               {canManageDeletions && activeTab !== "deleted" && (
@@ -1968,7 +1968,7 @@ export function ActivityTable({ projectId, activeTab: externalActiveTab, onTabCh
                   onClick={() => setBulkDeleteOpen(true)}
                   data-testid="button-bulk-delete"
                 >
-                  <Trash2 className="w-3 h-3 mr-1" />
+                  <Trash2 className="w-3 h-3 me-1" />
                   Delete ({selectedRequests.size})
                 </Button>
               )}
@@ -1981,7 +1981,7 @@ export function ActivityTable({ projectId, activeTab: externalActiveTab, onTabCh
                   disabled={bulkRestoreMutation.isPending}
                   data-testid="button-bulk-restore"
                 >
-                  <RotateCcw className="w-3 h-3 mr-1" />
+                  <RotateCcw className="w-3 h-3 me-1" />
                   {bulkRestoreMutation.isPending ? "Restoring..." : `Restore (${selectedRequests.size})`}
                 </Button>
               )}
@@ -1992,7 +1992,7 @@ export function ActivityTable({ projectId, activeTab: externalActiveTab, onTabCh
                 onClick={handleBulkOpen}
                 data-testid="button-bulk-open"
               >
-                <ExternalLink className="w-3 h-3 mr-1" />
+                <ExternalLink className="w-3 h-3 me-1" />
                 Open Selected ({selectedRequests.size})
               </Button>
             </div>
@@ -2015,7 +2015,7 @@ export function ActivityTable({ projectId, activeTab: externalActiveTab, onTabCh
                     <TableHead className="font-semibold">Title</TableHead>
                     <TableHead className="w-[100px] font-semibold">Status</TableHead>
                     {showWriter && (
-                      <TableHead className="w-[150px] font-semibold pl-[2px] pr-[2px]">Writer</TableHead>
+                      <TableHead className="w-[150px] font-semibold ps-[2px] pe-[2px]">Writer</TableHead>
                     )}
                     <TableHead className="w-[120px] font-semibold">Time</TableHead>
                     <TableHead className="w-[70px] text-center font-semibold">Actions</TableHead>
@@ -2185,7 +2185,7 @@ export function ActivityTable({ projectId, activeTab: externalActiveTab, onTabCh
                                     handleViewRequest(request);
                                   }}
                                 >
-                                  <Eye className="w-4 h-4 mr-2" />
+                                  <Eye className="w-4 h-4 me-2" />
                                   View
                                 </DropdownMenuItem>
                                 {activeTab !== "deleted" && (
@@ -2195,7 +2195,7 @@ export function ActivityTable({ projectId, activeTab: externalActiveTab, onTabCh
                                       handleEdit(request);
                                     }}
                                   >
-                                    <Edit className="w-4 h-4 mr-2" />
+                                    <Edit className="w-4 h-4 me-2" />
                                     Edit
                                   </DropdownMenuItem>
                                 )}
@@ -2207,7 +2207,7 @@ export function ActivityTable({ projectId, activeTab: externalActiveTab, onTabCh
                                     }}
                                     className="text-destructive focus:text-destructive"
                                   >
-                                    <Trash2 className="w-4 h-4 mr-2" />
+                                    <Trash2 className="w-4 h-4 me-2" />
                                     Delete
                                   </DropdownMenuItem>
                                 )}
@@ -2219,7 +2219,7 @@ export function ActivityTable({ projectId, activeTab: externalActiveTab, onTabCh
                                     }}
                                     className="text-primary focus:text-primary"
                                   >
-                                    <RotateCcw className="w-4 h-4 mr-2" />
+                                    <RotateCcw className="w-4 h-4 me-2" />
                                     Restore
                                   </DropdownMenuItem>
                                 )}
@@ -2281,7 +2281,7 @@ export function ActivityTable({ projectId, activeTab: externalActiveTab, onTabCh
                                 handleViewRequest(request);
                               }}
                             >
-                              <Eye className="w-4 h-4 mr-2" />
+                              <Eye className="w-4 h-4 me-2" />
                               View
                             </DropdownMenuItem>
                             {activeTab !== "deleted" && (
@@ -2291,7 +2291,7 @@ export function ActivityTable({ projectId, activeTab: externalActiveTab, onTabCh
                                   handleEdit(request);
                                 }}
                               >
-                                <Edit className="w-4 h-4 mr-2" />
+                                <Edit className="w-4 h-4 me-2" />
                                 Edit
                               </DropdownMenuItem>
                             )}
@@ -2303,7 +2303,7 @@ export function ActivityTable({ projectId, activeTab: externalActiveTab, onTabCh
                                 }}
                                 className="text-destructive focus:text-destructive"
                               >
-                                <Trash2 className="w-4 h-4 mr-2" />
+                                <Trash2 className="w-4 h-4 me-2" />
                                 Delete
                               </DropdownMenuItem>
                             )}
@@ -2315,7 +2315,7 @@ export function ActivityTable({ projectId, activeTab: externalActiveTab, onTabCh
                                 }}
                                 className="text-primary focus:text-primary"
                               >
-                                <RotateCcw className="w-4 h-4 mr-2" />
+                                <RotateCcw className="w-4 h-4 me-2" />
                                 Restore
                               </DropdownMenuItem>
                             )}
@@ -2440,7 +2440,7 @@ export function ActivityTable({ projectId, activeTab: externalActiveTab, onTabCh
                 onClick={() => setCurrentPage(1)}
                 disabled={currentPage === 1}
               >
-                <ChevronsLeft className="h-4 w-4" />
+                <ChevronsLeft className="h-4 w-4 rtl:rotate-180" />
               </Button>
               <Button
                 variant="outline"
@@ -2449,7 +2449,7 @@ export function ActivityTable({ projectId, activeTab: externalActiveTab, onTabCh
                 onClick={() => setCurrentPage((p) => p - 1)}
                 disabled={currentPage === 1}
               >
-                <ChevronLeft className="h-4 w-4" />
+                <ChevronLeft className="h-4 w-4 rtl:rotate-180" />
               </Button>
               <div className="flex items-center gap-1 mx-2">
                 <span className="text-sm font-medium">Page {currentPage} of {totalPages || 1}</span>
@@ -2461,7 +2461,7 @@ export function ActivityTable({ projectId, activeTab: externalActiveTab, onTabCh
                 onClick={() => setCurrentPage((p) => p + 1)}
                 disabled={currentPage === totalPages || totalPages === 0}
               >
-                <ChevronRight className="h-4 w-4" />
+                <ChevronRight className="h-4 w-4 rtl:rotate-180" />
               </Button>
               <Button
                 variant="outline"
@@ -2470,7 +2470,7 @@ export function ActivityTable({ projectId, activeTab: externalActiveTab, onTabCh
                 onClick={() => setCurrentPage(totalPages)}
                 disabled={currentPage === totalPages || totalPages === 0}
               >
-                <ChevronsRight className="h-4 w-4" />
+                <ChevronsRight className="h-4 w-4 rtl:rotate-180" />
               </Button>
             </div>
           </div>
@@ -2603,7 +2603,7 @@ export function ActivityTable({ projectId, activeTab: externalActiveTab, onTabCh
           <DialogHeader>
             <DialogTitle>Export Options</DialogTitle>
           </DialogHeader>
-          <div className="max-h-[60vh] overflow-y-auto pr-2">
+          <div className="max-h-[60vh] overflow-y-auto pe-2">
             <Accordion type="multiple" defaultValue={exportGroups.map(g => g.id)} className="w-full">
               {exportGroups.map((group) => {
                 const groupSelected = group.fields.every(f => selectedExportFields.has(f.id));
@@ -2613,7 +2613,7 @@ export function ActivityTable({ projectId, activeTab: externalActiveTab, onTabCh
                   <AccordionItem key={group.id} value={group.id}>
                     <AccordionTrigger className="py-2 hover:no-underline">
                       <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
-                        <div className="flex items-center space-x-2">
+                        <div className="flex items-center gap-2">
                           <Checkbox
                             checked={groupSelected || (groupIndeterminate ? "indeterminate" : false)}
                             onCheckedChange={() => toggleExportGroup(group)}
@@ -2622,10 +2622,10 @@ export function ActivityTable({ projectId, activeTab: externalActiveTab, onTabCh
                         </div>
                       </div>
                     </AccordionTrigger>
-                    <AccordionContent className="pl-6 pt-2">
+                    <AccordionContent className="ps-6 pt-2">
                       <div className="grid grid-cols-1 gap-2">
                         {group.fields.map(field => (
-                          <div key={field.id} className="flex items-center space-x-2">
+                          <div key={field.id} className="flex items-center gap-2">
                             <Checkbox
                               id={`export-${field.id}`}
                               checked={selectedExportFields.has(field.id)}

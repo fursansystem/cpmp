@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useTranslation, Trans } from "react-i18next";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Plus, Trash2, Warehouse, AlertTriangle, ShieldCheck, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -37,6 +38,7 @@ const num = (v: unknown) =>
 const today = () => new Date().toISOString().split("T")[0];
 
 export function MaterialIssueDialog({ open, onOpenChange, projectId, warehouses }: MaterialIssueDialogProps) {
+  const { t } = useTranslation("warehouse");
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -109,14 +111,14 @@ export function MaterialIssueDialog({ open, onOpenChange, projectId, warehouses 
 
   const mutation = useMutation({
     mutationFn: async () => {
-      if (!warehouseId) throw new Error("اختر المستودع");
-      if (!issuedTo.trim()) throw new Error("اسم المستلم مطلوب");
+      if (!warehouseId) throw new Error(t("issue_dialog.errors.choose_warehouse"));
+      if (!issuedTo.trim()) throw new Error(t("issue_dialog.errors.recipient_required"));
       const payload = lines.filter((l) => Number(l.quantity) > 0);
-      if (payload.length === 0) throw new Error("أدخل كمية لمادة واحدة على الأقل");
+      if (payload.length === 0) throw new Error(t("issue_dialog.errors.enter_at_least_one"));
 
       const over = payload.filter((l) => Number(l.quantity) > (available.get(l.materialId)?.balance ?? 0));
       if (over.length > 0) {
-        throw new Error(`الكمية تتجاوز المتوفر: ${over.map((l) => l.materialName).join("، ")}`);
+        throw new Error(t("issue_dialog.errors.quantity_exceeds", { items: over.map((l) => l.materialName).join(", ") }));
       }
 
       const res = await apiRequest("POST", `/api/projects/${projectId}/material-issues`, {
@@ -142,30 +144,30 @@ export function MaterialIssueDialog({ open, onOpenChange, projectId, warehouses 
         queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, k] })
       );
       toast({
-        title: `تم تسجيل سند الصرف — ${data.issueNumber}`,
+        title: t("issue_dialog.toasts.title", { number: data.issueNumber }),
         description:
           data.status === "pending_approval"
-            ? "السند بانتظار الاعتماد. لن يتغيّر الرصيد قبل اعتماده."
-            : "تم خصم الكميات من المخزون.",
+            ? t("issue_dialog.toasts.pending_desc")
+            : t("issue_dialog.toasts.deducted_desc"),
       });
       onOpenChange(false);
     },
     onError: (e: any) =>
-      toast({ title: "تعذّر تسجيل الصرف", description: e?.message || "حدث خطأ", variant: "destructive" }),
+      toast({ title: t("issue_dialog.errors.failed"), description: e?.message || t("issue_dialog.errors.failed"), variant: "destructive" }),
   });
 
   const unpicked = balances.filter((b) => b.balance > 0 && !lines.some((l) => l.materialId === b.materialId));
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent dir="rtl" className="max-w-5xl max-h-[92vh] overflow-y-auto rounded-2xl">
-        <DialogHeader className="text-right">
+      <DialogContent className="max-w-5xl max-h-[92vh] overflow-y-auto rounded-2xl">
+        <DialogHeader className="text-end">
           <DialogTitle className="flex items-center gap-2 text-lg font-black">
             <Send className="w-5 h-5 text-primary" />
-            سند صرف مواد
+            {t("issue_dialog.title")}
           </DialogTitle>
           <DialogDescription className="text-xs">
-            الكميات تُخصم من المستودع المحدد فقط
+            {t("issue_dialog.description")}
           </DialogDescription>
         </DialogHeader>
 
@@ -174,17 +176,17 @@ export function MaterialIssueDialog({ open, onOpenChange, projectId, warehouses 
             <div className="space-y-1.5">
               <Label className="text-xs font-bold flex items-center gap-1.5">
                 <Warehouse className="w-3.5 h-3.5" />
-                المستودع <span className="text-destructive">*</span>
+                {t("issue_dialog.warehouse")} <span className="text-destructive">*</span>
               </Label>
               <Select value={warehouseId} onValueChange={setWarehouseId}>
                 <SelectTrigger className="h-10 rounded-xl">
-                  <SelectValue placeholder="اختر" />
+                  <SelectValue placeholder={t("issue_dialog.select_placeholder")} />
                 </SelectTrigger>
                 <SelectContent>
                   {warehouses.map((w) => (
                     <SelectItem key={w.id} value={w.id}>
                       {w.name}
-                      {w.isDefault ? " (الافتراضي)" : ""}
+                      {w.isDefault ? t("issue_dialog.default_suffix") : ""}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -193,14 +195,14 @@ export function MaterialIssueDialog({ open, onOpenChange, projectId, warehouses 
 
             <div className="space-y-1.5">
               <Label className="text-xs font-bold">
-                تاريخ الصرف <span className="text-destructive">*</span>
+                {t("issue_dialog.issue_date")} <span className="text-destructive">*</span>
               </Label>
               <Input type="date" value={issueDate} onChange={(e) => setIssueDate(e.target.value)} className="h-10 rounded-xl" />
             </div>
 
             <div className="space-y-1.5">
               <Label className="text-xs font-bold">
-                المستلم <span className="text-destructive">*</span>
+                {t("issue_dialog.recipient")} <span className="text-destructive">*</span>
               </Label>
               {recipientType === "subcontractor" ? (
                 <SubcontractorSelect
@@ -209,20 +211,20 @@ export function MaterialIssueDialog({ open, onOpenChange, projectId, warehouses 
                   onChange={(id, sub) => { setSubcontractorId(id); setIssuedTo(sub?.name ?? ""); }}
                 />
               ) : (
-                <Input value={issuedTo} onChange={(e) => setIssuedTo(e.target.value)} placeholder="اسم المستلم" className="h-10 rounded-xl" />
+                <Input value={issuedTo} onChange={(e) => setIssuedTo(e.target.value)} placeholder={t("issue_dialog.recipient_name_placeholder")} className="h-10 rounded-xl" />
               )}
             </div>
 
             <div className="space-y-1.5">
-              <Label className="text-xs font-bold">صفة المستلم</Label>
+              <Label className="text-xs font-bold">{t("issue_dialog.recipient_type")}</Label>
               <Select value={recipientType} onValueChange={(v) => { setRecipientType(v); setIssuedTo(""); setSubcontractorId(""); }}>
                 <SelectTrigger className="h-10 rounded-xl">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="subcontractor">مقاول باطن</SelectItem>
-                  <SelectItem value="internal">فريق داخلي</SelectItem>
-                  <SelectItem value="other">أخرى</SelectItem>
+                  <SelectItem value="subcontractor">{t("issue_dialog.recipient_types.subcontractor")}</SelectItem>
+                  <SelectItem value="internal">{t("issue_dialog.recipient_types.internal")}</SelectItem>
+                  <SelectItem value="other">{t("issue_dialog.recipient_types.other")}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -230,13 +232,13 @@ export function MaterialIssueDialog({ open, onOpenChange, projectId, warehouses 
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label className="text-xs font-bold">موقع العمل (اختياري)</Label>
+              <Label className="text-xs font-bold">{t("issue_dialog.work_location")}</Label>
               <Select value={workLocationId || "none"} onValueChange={(v) => setWorkLocationId(v === "none" ? "" : v)}>
                 <SelectTrigger className="h-10 rounded-xl">
-                  <SelectValue placeholder="بلا تحديد" />
+                  <SelectValue placeholder={t("issue_dialog.unassigned")} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="none">بلا تحديد</SelectItem>
+                  <SelectItem value="none">{t("issue_dialog.unassigned")}</SelectItem>
                   {workLocations.map((l) => (
                     <SelectItem key={l.id} value={l.id}>
                       {[l.unitCustomNumber, l.villaType, l.buildingNo, l.flatNo].filter(Boolean).join(" · ") ||
@@ -248,20 +250,20 @@ export function MaterialIssueDialog({ open, onOpenChange, projectId, warehouses 
               </Select>
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs font-bold">الغرض</Label>
-              <Input value={purpose} onChange={(e) => setPurpose(e.target.value)} placeholder="اختياري" className="h-10 rounded-xl" />
+              <Label className="text-xs font-bold">{t("issue_dialog.purpose")}</Label>
+              <Input value={purpose} onChange={(e) => setPurpose(e.target.value)} placeholder={t("issue_dialog.optional")} className="h-10 rounded-xl" />
             </div>
           </div>
 
           <div className="space-y-1.5">
-            <Label className="text-xs font-black">إضافة مادة</Label>
+            <Label className="text-xs font-black">{t("issue_dialog.add_material")}</Label>
             <Select value={picking} onValueChange={addLine} disabled={!warehouseId}>
               <SelectTrigger className="h-10 rounded-xl">
-                <SelectValue placeholder={warehouseId ? "اختر مادة من رصيد المستودع" : "اختر المستودع أولًا"} />
+                <SelectValue placeholder={warehouseId ? t("issue_dialog.select_from_warehouse") : t("issue_dialog.select_warehouse_first")} />
               </SelectTrigger>
               <SelectContent>
                 {unpicked.length === 0 ? (
-                  <div className="p-3 text-xs text-muted-foreground text-center">لا توجد مواد برصيد متاح</div>
+                  <div className="p-3 text-xs text-muted-foreground text-center">{t("issue_dialog.no_available_materials")}</div>
                 ) : (
                   unpicked.map((b) => (
                     <SelectItem key={b.materialId} value={b.materialId}>
@@ -286,10 +288,10 @@ export function MaterialIssueDialog({ open, onOpenChange, projectId, warehouses 
               <Table>
                 <TableHeader>
                   <TableRow className="bg-muted/30 hover:bg-muted/30">
-                    <TableHead className="text-right text-[11px] font-black">المادة</TableHead>
-                    <TableHead className="text-right text-[11px] font-black">المتاح</TableHead>
-                    <TableHead className="text-right text-[11px] font-black w-[130px]">الكمية</TableHead>
-                    <TableHead className="text-right text-[11px] font-black">ملاحظة</TableHead>
+                    <TableHead className="text-end text-[11px] font-black">{t("issue_dialog.table.material")}</TableHead>
+                    <TableHead className="text-end text-[11px] font-black">{t("issue_dialog.table.available")}</TableHead>
+                    <TableHead className="text-end text-[11px] font-black w-[130px]">{t("issue_dialog.table.quantity")}</TableHead>
+                    <TableHead className="text-end text-[11px] font-black">{t("issue_dialog.table.note")}</TableHead>
                     <TableHead className="w-10" />
                   </TableRow>
                 </TableHeader>
@@ -304,7 +306,7 @@ export function MaterialIssueDialog({ open, onOpenChange, projectId, warehouses 
                             <span className="font-bold text-xs">{line.materialName}</span>
                             {bal?.requiresIssueApproval && (
                               <Badge className="rounded-full border-none bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300 text-[9px] font-bold w-fit mt-0.5">
-                                يحتاج اعتماد
+                                {t("issue_dialog.requires_approval")}
                               </Badge>
                             )}
                           </div>
@@ -327,7 +329,7 @@ export function MaterialIssueDialog({ open, onOpenChange, projectId, warehouses 
                             placeholder="0.00"
                           />
                           {exceeds && (
-                            <span className="text-[10px] font-bold text-destructive mt-1 block">يتجاوز المتاح</span>
+                            <span className="text-[10px] font-bold text-destructive mt-1 block">{t("issue_dialog.table.exceeds_available")}</span>
                           )}
                         </TableCell>
                         <TableCell>
@@ -337,7 +339,7 @@ export function MaterialIssueDialog({ open, onOpenChange, projectId, warehouses 
                               setLines((prev) => prev.map((l, i) => (i === idx ? { ...l, notes: e.target.value } : l)))
                             }
                             className="h-9 rounded-lg text-xs"
-                            placeholder="اختياري"
+                            placeholder={t("issue_dialog.optional")}
                           />
                         </TableCell>
                         <TableCell>
@@ -362,8 +364,7 @@ export function MaterialIssueDialog({ open, onOpenChange, projectId, warehouses 
             <div className="rounded-xl border border-amber-500/40 bg-amber-50 dark:bg-amber-900/10 p-3 flex items-start gap-2">
               <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
               <p className="text-xs text-amber-800 dark:text-amber-300">
-                السند يحتوي مادة تحتاج اعتمادًا، فسيُسجَّل كـ<span className="font-black"> معلّق </span>
-                ولن يتغيّر الرصيد حتى يُعتمد — بما في ذلك باقي المواد في السند.
+                <Trans i18nKey="issue_dialog.needs_approval_warning" t={t} components={[<span key="0" className="font-black" />]} />
               </p>
             </div>
           )}
@@ -376,10 +377,10 @@ export function MaterialIssueDialog({ open, onOpenChange, projectId, warehouses 
             className="rounded-xl font-bold gap-2"
           >
             <Send className="w-4 h-4" />
-            {mutation.isPending ? "جارٍ الحفظ..." : needsApproval ? "إرسال للاعتماد" : "صرف وتسجيل"}
+            {mutation.isPending ? t("issue_dialog.submitting") : needsApproval ? t("issue_dialog.submit_approval") : t("issue_dialog.submit_direct")}
           </Button>
           <Button variant="outline" onClick={() => onOpenChange(false)} className="rounded-xl font-bold">
-            إلغاء
+            {t("issue_dialog.cancel")}
           </Button>
         </DialogFooter>
       </DialogContent>

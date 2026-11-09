@@ -40,6 +40,10 @@ npm install
 echo ">> Running payments migration..."
 npm run db:migrate-payments
 
+# جداول الرخص والمعاملات، ودليل الخدمات، ونقل الرخص القديمة من المدفوعات (مرة واحدة). آمن عند التكرار.
+echo ">> Running permits migration..."
+npm run db:migrate-permits
+
 echo ">> Building..."
 npm run build
 

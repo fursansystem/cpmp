@@ -1,11 +1,13 @@
 import { Bell, Check, CheckCheck, Trash2, Info, AlertCircle, CheckCircle, AlertTriangle, FileText, UserPlus, RefreshCw, Hourglass } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { BackButton } from "@/components/back-button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useNotifications } from "@/hooks/use-notifications";
 import { Link } from "wouter";
 import type { Notification } from "@shared/schema";
+import { timeAgo } from "@/lib/i18n-format";
 
 const notificationTypeConfig: Record<string, { icon: typeof Bell; className: string; label: string }> = {
   info: { icon: Info, className: "text-blue-500", label: "Info" },
@@ -32,20 +34,6 @@ function NotificationIcon({ type, link, title }: { type: string; link?: string |
   return <Icon className={`h-5 w-5 ${sentBack ? "text-yellow-500" : waiting ? "text-amber-600" : config.className}`} />;
 }
 
-function formatTimeAgo(dateString: string): string {
-  const date = new Date(dateString);
-  const now = new Date();
-  const diffMs = now.getTime() - date.getTime();
-  const diffMins = Math.floor(diffMs / 60000);
-  const diffHours = Math.floor(diffMs / 3600000);
-  const diffDays = Math.floor(diffMs / 86400000);
-
-  if (diffMins < 1) return "Just now";
-  if (diffMins < 60) return `${diffMins} mins ago`;
-  if (diffHours < 24) return `${diffHours} hours ago`;
-  if (diffDays < 7) return `${diffDays} days ago`;
-  return date.toLocaleDateString("en-US");
-}
 
 function NotificationCard({
   notification,
@@ -59,7 +47,7 @@ function NotificationCard({
   const config = notificationTypeConfig[notification.type] || notificationTypeConfig.info;
 
   const content = (
-    <Card className={`transition-all ${!notification.isRead ? "border-l-4 border-l-primary" : ""}`}>
+    <Card className={`transition-all ${!notification.isRead ? "border-s-4 border-s-primary" : ""}`}>
       <CardContent className="p-4">
         <div className="flex items-start gap-4">
           <div className={`p-2 rounded-full bg-muted`}>
@@ -78,7 +66,7 @@ function NotificationCard({
               <Badge variant="outline" className="text-xs">{config.label}</Badge>
             </div>
             <p dir="auto" className="text-sm text-muted-foreground mt-1">{notification.message}</p>
-            <p className="text-xs text-muted-foreground mt-2">{formatTimeAgo(notification.createdAt)}</p>
+            <p className="text-xs text-muted-foreground mt-2">{timeAgo(notification.createdAt)}</p>
           </div>
           <div className="flex gap-1 shrink-0">
             {!notification.isRead && (
@@ -142,6 +130,7 @@ export default function Notifications() {
 
   return (
     <div className="p-6 lg:p-8 space-y-6">
+      <BackButton label="Back" />
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div className="flex items-center gap-3">
           <Bell className="w-8 h-8 text-primary" />
@@ -160,7 +149,7 @@ export default function Notifications() {
               disabled={isMarkingAllAsRead}
               data-testid="button-mark-all-read"
             >
-              <CheckCheck className="h-4 w-4 mr-2" />
+              <CheckCheck className="h-4 w-4 me-2" />
               Mark all as read
             </Button>
           )}
@@ -171,7 +160,7 @@ export default function Notifications() {
               onClick={() => deleteAllNotifications()}
               data-testid="button-delete-all"
             >
-              <Trash2 className="h-4 w-4 mr-2" />
+              <Trash2 className="h-4 w-4 me-2" />
               Clear all
             </Button>
           )}

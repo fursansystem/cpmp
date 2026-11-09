@@ -11,6 +11,7 @@ export default defineConfig({
       "@": path.resolve(import.meta.dirname, "client", "src"),
       "@shared": path.resolve(import.meta.dirname, "shared"),
       "@assets": path.resolve(import.meta.dirname, "attached_assets"),
+      "@radix-ui/react-direction": path.resolve(import.meta.dirname, "node_modules", "@radix-ui", "react-direction"),
     },
   },
   root: path.resolve(import.meta.dirname, "client"),

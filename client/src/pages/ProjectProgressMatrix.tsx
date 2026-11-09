@@ -68,8 +68,8 @@ export default function ProjectProgressMatrix() {
   return (
     <div className="px-4 lg:px-8 pt-2 pb-6 space-y-4">
       <div className="flex items-center gap-3">
-        <Button variant="ghost" size="sm" className="-ml-2 text-muted-foreground" onClick={() => navigate(`/projects/${projectId}`)}>
-          <ArrowLeft className="w-5 h-5 md:mr-2" /><span className="hidden md:inline font-semibold">{projectName}</span>
+        <Button variant="ghost" size="sm" className="-ms-2 text-muted-foreground" onClick={() => navigate(`/projects/${projectId}`)}>
+          <ArrowLeft className="w-5 h-5 md:me-2 rtl:rotate-180" /><span className="hidden md:inline font-semibold">{projectName}</span>
         </Button>
         <h1 className="text-lg lg:text-xl font-black tracking-tight">مصفوفة الإنجاز والمستخلصات (Progress Matrix & Payment Certificates)</h1>
       </div>

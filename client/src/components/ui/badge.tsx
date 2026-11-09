@@ -34,7 +34,8 @@ const Badge = React.forwardRef<HTMLDivElement, BadgeProps>(
     return (
       <div 
         ref={ref}
-        className={cn(badgeVariants({ variant }), className)} 
+        dir="auto"
+        className={cn(badgeVariants({ variant }), "[unicode-bidi:plaintext]", className)} 
         {...props} 
       />
     );

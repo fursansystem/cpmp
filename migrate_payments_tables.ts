@@ -1,7 +1,7 @@
 import { db } from "./server/db";
 import { sql } from "drizzle-orm";
 
-// المدفوعات (Payments): bill requests, payment orders, clearances, fines, attachments, activity.
+// المدفوعات (Payments): bill requests, payment orders, fines, attachments, activity.
 // Additive only: creates new tables/indexes, never alters existing ones.
 // Run: npx tsx --env-file=.env migrate_payments_tables.ts
 
@@ -90,7 +90,7 @@ async function main() {
       order_no TEXT NOT NULL,
       bill_request_id VARCHAR REFERENCES payment_bill_requests(id) ON DELETE SET NULL,
       fine_id VARCHAR,
-      clearance_id VARCHAR,
+      permit_transaction_id VARCHAR,
       purchase_order_id VARCHAR REFERENCES purchase_orders(id) ON DELETE SET NULL,
       certificate_id VARCHAR REFERENCES progress_payment_certificates(id) ON DELETE SET NULL,
       payee_name TEXT NOT NULL,
@@ -156,28 +156,7 @@ async function main() {
   await db.execute(sql`ALTER TABLE payment_orders ADD COLUMN IF NOT EXISTS subcontractor_certificate_id VARCHAR;`);
   console.log("Table 'payment_subcontractor_certificates' ready.");
 
-  await db.execute(sql`
-    CREATE TABLE IF NOT EXISTS payment_clearances (
-      id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
-      project_id VARCHAR NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
-      title TEXT NOT NULL,
-      authority TEXT,
-      reference_no TEXT,
-      status TEXT NOT NULL DEFAULT 'pending',
-      responsible_name TEXT,
-      due_date DATE,
-      issue_date DATE,
-      expiry_date DATE,
-      fee_amount DECIMAL(14,2) NOT NULL DEFAULT 0,
-      fee_paid BOOLEAN NOT NULL DEFAULT false,
-      notes TEXT,
-      created_by VARCHAR REFERENCES users(id) ON DELETE SET NULL,
-      created_at TIMESTAMP NOT NULL DEFAULT NOW(),
-      updated_at TIMESTAMP NOT NULL DEFAULT NOW()
-    );
-  `);
-  await db.execute(sql`CREATE INDEX IF NOT EXISTS payment_clearances_project_idx ON payment_clearances (project_id);`);
-  console.log("Table 'payment_clearances' ready.");
+  // Licences (payment_clearances) moved to الرخص والمعاملات: see migrate_permits_tables.ts
 
   await db.execute(sql`
     CREATE TABLE IF NOT EXISTS payment_fines (

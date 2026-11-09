@@ -308,12 +308,12 @@ function PurposesTab() {
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div className="relative flex-1 max-w-sm">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
+          <Search className="absolute start-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
           <Input
             placeholder="Search purposes..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-9"
+            className="ps-9"
             data-testid="input-search-purposes"
           />
         </div>
@@ -328,7 +328,7 @@ function PurposesTab() {
           <PurposeFormDialog
             trigger={
               <Button data-testid="button-add-purpose">
-                <Plus className="w-4 h-4 mr-2" />
+                <Plus className="w-4 h-4 me-2" />
                 Add Purpose
               </Button>
             }
@@ -345,7 +345,7 @@ function PurposesTab() {
               <TableHead>Name (Arabic)</TableHead>
               <TableHead>Description</TableHead>
               <TableHead className="text-center">Sort Order</TableHead>
-              <TableHead className="text-right">Actions</TableHead>
+              <TableHead className="text-end">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -363,7 +363,7 @@ function PurposesTab() {
                   <TableCell dir="rtl">{purpose.nameArabic}</TableCell>
                   <TableCell className="text-muted-foreground">{purpose.description || "-"}</TableCell>
                   <TableCell className="text-center">{purpose.sortOrder}</TableCell>
-                  <TableCell className="text-right">
+                  <TableCell className="text-end">
                     <div className="flex justify-end gap-2">
                       <PurposeFormDialog
                         purpose={purpose}
@@ -679,12 +679,12 @@ function PositionsTab() {
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div className="relative flex-1 max-w-sm">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
+          <Search className="absolute start-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
           <Input
             placeholder="Search positions..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-9"
+            className="ps-9"
             data-testid="input-search-positions"
           />
         </div>
@@ -699,7 +699,7 @@ function PositionsTab() {
           <PositionFormDialog
             trigger={
               <Button data-testid="button-add-position">
-                <Plus className="w-4 h-4 mr-2" />
+                <Plus className="w-4 h-4 me-2" />
                 Add Position
               </Button>
             }
@@ -715,7 +715,7 @@ function PositionsTab() {
               <TableHead>Title (English)</TableHead>
               <TableHead>Title (Arabic)</TableHead>
               <TableHead>Purpose</TableHead>
-              <TableHead className="text-right">Actions</TableHead>
+              <TableHead className="text-end">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -736,7 +736,7 @@ function PositionsTab() {
                     <TableCell className="text-muted-foreground">
                       {purpose ? `${purpose.code} - ${purpose.nameEnglish}` : "-"}
                     </TableCell>
-                    <TableCell className="text-right">
+                    <TableCell className="text-end">
                       <div className="flex justify-end gap-2">
                         <PositionFormDialog
                           position={position}

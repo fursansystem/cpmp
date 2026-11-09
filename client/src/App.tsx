@@ -11,6 +11,7 @@ import { AppSidebar } from "@/components/app-sidebar";
 import { AppHeader } from "@/components/app-header";
 import { LoginSummary } from "@/components/login-summary";
 import { ThemeProvider } from "@/components/theme-provider";
+import { LanguageProvider } from "@/lib/language-provider";
 import { AuthProvider, RequireAuth, useAuth } from "@/lib/auth";
 import type { TeamMember, Organization, UserTeamMember } from "@shared/schema";
 import Home from "@/pages/home";
@@ -26,6 +27,7 @@ import Documents from "@/pages/documents";
 import AuditLog from "@/pages/audit-log";
 import Settings from "@/pages/settings";
 import About from "@/pages/about";
+import Webhooks from "@/pages/webhooks";
 import Admin from "@/pages/admin";
 import ListLibrary from "@/pages/list-library";
 import WorkList from "@/pages/work-list";
@@ -45,6 +47,9 @@ import ProjectMaterialGallery from "@/pages/ProjectMaterialGallery";
 import ProjectSnagList from "@/pages/ProjectSnagList";
 import ProjectProgressMatrix from "@/pages/ProjectProgressMatrix";
 import Payments from "@/pages/Payments";
+import Permits from "@/pages/Permits";
+import Services from "@/pages/Services";
+import PermitDetail from "@/pages/PermitDetail";
 import Reports from "@/pages/Reports";
 import Login from "@/pages/login";
 import ForgotPassword from "@/pages/forgot-password";
@@ -108,6 +113,9 @@ function ProtectedRoutes() {
       <Route path="/projects/:projectId/requests" component={ProjectRequests} />
       <Route path="/projects/:projectId" component={ProjectDetail} />
       <Route path="/payments" component={Payments} />
+      <Route path="/permits/:id" component={PermitDetail} />
+      <Route path="/permits" component={Permits} />
+      <Route path="/services" component={Services} />
       <Route path="/reports" component={Reports} />
       <Route path="/tasks" component={Tasks} />
       <Route path="/organizations" component={Organizations} />
@@ -118,6 +126,7 @@ function ProtectedRoutes() {
       <Route path="/audit-log" component={AuditLog} />
       <Route path="/settings" component={Settings} />
       <Route path="/settings/about" component={About} />
+      <Route path="/settings/webhooks" component={Webhooks} />
       <Route path="/admin" component={Admin} />
       <Route path="/list-library" component={ListLibrary} />
       <Route path="/work-list" component={WorkList} />
@@ -143,14 +152,14 @@ function AppLayout() {
 
   const style = {
     "--sidebar-width": "16rem",
-    "--sidebar-width-icon": "3rem",
+    "--sidebar-width-icon": "4.5rem",
   };
 
   return (
     <RequireAuth>
       <BackgroundDataPreloader />
       <LoginSummary />
-      <SidebarProvider style={style as React.CSSProperties} defaultOpen={true}>
+      <SidebarProvider style={style as React.CSSProperties} defaultOpen={false}>
         <div className="flex h-screen w-full bg-[#F8FAFC] dark:bg-background">
           <AppSidebar />
           <div className="flex flex-col flex-1 overflow-hidden">
@@ -201,14 +210,16 @@ function App() {
         },
       }}
     >
-      <TooltipProvider>
-        <ThemeProvider>
-          <AuthProvider>
-            <Router />
-            <Toaster />
-          </AuthProvider>
-        </ThemeProvider>
-      </TooltipProvider>
+      <LanguageProvider>
+        <TooltipProvider>
+          <ThemeProvider>
+            <AuthProvider>
+              <Router />
+              <Toaster />
+            </AuthProvider>
+          </ThemeProvider>
+        </TooltipProvider>
+      </LanguageProvider>
     </PersistQueryClientProvider>
   );
 }

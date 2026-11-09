@@ -14,7 +14,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Building2, Mail, Phone, MapPin, User, Briefcase, FileText, Hash, Users, UserPlus, X, Calendar, FolderKanban } from "lucide-react";
-import { format } from "date-fns";
+import { format } from "@/lib/date-format";
 import type { Organization, TeamMember, Project } from "@shared/schema";
 
 interface OrganizationDetailsDialogProps {
@@ -98,7 +98,7 @@ export function OrganizationDetailsDialog({
         {/* Manual Close Button - Premium Style */}
         <button
           onClick={() => onOpenChange(false)}
-          className="absolute top-5 right-5 z-[100] w-10 h-10 flex items-center justify-center rounded-full bg-primary/10 hover:bg-primary/20 transition-all duration-300 text-primary border border-primary/20 group active:scale-90"
+          className="absolute top-5 end-5 z-[100] w-10 h-10 flex items-center justify-center rounded-full bg-primary/10 hover:bg-primary/20 transition-all duration-300 text-primary border border-primary/20 group active:scale-90"
         >
           <X className="w-5 h-5 group-hover:rotate-90 transition-transform duration-300" />
         </button>
@@ -122,7 +122,7 @@ export function OrganizationDetailsDialog({
                 <Building2 className="w-8 h-8" />
               </div>
             )}
-            <div className="flex-grow text-left">
+            <div className="flex-grow text-start">
               <div className="flex items-center gap-2 mb-1">
                 <div className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
                 <span className="text-[10px] font-black uppercase tracking-[0.2em] text-primary">Organization Details</span>
@@ -254,7 +254,7 @@ export function OrganizationDetailsDialog({
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {organizationProjects.map((project) => (
                   <div key={project.id} className="flex items-center justify-between p-3 bg-white dark:bg-muted/10 rounded-xl border border-primary/20">
-                    <div className="min-w-0 flex-1 mr-2">
+                    <div className="min-w-0 flex-1 me-2">
                       <span className="text-xs font-bold text-foreground truncate block">{project.name}</span>
                       <div className="flex items-center gap-1 text-[9px] font-semibold text-muted-foreground mt-0.5">
                         <Calendar className="w-3 h-3" />
@@ -286,7 +286,7 @@ export function OrganizationDetailsDialog({
                 <Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
                   <PopoverTrigger asChild>
                     <Button size="sm" variant="outline" className="rounded-xl h-8 text-xs font-bold border-primary/35 hover:bg-primary/5 text-primary hover:text-primary" data-testid="button-add-member">
-                      <UserPlus className="w-3.5 h-3.5 mr-1.5" />
+                      <UserPlus className="w-3.5 h-3.5 me-1.5" />
                       Add Member
                     </Button>
                   </PopoverTrigger>
@@ -299,7 +299,7 @@ export function OrganizationDetailsDialog({
                             key={member.id}
                             onClick={() => handleAddMember(member.id)}
                             disabled={isUpdating}
-                            className="w-full flex items-center gap-3 p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors text-left"
+                            className="w-full flex items-center gap-3 p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors text-start"
                             data-testid={`button-add-member-${member.id}`}
                           >
                             <Avatar className="w-8 h-8 rounded-lg">
@@ -308,8 +308,8 @@ export function OrganizationDetailsDialog({
                               </AvatarFallback>
                             </Avatar>
                             <div className="flex-1 min-w-0">
-                              <p className="text-xs font-bold text-foreground truncate text-left">{member.name}</p>
-                              <p className="text-[10px] text-muted-foreground truncate text-left">{member.position || 'No position'} • {member.email}</p>
+                              <p className="text-xs font-bold text-foreground truncate text-start">{member.name}</p>
+                              <p className="text-[10px] text-muted-foreground truncate text-start">{member.position || 'No position'} • {member.email}</p>
                             </div>
                           </button>
                         ))}
@@ -330,7 +330,7 @@ export function OrganizationDetailsDialog({
                           {member.name.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2)}
                         </AvatarFallback>
                       </Avatar>
-                      <div className="min-w-0 flex-1 text-left">
+                      <div className="min-w-0 flex-1 text-start">
                         <p className="text-xs font-bold text-foreground truncate">{member.name}</p>
                         <p className="text-[10px] text-muted-foreground truncate">{member.position || 'No position'}</p>
                       </div>

@@ -40,7 +40,7 @@ import {
   FileText, Building2, Target, RotateCcw, Calendar, Printer, FileDown, Upload, Loader2, Database, X
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { format } from "date-fns";
+import { format } from "@/lib/date-format";
 import { useAuth } from "@/lib/auth";
 import { cn } from "@/lib/utils";
 import imageCompression from 'browser-image-compression';
@@ -838,10 +838,10 @@ export default function ProjectSnagList() {
                 className="h-9 md:h-10 px-2 md:px-3 text-muted-foreground hover:text-foreground shrink-0"
                 onClick={() => handleNavigateToItem(null)}
               >
-                <ArrowLeft className="w-4 h-4 md:w-5 md:h-5 md:mr-2" />
+                <ArrowLeft className="w-4 h-4 md:w-5 md:h-5 md:me-2 rtl:rotate-180" />
                 <span className="text-xs md:text-sm font-bold hidden xs:inline">Back</span>
               </Button>
-              <div className="flex items-center gap-2 md:gap-3 ml-1 md:ml-2">
+              <div className="flex items-center gap-2 md:gap-3 ms-1 md:ms-2">
                 <span className="inline-flex items-center justify-center px-2.5 py-1 text-xs font-black rounded-full bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700/50 uppercase tracking-wide shrink-0">
                   {formatItemNumber(viewItem, snagLists, allSnagItems)}
                 </span>
@@ -864,7 +864,7 @@ export default function ProjectSnagList() {
               </Badge>
             </div>
 
-            <div className="flex items-center gap-2 md:gap-4 ml-auto">
+            <div className="flex items-center gap-2 md:gap-4 ms-auto">
               <Badge variant="outline" className={`px-2.5 py-0.5 md:py-1 text-[10px] md:text-xs font-black shadow-sm ${statusInfo.className}`}>
                 {statusInfo.label}
               </Badge>
@@ -1351,9 +1351,9 @@ export default function ProjectSnagList() {
                           >
                             <span>
                               {uploadImageMutation.isPending && storageMode === "after" ? (
-                                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                <Loader2 className="w-4 h-4 me-2 animate-spin" />
                               ) : (
-                                <Upload className="w-4 h-4 mr-2" />
+                                <Upload className="w-4 h-4 me-2" />
                               )}
                               Add Photo
                             </span>
@@ -1435,10 +1435,10 @@ export default function ProjectSnagList() {
                 <Button
                   type="button"
                   variant="outline"
-                  className="w-full justify-start text-left font-normal"
+                  className="w-full justify-start text-start font-normal"
                   onClick={() => setLocationPickerOpen(true)}
                 >
-                  <MapPin className="mr-2 h-4 w-4 text-muted-foreground" />
+                  <MapPin className="me-2 h-4 w-4 text-muted-foreground" />
                   {itemWorkLocationId ? (
                     (() => {
                       const loc = workLocations.find(l => l.id === itemWorkLocationId);
@@ -1548,9 +1548,9 @@ export default function ProjectSnagList() {
                     >
                       <span>
                         {uploadImageMutation.isPending && storageMode === "before" ? (
-                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          <Loader2 className="w-4 h-4 me-2 animate-spin" />
                         ) : (
-                          <Upload className="w-4 h-4 mr-2" />
+                          <Upload className="w-4 h-4 me-2" />
                         )}
                         Add Photo
                       </span>
@@ -1566,7 +1566,7 @@ export default function ProjectSnagList() {
                         <button
                           type="button"
                           onClick={() => setItemBeforeImages(itemBeforeImages.filter((_, i) => i !== idx))}
-                          className="absolute top-1 right-1 bg-black/60 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                          className="absolute top-1 end-1 bg-black/60 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
@@ -1673,7 +1673,7 @@ export default function ProjectSnagList() {
             }}
             className="rounded-full gap-2 text-xs h-9 px-4 font-bold border-muted-foreground/20 hover:bg-muted/50 bg-white dark:bg-muted/10 shadow-sm"
           >
-            <ArrowLeft className="w-4 h-4" />
+            <ArrowLeft className="w-4 h-4 rtl:rotate-180" />
             <span className="text-xs font-semibold">
               {selectedListId !== "all" ? "Back to Lists" : "Back to Project"}
             </span>
@@ -1687,7 +1687,7 @@ export default function ProjectSnagList() {
           </h1>
         </div>
 
-        <div className="flex items-center gap-2 ml-auto md:ml-0">
+        <div className="flex items-center gap-2 ms-auto md:ms-0">
           {/* New Snag List Dialog */}
           {isConsultant && selectedListId === "all" && (
             <Dialog open={createListDialogOpen} onOpenChange={setCreateListDialogOpen}>
@@ -1798,10 +1798,10 @@ export default function ProjectSnagList() {
                      <Button
                        type="button"
                        variant="outline"
-                       className="w-full justify-start text-left font-normal"
+                       className="w-full justify-start text-start font-normal"
                        onClick={() => setLocationPickerOpen(true)}
                      >
-                       <MapPin className="mr-2 h-4 w-4 text-muted-foreground" />
+                       <MapPin className="me-2 h-4 w-4 text-muted-foreground" />
                        {itemWorkLocationId ? (
                          (() => {
                            const loc = workLocations.find(l => l.id === itemWorkLocationId);
@@ -1924,9 +1924,9 @@ export default function ProjectSnagList() {
                         >
                           <span>
                             {uploadImageMutation.isPending && storageMode === "before" ? (
-                              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                              <Loader2 className="w-4 h-4 me-2 animate-spin" />
                             ) : (
-                              <Upload className="w-4 h-4 mr-2" />
+                              <Upload className="w-4 h-4 me-2" />
                             )}
                             Add Photo
                           </span>
@@ -1942,7 +1942,7 @@ export default function ProjectSnagList() {
                             <button
                               type="button"
                               onClick={() => setItemBeforeImages(itemBeforeImages.filter((_, i) => i !== idx))}
-                              className="absolute top-1 right-1 bg-black/60 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                              className="absolute top-1 end-1 bg-black/60 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
                             </button>
@@ -1969,7 +1969,7 @@ export default function ProjectSnagList() {
 
       {/* Selected List Detail Banner */}
       {selectedList && (
-        <Card className="border-r-4 border-r-rose-600 bg-white dark:bg-muted/10 shadow-sm border-none">
+        <Card className="border-e-4 border-e-rose-600 bg-white dark:bg-muted/10 shadow-sm border-none">
           <CardContent className="p-5">
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div className="space-y-1.5 flex-grow">
@@ -1993,7 +1993,7 @@ export default function ProjectSnagList() {
                 <div className="flex items-center gap-2 flex-wrap mt-1">
                   {selectedList.purpose && (
                     <Badge variant="secondary" className="bg-purple-500/10 text-purple-600 hover:bg-purple-500/10 border-purple-500/20 text-[10px] font-bold">
-                      <Target className="w-3 h-3 mr-1" />
+                      <Target className="w-3 h-3 me-1" />
                       {selectedList.purpose.nameEnglish || selectedList.purpose.nameArabic || selectedList.purpose.code}
                     </Badge>
                   )}
@@ -2463,12 +2463,12 @@ export default function ProjectSnagList() {
             <div className="flex flex-wrap items-center justify-between gap-4">
               <div className="flex flex-wrap items-center gap-3">
                 <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+                  <Search className="absolute start-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
                   <Input
                     placeholder="Search..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="pl-9 pr-4 h-8 w-[180px] text-xs rounded-full bg-white dark:bg-muted/10 border-muted-foreground/20 focus-visible:ring-rose-500"
+                    className="ps-9 pe-4 h-8 w-[180px] text-xs rounded-full bg-white dark:bg-muted/10 border-muted-foreground/20 focus-visible:ring-rose-500"
                   />
                 </div>
 
@@ -2594,7 +2594,7 @@ export default function ProjectSnagList() {
                   <TableHead>Work Purpose</TableHead>
                   <TableHead>Division</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead className="text-left">Actions</TableHead>
+                  <TableHead className="text-start">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -2708,7 +2708,7 @@ export default function ProjectSnagList() {
                             {statusInfo.label}
                           </Badge>
                         </TableCell>
-                        <TableCell className="text-left">
+                        <TableCell className="text-start">
                           <div className="flex items-center gap-2">
                             <Button
                               variant="ghost"
@@ -3238,7 +3238,7 @@ export default function ProjectSnagList() {
                           <div className="flex items-center justify-between w-full">
                             <span>
                               {location.unitCustomNumber || "N/A"} - {location.unitZone || ""} {location.floor || ""}
-                              <span className="text-xs text-muted-foreground ml-2">
+                              <span className="text-xs text-muted-foreground ms-2">
                                 ({location.buildingNo || "No Bldg"}, {location.part || "No Part"})
                               </span>
                             </span>
@@ -3263,7 +3263,7 @@ export default function ProjectSnagList() {
                   loc.floor ? `Floor ${loc.floor}` : null,
                 ].filter(Boolean);
                 return (
-                  <Badge variant="secondary" className="gap-1 pr-1 shadow-sm">
+                  <Badge variant="secondary" className="gap-1 pe-1 shadow-sm">
                     {labelParts.join(" - ") || "Location"}
                     <Button
                       variant="ghost"

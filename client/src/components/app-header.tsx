@@ -12,12 +12,14 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { useTranslation } from "react-i18next";
 import { useAuth } from "@/lib/auth";
 import { LogOut, User, Settings, Home, FolderKanban, BarChart3, Briefcase } from "lucide-react";
 import { useEffect } from "react";
 import { cn } from "@/lib/utils";
 
 export function AppHeader() {
+  const { t } = useTranslation("nav");
   const [location] = useLocation();
   const { user, logout } = useAuth();
   const { setOpen, isMobile, setOpenMobile } = useSidebar();
@@ -29,11 +31,11 @@ export function AppHeader() {
   }, [location, isMobile, setOpenMobile]);
 
   const navItems = [
-    { label: "Home", href: "/", icon: Home },
-    { label: "Projects", href: "/projects", icon: Briefcase },
-    { label: "Reports", href: "/reports", icon: BarChart3 },
+    { key: "home", label: t("home"), href: "/", icon: Home },
+    { key: "projects", label: t("projects"), href: "/projects", icon: Briefcase },
+    { key: "reports", label: t("reports"), href: "/reports", icon: BarChart3 },
   ].filter(item => {
-    if (item.label === "Reports" && user?.organizationSectorType === "Consultant") {
+    if (item.key === "reports" && user?.organizationSectorType === "Consultant") {
       return false;
     }
     return true;
@@ -52,7 +54,7 @@ export function AppHeader() {
     <header className="flex items-center justify-between gap-6 p-4 border-b bg-background">
       <div className="flex items-center gap-4 flex-1">
         <SidebarTrigger data-testid="button-sidebar-toggle" />
-        <nav className="flex items-center gap-6 md:gap-10 ml-2 md:ml-8">
+        <nav className="flex items-center gap-6 md:gap-10 ms-2 md:ms-8">
           {navItems.map((item) => (
             <Link key={item.href} href={item.href}>
               <div
@@ -62,7 +64,7 @@ export function AppHeader() {
                     ? "text-primary"
                     : "text-muted-foreground/60 hover:text-foreground"
                 )}
-                data-testid={`link-nav-${item.label.toLowerCase()}`}
+                data-testid={`link-nav-${item.key}`}
                 title={item.label}
               >
                 <item.icon className={cn(
@@ -75,7 +77,7 @@ export function AppHeader() {
                 
                 {/* Premium Active Indicator */}
                 {location === item.href && (
-                  <div className="absolute bottom-0 left-0 w-full h-[3px] bg-primary rounded-t-full shadow-[0_-2px_8px_rgba(var(--primary),0.4)] animate-in slide-in-from-bottom-1 duration-300" />
+                  <div className="absolute bottom-0 start-0 w-full h-[3px] bg-primary rounded-t-full shadow-[0_-2px_8px_rgba(var(--primary),0.4)] animate-in slide-in-from-bottom-1 duration-300" />
                 )}
                 
                 {/* Hover Indicator */}
@@ -110,15 +112,15 @@ export function AppHeader() {
               <DropdownMenuItem asChild>
                 <Link href="/settings">
                   <span className="flex items-center w-full cursor-pointer">
-                    <Settings className="ml-2 h-4 w-4" />
-                    الإعدادات
+                    <Settings className="me-2 h-4 w-4" />
+                    {t("nav:settings")}
                   </span>
                 </Link>
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={logout} className="text-destructive cursor-pointer" data-testid="button-logout">
-                <LogOut className="ml-2 h-4 w-4" />
-                تسجيل الخروج
+                <LogOut className="me-2 h-4 w-4" />
+                {t("nav:logout")}
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>

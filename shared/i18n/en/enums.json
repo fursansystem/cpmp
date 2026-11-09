@@ -1,0 +1,228 @@
+{
+  "sub_cert": {
+    "draft": "Draft",
+    "submitted": "Submitted",
+    "approved": "Approved",
+    "rejected": "Rejected",
+    "paid": "Paid",
+    "cancelled": "Cancelled"
+  },
+  "chargeback": {
+    "proposed": "Awaiting project manager",
+    "approved": "Approved, not applied",
+    "applied": "Applied to a certificate",
+    "converted": "Converted to a deduction",
+    "cancelled": "Cancelled"
+  },
+  "bill_request": {
+    "requested": "Requested",
+    "submitted": "Submitted",
+    "received": "Received",
+    "returned": "Returned for correction",
+    "cancelled": "Cancelled"
+  },
+  "payment_order": {
+    "requested": "Awaiting project manager",
+    "request_approved": "Awaiting accounting",
+    "draft": "Draft",
+    "pending_approval": "Pending approval",
+    "approved": "Approved",
+    "paid": "Paid",
+    "rejected": "Rejected",
+    "cancelled": "Cancelled"
+  },
+  "fine": {
+    "open": "Open",
+    "under_appeal": "Under appeal",
+    "payment_requested": "Payment requested",
+    "paid": "Paid",
+    "waiver_requested": "Waiver requested",
+    "waived": "Waived",
+    "recovered": "Recovered",
+    "cancelled": "Cancelled"
+  },
+  "liable_party": {
+    "contractor": "Main contractor",
+    "subcontractor": "Subcontractor",
+    "owner": "Owner",
+    "consultant": "Consultant",
+    "supplier": "Supplier",
+    "other": "Other"
+  },
+  "payment_method": {
+    "bank_transfer": "Bank transfer",
+    "cheque": "Cheque",
+    "cash": "Cash"
+  },
+  "permit_status": {
+    "not_started": "Not started",
+    "in_progress": "In progress",
+    "submitted": "Submitted to the authority",
+    "returned": "Returned for completion",
+    "completed": "Completed / issued",
+    "rejected": "Rejected",
+    "cancelled": "Cancelled",
+    "expired": "Expired"
+  },
+  "permit_kind": {
+    "license": "Licence (has an expiry date)",
+    "transaction": "Transaction"
+  },
+  "step_status": {
+    "pending": "Not started",
+    "in_progress": "In progress",
+    "done": "Done",
+    "skipped": "Skipped"
+  },
+  "requirement_kind": {
+    "document": "Document",
+    "condition": "Condition"
+  },
+  "requirement_status": {
+    "missing": "Missing",
+    "provided": "Provided",
+    "not_applicable": "Not applicable"
+  },
+  "step_party": {
+    "developer": "Developer",
+    "contractor": "Contractor",
+    "consultant": "Consultant",
+    "any": "Any party"
+  },
+  "permit_category": {
+    "municipal": "Municipality and building permits",
+    "civil_defense": "Civil Defence and safety",
+    "electricity": "Electricity",
+    "water": "Water and drainage",
+    "environment": "Environment",
+    "real_estate": "Real estate and off-plan sales",
+    "insurance": "Insurance",
+    "other": "Other"
+  },
+  "permit_action": {
+    "start": "Start the process",
+    "submit": "Submit to the authority",
+    "return": "Returned by the authority",
+    "complete": "Completed / issued",
+    "reject": "Rejected by the authority",
+    "cancel": "Cancel",
+    "reopen": "Reopen"
+  },
+  "permit_attention": {
+    "expired": "Expired",
+    "expiring": "Expiring soon",
+    "overdue": "Overdue",
+    "awaiting_payment": "Fees unpaid"
+  },
+  "receipt_source": {
+    "purchase_order": "Purchase order",
+    "owner_supplied": "Owner-supplied materials",
+    "project_transfer": "Transfer from another project",
+    "sample": "Sample",
+    "emergency": "Emergency purchase",
+    "legacy": "Predates the system"
+  },
+  "manual_movement": {
+    "adjustment_in": "Stocktake adjustment — increase",
+    "adjustment_out": "Stocktake adjustment — decrease",
+    "waste": "Damaged / lost",
+    "return_to_supplier": "Return to supplier",
+    "return_from_site": "Return from site",
+    "opening_balance": "Opening balance"
+  },
+  "payment_action": {
+    "created": "Created",
+    "originals_requested": "Invoice original requested",
+    "invoice_added": "Invoice added",
+    "invoice_removed": "Invoice removed",
+    "chargeback_created": "Invoice charged to subcontractor",
+    "applied": "Deducted in certificate",
+    "released": "Returned to pending",
+    "convert": "Converted to deduction",
+    "recover": "Recovery recorded",
+    "reserved": "Reserved for certificate deduction",
+    "withdraw": "Withdrawn",
+    "chargebacks_changed": "Invoice charges changed",
+    "waiver_request": "Waiver requested",
+    "requested": "Transfer requested",
+    "approve_request": "Project manager approved",
+    "decline_request": "Request declined",
+    "accept_request": "Accounting accepted",
+    "withdraw_request": "Request withdrawn",
+    "waiver_withdraw": "Waiver request withdrawn",
+    "waiver_approve": "Waiver approved",
+    "waiver_reject": "Waiver rejected",
+    "edited": "Edited",
+    "submit": "Submitted",
+    "receive": "Receipt confirmed",
+    "return": "Returned for correction",
+    "cancel": "Cancelled",
+    "approve": "Approved",
+    "reject": "Rejected",
+    "pay": "Payment disbursed",
+    "status_changed": "Status changed",
+    "file_added": "File added",
+    "file_removed": "File removed"
+  },
+  "webhook_event": {
+    "payment_order": {
+      "label": "Payment orders",
+      "description": "Transfer requests and payment orders through approval to payment"
+    },
+    "bill_request": {
+      "label": "Bill requests",
+      "description": "Requests for original invoices and the invoices listed on them"
+    },
+    "subcontractor_certificate": {
+      "label": "Subcontractor certificates",
+      "description": "Subcontractor certificates from draft to paid"
+    },
+    "chargeback": {
+      "label": "Chargebacks",
+      "description": "Charges back to subcontractors, applied to or released from certificates"
+    },
+    "fine": {
+      "label": "Fines",
+      "description": "Fines, waivers, recoveries and certificate deductions"
+    },
+    "permit": {
+      "label": "Permits & transactions",
+      "description": "Licences and government transactions: steps, documents, fees and expiry"
+    },
+    "purchase_order": {
+      "label": "Purchase orders",
+      "description": "Purchase orders created, approved and received against"
+    },
+    "material_issue": {
+      "label": "Material issues",
+      "description": "Material issue vouchers raised, approved, rejected or cancelled"
+    },
+    "stock_movement": {
+      "label": "Stock adjustments",
+      "description": "Manual stock adjustments in a warehouse"
+    },
+    "stock_transfer": {
+      "label": "Stock transfers",
+      "description": "Stock moved between warehouses"
+    }
+  },
+  "workflow_step": {
+    "Draft": "Draft",
+    "Contractor Preparation": "Contractor Preparation",
+    "Contractor Submission": "Contractor Submission",
+    "Site Inspection": "Site Inspection",
+    "Final Approval": "Final Approval",
+    "Consultant Preparation": "Consultant Preparation",
+    "Consultant Submission": "Consultant Submission",
+    "Consultant Review": "Consultant Review",
+    "Issued to Contractor": "Issued to Contractor",
+    "Contractor Team Approval": "Contractor Team Approval",
+    "Contractor Manager Approval": "Contractor Manager Approval",
+    "Contractor PM Approval": "Contractor PM Approval",
+    "Engineer Review": "Engineer Review",
+    "Consultant Team Approval": "Consultant Team Approval",
+    "Consultant PM Review": "Consultant PM Review",
+    "Consultant PM Approval": "Consultant PM Approval",
+    "Consultant Manager Approval": "Consultant Manager Approval"
+  }
+}

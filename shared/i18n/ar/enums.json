@@ -1,0 +1,228 @@
+{
+  "sub_cert": {
+    "draft": "مسودة",
+    "submitted": "بانتظار الاعتماد",
+    "approved": "معتمد",
+    "rejected": "مرفوض",
+    "paid": "مدفوع",
+    "cancelled": "ملغي"
+  },
+  "chargeback": {
+    "proposed": "بانتظار مدير المشروع",
+    "approved": "معتمد، لم يُطبَّق",
+    "applied": "مطبَّق في مستخلص",
+    "converted": "حُوّل إلى خصم",
+    "cancelled": "ملغي"
+  },
+  "bill_request": {
+    "requested": "مطلوب",
+    "submitted": "تم الإرسال",
+    "received": "تم الاستلام",
+    "returned": "معاد للتصحيح",
+    "cancelled": "ملغي"
+  },
+  "payment_order": {
+    "requested": "طلب بانتظار مدير المشروع",
+    "request_approved": "طلب بانتظار المحاسبة",
+    "draft": "مسودة",
+    "pending_approval": "بانتظار الاعتماد",
+    "approved": "معتمد",
+    "paid": "مدفوع",
+    "rejected": "مرفوض",
+    "cancelled": "ملغي"
+  },
+  "fine": {
+    "open": "مفتوح",
+    "under_appeal": "قيد الاعتراض",
+    "payment_requested": "تم طلب السداد",
+    "paid": "مسدد",
+    "waiver_requested": "طلب إعفاء",
+    "waived": "معفى",
+    "recovered": "مُسترَد",
+    "cancelled": "ملغى"
+  },
+  "liable_party": {
+    "contractor": "المقاول الرئيسي",
+    "subcontractor": "مقاول الباطن",
+    "owner": "المالك",
+    "consultant": "الاستشاري",
+    "supplier": "المورد",
+    "other": "أخرى"
+  },
+  "payment_method": {
+    "bank_transfer": "تحويل بنكي",
+    "cheque": "شيك",
+    "cash": "نقداً"
+  },
+  "permit_status": {
+    "not_started": "لم تبدأ",
+    "in_progress": "قيد الإجراء",
+    "submitted": "مقدَّمة للجهة",
+    "returned": "مُعادة للاستيفاء",
+    "completed": "مكتملة / صدرت",
+    "rejected": "مرفوضة",
+    "cancelled": "ملغاة",
+    "expired": "منتهية"
+  },
+  "permit_kind": {
+    "license": "رخصة (لها تاريخ انتهاء)",
+    "transaction": "معاملة"
+  },
+  "step_status": {
+    "pending": "لم تبدأ",
+    "in_progress": "جارية",
+    "done": "منجزة",
+    "skipped": "متجاوزة"
+  },
+  "requirement_kind": {
+    "document": "مستند",
+    "condition": "شرط / متطلب"
+  },
+  "requirement_status": {
+    "missing": "غير مستوفى",
+    "provided": "مستوفى",
+    "not_applicable": "لا ينطبق"
+  },
+  "step_party": {
+    "developer": "المطوّر",
+    "contractor": "المقاول",
+    "consultant": "الاستشاري",
+    "any": "أي طرف"
+  },
+  "permit_category": {
+    "municipal": "البلديات ورخص البناء",
+    "civil_defense": "الدفاع المدني والسلامة",
+    "electricity": "الكهرباء",
+    "water": "المياه والصرف",
+    "environment": "البيئة",
+    "real_estate": "العقار والبيع على الخارطة",
+    "insurance": "التأمين",
+    "other": "أخرى"
+  },
+  "permit_action": {
+    "start": "بدء الإجراء",
+    "submit": "تقديم للجهة",
+    "return": "أعادتها الجهة للاستيفاء",
+    "complete": "اكتملت / صدرت",
+    "reject": "رفضتها الجهة",
+    "cancel": "إلغاء",
+    "reopen": "إعادة فتح"
+  },
+  "permit_attention": {
+    "expired": "منتهية",
+    "expiring": "تنتهي قريباً",
+    "overdue": "متأخرة",
+    "awaiting_payment": "رسوم غير مسددة"
+  },
+  "receipt_source": {
+    "purchase_order": "أمر شراء",
+    "owner_supplied": "مواد من المالك",
+    "project_transfer": "نقل من مشروع آخر",
+    "sample": "عينة",
+    "emergency": "شراء طارئ",
+    "legacy": "سابق للنظام"
+  },
+  "manual_movement": {
+    "adjustment_in": "تسوية جرد - زيادة",
+    "adjustment_out": "تسوية جرد - نقص",
+    "waste": "تالف / مفقود",
+    "return_to_supplier": "إرجاع للمورد",
+    "return_from_site": "مرتجع من موقع العمل",
+    "opening_balance": "رصيد افتتاحي"
+  },
+  "payment_action": {
+    "created": "تم الإنشاء",
+    "originals_requested": "طلب أصل الفاتورة",
+    "invoice_added": "إضافة فاتورة",
+    "invoice_removed": "حذف فاتورة",
+    "chargeback_created": "تحميل جزء من فاتورة على مقاول",
+    "applied": "خُصم في مستخلص",
+    "released": "أُعيد للانتظار",
+    "convert": "حُوّل إلى خصم",
+    "recover": "تسجيل الاسترداد",
+    "reserved": "حُجز للخصم من مستخلص",
+    "withdraw": "سحب",
+    "chargebacks_changed": "تغيير خصومات الفواتير",
+    "waiver_request": "طلب إعفاء",
+    "requested": "طلب تحويل",
+    "approve_request": "موافقة مدير المشروع على الطلب",
+    "decline_request": "رفض الطلب",
+    "accept_request": "قبول المحاسبة للطلب",
+    "withdraw_request": "سحب الطلب",
+    "waiver_withdraw": "سحب طلب الإعفاء",
+    "waiver_approve": "اعتماد الإعفاء",
+    "waiver_reject": "رفض الإعفاء",
+    "edited": "تم التعديل",
+    "submit": "إرسال",
+    "receive": "تأكيد الاستلام",
+    "return": "إعادة للتصحيح",
+    "cancel": "إلغاء",
+    "approve": "اعتماد",
+    "reject": "رفض",
+    "pay": "صرف الدفعة",
+    "status_changed": "تغيير الحالة",
+    "file_added": "إضافة ملف",
+    "file_removed": "حذف ملف"
+  },
+  "webhook_event": {
+    "payment_order": {
+      "label": "أوامر الدفع",
+      "description": "طلبات التحويل وأوامر الدفع من الاعتماد حتى الصرف"
+    },
+    "bill_request": {
+      "label": "أصول الفواتير",
+      "description": "طلبات أصول الفواتير والفواتير المسجّلة عليها"
+    },
+    "subcontractor_certificate": {
+      "label": "مستخلصات مقاولي الباطن",
+      "description": "مستخلصات مقاولي الباطن من المسودة حتى الصرف"
+    },
+    "chargeback": {
+      "label": "التحميلات",
+      "description": "فواتير محمَّلة على مقاولي الباطن، تُخصم من مستخلص أو تُحرَّر منه"
+    },
+    "fine": {
+      "label": "الغرامات",
+      "description": "الغرامات والإعفاءات والاستردادات وخصومات المستخلصات"
+    },
+    "permit": {
+      "label": "الرخص والمعاملات",
+      "description": "الرخص والمعاملات الحكومية: الخطوات والمستندات والرسوم وتواريخ الانتهاء"
+    },
+    "purchase_order": {
+      "label": "أوامر الشراء",
+      "description": "أوامر الشراء عند الإنشاء والاعتماد والاستلام"
+    },
+    "material_issue": {
+      "label": "سندات الصرف",
+      "description": "سندات صرف المواد عند الإصدار والاعتماد والرفض والإلغاء"
+    },
+    "stock_movement": {
+      "label": "تسويات المخزون",
+      "description": "تسويات المخزون اليدوية داخل المستودع"
+    },
+    "stock_transfer": {
+      "label": "تحويلات المخزون",
+      "description": "نقل المخزون بين المستودعات"
+    }
+  },
+  "workflow_step": {
+    "Draft": "المسودة",
+    "Contractor Preparation": "إعداد المقاول",
+    "Contractor Submission": "تقديم المقاول",
+    "Site Inspection": "المعاينة الميدانية",
+    "Final Approval": "الاعتماد النهائي",
+    "Consultant Preparation": "إعداد الاستشاري",
+    "Consultant Submission": "تقديم الاستشاري",
+    "Consultant Review": "مراجعة الاستشاري",
+    "Issued to Contractor": "صادر للمقاول",
+    "Contractor Team Approval": "اعتماد فريق المقاول",
+    "Contractor Manager Approval": "اعتماد مدير المقاول",
+    "Contractor PM Approval": "اعتماد مدير مشروع المقاول",
+    "Engineer Review": "مراجعة المهندس",
+    "Consultant Team Approval": "اعتماد فريق الاستشاري",
+    "Consultant PM Review": "مراجعة مدير مشروع الاستشاري",
+    "Consultant PM Approval": "اعتماد مدير مشروع الاستشاري",
+    "Consultant Manager Approval": "اعتماد مدير الاستشاري"
+  }
+}

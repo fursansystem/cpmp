@@ -297,7 +297,7 @@ export function MaterialFormDialog({
                     </div>
                   )}
                 </div>
-                <div className="absolute -bottom-1 -right-1">
+                <div className="absolute -bottom-1 -end-1">
                   <div
                     className="bg-primary text-primary-foreground p-1.5 rounded-lg shadow-md border-2 border-background transition-all duration-300 hover:scale-105 active:scale-95 cursor-pointer"
                     onClick={() => {
@@ -428,7 +428,7 @@ export function MaterialFormDialog({
             {/* Attachments Section */}
             <div className="mt-6 border-t pt-4">
               <div className="flex items-center justify-between mb-4">
-                <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-2">Attachments / المرفقات</Label>
+                <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ms-2">Attachments / المرفقات</Label>
                 <Button
                   type="button"
                   variant="outline"
@@ -439,7 +439,7 @@ export function MaterialFormDialog({
                   }}
                   className="rounded-xl h-8 px-4 text-[10px] font-black uppercase tracking-widest border-primary/30 text-primary hover:bg-primary hover:text-primary-foreground transition-all shadow-sm"
                 >
-                  <Plus className="w-3.5 h-3.5 mr-1" /> Add / إضافة
+                  <Plus className="w-3.5 h-3.5 me-1" /> Add / إضافة
                 </Button>
               </div>
 
@@ -485,7 +485,7 @@ export function MaterialFormDialog({
                           </div>
                         </div>
                       </div>
-                      <div className="flex items-center gap-2 ml-4">
+                      <div className="flex items-center gap-2 ms-4">
                         <Button
                           type="button"
                           variant="ghost"
@@ -514,7 +514,7 @@ export function MaterialFormDialog({
                 Cancel
               </Button>
               <Button type="submit" disabled={mutation.isPending} className="rounded-xl font-bold px-8 shadow-lg shadow-primary/20 text-xs uppercase">
-                {mutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                {mutation.isPending && <Loader2 className="me-2 h-4 w-4 animate-spin" />}
                 {material ? "Save Changes" : "Add Material"}
               </Button>
             </div>

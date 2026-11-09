@@ -1,3 +1,4 @@
+import type { PermitFeeRow } from "@shared/permits";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link, useSearch } from "wouter";
@@ -8,8 +9,11 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
+import { money, fmtDate, fmtDateTime } from "@/lib/i18n-format";
 import { cn } from "@/lib/utils";
 import type { PaymentEntityType, PoSummary } from "@shared/payments";
+import { enumText, type EnumGroup } from "@/lib/enums";
+import { useTranslation } from "react-i18next";
 
 export interface PaymentFile {
   id: string;
@@ -24,12 +28,8 @@ export interface PaymentFile {
 // Financial figures are fetched fresh and kept out of the localStorage query cache (meta.persist)
 export const paymentsQuery = { persist: false } as const;
 
-export const money = (v: unknown) =>
-  Number(v ?? 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-
-export const fmtDate = (v?: string | null) => (v ? String(v).slice(0, 10) : "—");
-
-export const fmtDateTime = (v?: string | null) => (v ? new Date(v).toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" }) : "—");
+// Formatting lives in one locale-aware module now; re-exported here so existing imports keep working.
+export { money, fmtDate, fmtDateTime };
 
 export async function getJson<T>(url: string): Promise<T> {
   const res = await apiRequest("GET", url);
@@ -46,7 +46,7 @@ export function errorMessage(e: unknown): string {
   } catch {
     /* not JSON */
   }
-  return body || "حدث خطأ";
+  return body || "";
 }
 
 // A notification links to a record (?focus=<id>). The tab that owns that record opens it once, then the parameter
@@ -88,18 +88,19 @@ export const STATUS_TONE: Record<string, string> = {
   requested: "amber", submitted: "blue", received: "emerald", returned: "red",
   // payment orders
   draft: "muted", pending_approval: "amber", approved: "blue", paid: "emerald", rejected: "red", cancelled: "muted", request_approved: "violet",
-  // clearances
-  pending: "muted", in_progress: "blue", obtained: "emerald", expired: "red",
+  // licences & transactions (الرخص والمعاملات), their steps and requirements
+  pending: "muted", in_progress: "blue", expired: "red", not_started: "muted", completed: "emerald",
+  done: "emerald", skipped: "muted", missing: "amber", provided: "emerald", not_applicable: "muted",
   // fines
   open: "amber", under_appeal: "violet", payment_requested: "blue", waiver_requested: "violet", waived: "muted", recovered: "emerald",
   // invoice charge-backs
   proposed: "amber", applied: "emerald", converted: "violet",
 };
 
-export function StatusBadge({ status, labels }: { status: string; labels: Record<string, string> }) {
+export function StatusBadge({ status, group }: { status: string; group: EnumGroup }) {
   return (
     <Badge variant="secondary" className={cn("border-none font-semibold whitespace-nowrap", TONES[STATUS_TONE[status] ?? "muted"])}>
-      {labels[status] ?? status}
+      {enumText(group, status)}
     </Badge>
   );
 }
@@ -116,7 +117,7 @@ export function Field({ label, children }: { label: string; children: ReactNode 
 // The Saudi Riyal sign. Drawn rather than typed: few fonts carry U+20C1 yet
 export function RiyalSymbol({ className }: { className?: string }) {
   return (
-    <svg viewBox="0 0 1124.14 1256.39" fill="currentColor" role="img" aria-label="ريال سعودي" className={cn("block", className)}>
+    <svg viewBox="0 0 1124.14 1256.39" fill="currentColor" role="img" aria-label="SAR" className={cn("block", className)}>
       <path d="M699.62,1113.02h0c-20.06,44.48-33.32,92.75-38.4,143.37l424.51-90.24c20.06-44.47,33.31-92.75,38.4-143.37l-424.51,90.24Z" />
       <path d="M1085.73,895.8c20.06-44.47,33.32-92.75,38.4-143.37l-330.68,70.33v-135.2l292.27-62.11c20.06-44.47,33.32-92.75,38.4-143.37l-330.68,70.27V66.13c-50.67,28.45-95.67,66.32-132.25,110.99v403.35l-132.25,28.11V0c-50.67,28.44-95.67,66.32-132.25,110.99v525.69l-295.91,62.88c-20.06,44.47-33.33,92.75-38.42,143.37l334.33-71.05v170.26l-358.3,76.14c-20.06,44.47-33.32,92.75-38.4,143.37l375.04-79.7c30.53-6.35,56.77-24.4,73.83-49.24l68.78-101.97v-.02c7.14-10.55,11.3-23.27,11.3-36.97v-149.98l132.25-28.11v270.4l424.53-90.28Z" />
     </svg>
@@ -149,11 +150,11 @@ interface PaymentDialogProps {
 }
 
 // One shell for the payments dialogs: the header and the actions stay in place while the body scrolls
-export function PaymentDialog({ open = true, onClose, size = "lg", icon: Icon, kind, title, badge, description, amount, amountLabel = "المبلغ", headerActions, panel, footer, children }: PaymentDialogProps) {
+export function PaymentDialog({ open = true, onClose, size = "lg", icon: Icon, kind, title, badge, description, amount, amountLabel = "", headerActions, panel, footer, children }: PaymentDialogProps) {
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       {/* No focus jump on open: the first focusable control sits low in the body and would scroll it down */}
-      <DialogContent hideCloseButton dir="rtl" onOpenAutoFocus={(e) => e.preventDefault()} className={cn("flex flex-col gap-0 p-0 max-h-[90vh] overflow-hidden border-none shadow-2xl rounded-[1.5rem] sm:rounded-[1.5rem]", DIALOG_SIZES[size])}>
+      <DialogContent hideCloseButton onOpenAutoFocus={(e) => e.preventDefault()} className={cn("flex flex-col gap-0 p-0 max-h-[90vh] overflow-hidden border-none shadow-2xl rounded-[1.5rem] sm:rounded-[1.5rem]", DIALOG_SIZES[size])}>
         {/* Soft glow behind the header, as on the delivery overview */}
         {/* Clipped in its own layer: sticking out, it would make the dialog scroll sideways */}
         <div className="pointer-events-none absolute inset-0 overflow-hidden">
@@ -187,7 +188,7 @@ export function PaymentDialog({ open = true, onClose, size = "lg", icon: Icon, k
             <DialogClose asChild>
               <Button type="button" variant="ghost" size="icon" className="rounded-full bg-muted/50 hover:bg-muted">
                 <X className="w-4 h-4" />
-                <span className="sr-only">إغلاق</span>
+                
               </Button>
             </DialogClose>
           </div>
@@ -206,7 +207,7 @@ export function PaymentDialog({ open = true, onClose, size = "lg", icon: Icon, k
           </div>
         )}
         {footer && (
-          <DialogFooter className="flex-row flex-wrap items-center justify-start sm:justify-start gap-2 sm:space-x-0 border-t bg-muted/30 px-6 py-4 [&_button]:h-11 empty:hidden">
+          <DialogFooter className="flex-row flex-wrap items-center justify-start sm:justify-start gap-2 border-t bg-muted/30 px-6 py-4 [&_button]:h-11 empty:hidden">
             {footer}
           </DialogFooter>
         )}
@@ -256,7 +257,8 @@ export function Tile({ label, children }: { label: string; children: ReactNode }
 }
 
 // The last thing done on the record, with the full history a click away
-export function LatestActivity({ entityType, entityId, labels }: { entityType: PaymentEntityType; entityId: string; labels: Record<string, string> }) {
+export function LatestActivity({ entityType, entityId, group }: { entityType: PaymentEntityType; entityId: string; group: EnumGroup }) {
+  const { t } = useTranslation("payments");
   const { data = [], isLoading } = useQuery<ActivityRow[]>({
     queryKey: ["payments", "activity", entityType, entityId],
     queryFn: () => getJson(`/api/payments/activity?entityType=${entityType}&entityId=${entityId}`),
@@ -270,17 +272,17 @@ export function LatestActivity({ entityType, entityId, labels }: { entityType: P
         <Clock className="w-4 h-4 text-primary" />
       </div>
       <div className="min-w-0 flex-1">
-        <div className="text-[11px] font-bold text-muted-foreground">آخر إجراء</div>
+        <div className="text-[11px] font-bold text-muted-foreground">{t("activity.last_action")}</div>
         {isLoading ? (
           <div className="text-sm text-muted-foreground">…</div>
         ) : !last ? (
-          <div className="text-sm text-muted-foreground">لا يوجد سجل</div>
+          <div className="text-sm text-muted-foreground">{t("activity.no_record")}</div>
         ) : (
           <>
             <div className="text-sm font-bold truncate">
-              {ACTION_LABELS[last.action] ?? last.action}
+              {enumText("payment_action", last.action)}
               {last.toStatus && last.fromStatus !== last.toStatus && (
-                <span className="font-normal text-muted-foreground"> · {labels[last.toStatus] ?? last.toStatus}</span>
+                <span className="font-normal text-muted-foreground"> · {enumText(group, last.toStatus)}</span>
               )}
             </div>
             <div className="text-xs text-muted-foreground">
@@ -289,7 +291,7 @@ export function LatestActivity({ entityType, entityId, labels }: { entityType: P
           </>
         )}
       </div>
-      <ActivityHistory entityType={entityType} entityId={entityId} labels={labels} />
+      <ActivityHistory entityType={entityType} entityId={entityId} group={group} />
     </div>
   );
 }
@@ -332,6 +334,7 @@ interface AttachmentsPanelProps {
 }
 
 export function AttachmentsPanel({ entityType, entityId, projectId, files, editable, hint, canRemove }: AttachmentsPanelProps) {
+  const { t } = useTranslation("payments");
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -340,7 +343,7 @@ export function AttachmentsPanel({ entityType, entityId, projectId, files, edita
   const remove = useMutation({
     mutationFn: async (id: string) => apiRequest("DELETE", `/api/payments/attachments/${id}`),
     onSuccess: () => invalidatePayments(queryClient),
-    onError: (e) => toast({ title: "تعذّر حذف الملف", description: errorMessage(e), variant: "destructive" }),
+    onError: (e) => toast({ title: t("errors.delete_file_failed"), description: errorMessage(e), variant: "destructive" }),
   });
 
   const onPick = async (list: FileList | null) => {
@@ -349,7 +352,7 @@ export function AttachmentsPanel({ entityType, entityId, projectId, files, edita
     try {
       for (const file of Array.from(list)) {
         if (file.size > 25 * 1024 * 1024) {
-          toast({ title: `${file.name} أكبر من 25MB`, variant: "destructive" });
+          toast({ title: t("errors.file_too_large", { name: file.name }), variant: "destructive" });
           continue;
         }
         const objectPath = await uploadToPayments(file, projectId);
@@ -364,7 +367,7 @@ export function AttachmentsPanel({ entityType, entityId, projectId, files, edita
       }
       invalidatePayments(queryClient);
     } catch (e) {
-      toast({ title: "تعذّر رفع الملف", description: errorMessage(e), variant: "destructive" });
+      toast({ title: t("errors.upload_failed"), description: errorMessage(e), variant: "destructive" });
     } finally {
       setUploading(false);
       if (inputRef.current) inputRef.current.value = "";
@@ -375,21 +378,21 @@ export function AttachmentsPanel({ entityType, entityId, projectId, files, edita
     <div className="space-y-2">
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2 text-sm font-bold">
-          <Paperclip className="w-4 h-4" /> المرفقات (Attachments) <span className="text-muted-foreground font-normal">({files.length})</span>
+          <Paperclip className="w-4 h-4" /> {t("attachments.title")} <span className="text-muted-foreground font-normal">({files.length})</span>
         </div>
         {editable && (
           <>
             <input ref={inputRef} type="file" multiple className="hidden" onChange={(e) => onPick(e.target.files)} />
             <Button type="button" size="sm" variant="outline" disabled={uploading} onClick={() => inputRef.current?.click()}>
-              {uploading ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Upload className="w-4 h-4 mr-1" />}
-              رفع ملف
+              {uploading ? <Loader2 className="w-4 h-4 me-1 animate-spin" /> : <Upload className="w-4 h-4 me-1" />}
+              {t("attachments.upload")}
             </Button>
           </>
         )}
       </div>
       {hint && editable && <p className="text-xs text-muted-foreground">{hint}</p>}
       {files.length === 0 ? (
-        <p className="text-sm text-muted-foreground border border-dashed rounded-xl p-4 text-center">لا توجد مرفقات</p>
+        <p className="text-sm text-muted-foreground border border-dashed rounded-xl p-4 text-center">{t("attachments.none")}</p>
       ) : (
         <ul className="space-y-1.5">
           {files.map((f) => (
@@ -422,42 +425,9 @@ interface ActivityRow {
   userName: string | null;
 }
 
-const ACTION_LABELS: Record<string, string> = {
-  created: "تم الإنشاء",
-  originals_requested: "طلب أصل الفاتورة",
-  invoice_added: "إضافة فاتورة",
-  invoice_removed: "حذف فاتورة",
-  chargeback_created: "تحميل جزء من فاتورة على مقاول",
-  applied: "خُصم في مستخلص",
-  released: "أُعيد للانتظار",
-  convert: "حُوّل إلى خصم",
-  recover: "تسجيل الاسترداد",
-  reserved: "حُجز للخصم من مستخلص",
-  withdraw: "سحب",
-  chargebacks_changed: "تغيير خصومات الفواتير",
-  waiver_request: "طلب إعفاء",
-  requested: "طلب تحويل",
-  approve_request: "موافقة مدير المشروع على الطلب",
-  decline_request: "رفض الطلب",
-  accept_request: "قبول المحاسبة للطلب",
-  withdraw_request: "سحب الطلب",
-  waiver_withdraw: "سحب طلب الإعفاء",
-  waiver_approve: "اعتماد الإعفاء",
-  waiver_reject: "رفض الإعفاء",
-  edited: "تم التعديل",
-  submit: "إرسال",
-  receive: "تأكيد الاستلام",
-  return: "إعادة للتصحيح",
-  cancel: "إلغاء",
-  approve: "اعتماد",
-  reject: "رفض",
-  pay: "صرف الدفعة",
-  status_changed: "تغيير الحالة",
-  file_added: "إضافة ملف",
-  file_removed: "حذف ملف",
-};
 
-export function ActivityTimeline({ entityType, entityId, labels }: { entityType: PaymentEntityType; entityId: string; labels: Record<string, string> }) {
+export function ActivityTimeline({ entityType, entityId, group }: { entityType: PaymentEntityType; entityId: string; group: EnumGroup }) {
+  const { t } = useTranslation("payments");
   const { data = [], isLoading } = useQuery<ActivityRow[]>({
     queryKey: ["payments", "activity", entityType, entityId],
     queryFn: () => getJson(`/api/payments/activity?entityType=${entityType}&entityId=${entityId}`),
@@ -466,20 +436,20 @@ export function ActivityTimeline({ entityType, entityId, labels }: { entityType:
 
   return (
     <div className="space-y-2">
-      <div className="text-sm font-bold">سجل المتابعة (Tracking)</div>
+      <div className="text-sm font-bold">{t("activity.tracking")}</div>
       {isLoading ? (
         <p className="text-sm text-muted-foreground">…</p>
       ) : data.length === 0 ? (
-        <p className="text-sm text-muted-foreground">لا يوجد سجل</p>
+        <p className="text-sm text-muted-foreground">{t("activity.no_record")}</p>
       ) : (
         <ol className="space-y-2 border-s ps-4">
           {data.map((a) => (
             <li key={a.id} className="relative text-sm">
               <span className="absolute -start-[21px] top-1.5 w-2 h-2 rounded-full bg-primary" />
               <div className="font-semibold">
-                {ACTION_LABELS[a.action] ?? a.action}
+                {enumText("payment_action", a.action)}
                 {a.toStatus && a.fromStatus !== a.toStatus && (
-                  <span className="font-normal text-muted-foreground"> → {labels[a.toStatus] ?? a.toStatus}</span>
+                  <span className="font-normal text-muted-foreground"> → {enumText(group, a.toStatus)}</span>
                 )}
               </div>
               {a.note && <div className="text-muted-foreground">{a.note}</div>}
@@ -495,7 +465,8 @@ export function ActivityTimeline({ entityType, entityId, labels }: { entityType:
 }
 
 // The record's tracking log in a popover under a header icon, laid out like the History card on request pages
-export function ActivityHistory({ entityType, entityId, labels }: { entityType: PaymentEntityType; entityId: string; labels: Record<string, string> }) {
+export function ActivityHistory({ entityType, entityId, group }: { entityType: PaymentEntityType; entityId: string; group: EnumGroup }) {
+  const { t } = useTranslation("payments");
   const [open, setOpen] = useState(false);
   const { data = [], isLoading } = useQuery<ActivityRow[]>({
     queryKey: ["payments", "activity", entityType, entityId],
@@ -507,25 +478,25 @@ export function ActivityHistory({ entityType, entityId, labels }: { entityType: 
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <Button type="button" variant="ghost" size="icon" className="rounded-full text-primary hover:bg-primary/10 hover:text-primary" title="السجل (History)">
+        <Button type="button" variant="ghost" size="icon" className="rounded-full text-primary hover:bg-primary/10 hover:text-primary" title={t("activity.history")}>
           <History className="w-4 h-4" />
-          <span className="sr-only">السجل</span>
+          <span className="sr-only">{t("activity.history")}</span>
         </Button>
       </PopoverTrigger>
-      <PopoverContent align="end" dir="rtl" className="w-80 p-0 overflow-hidden rounded-2xl">
+      <PopoverContent align="end" className="w-80 p-0 overflow-hidden rounded-2xl">
         <div className="flex items-center gap-2 border-b bg-gradient-to-br from-primary/5 via-background to-background px-4 py-3">
           <div className="p-1.5 rounded-lg bg-primary shadow-md shadow-primary/10">
             <Clock className="w-4 h-4 text-primary-foreground" />
           </div>
-          <span className="font-bold">السجل</span>
-          <span className="text-xs text-muted-foreground">History</span>
+          <span className="font-bold">{t("activity.history")}</span>
+          
         </div>
         {/* The popover sits outside the dialog, whose scroll lock cancels the wheel there, so scroll it by hand */}
         <div className="max-h-[360px] overflow-y-auto px-4 py-4" onWheel={(e) => { e.currentTarget.scrollTop += e.deltaY; }}>
           {isLoading ? (
             <p className="text-sm text-muted-foreground">…</p>
           ) : data.length === 0 ? (
-            <p className="text-sm text-muted-foreground">لا يوجد سجل</p>
+            <p className="text-sm text-muted-foreground">{t("activity.no_record")}</p>
           ) : (
             <ol className="space-y-5">
               {data.map((a, index) => (
@@ -536,11 +507,11 @@ export function ActivityHistory({ entityType, entityId, labels }: { entityType: 
                   </div>
                   <div className="space-y-1.5">
                     <div className="flex items-center justify-between gap-2">
-                      <Badge variant="secondary" className="text-[11px] font-bold px-2 py-0 h-5">{ACTION_LABELS[a.action] ?? a.action}</Badge>
+                      <Badge variant="secondary" className="text-[11px] font-bold px-2 py-0 h-5">{enumText("payment_action", a.action)}</Badge>
                       <span className="text-[11px] text-muted-foreground whitespace-nowrap" dir="ltr">{fmtDateTime(a.createdAt)}</span>
                     </div>
                     {a.toStatus && a.fromStatus !== a.toStatus && (
-                      <div className="text-xs text-muted-foreground">الحالة: <span className="font-semibold text-foreground">{labels[a.toStatus] ?? a.toStatus}</span></div>
+                      <div className="text-xs text-muted-foreground">{t("activity.status_label")} <span className="font-semibold text-foreground">{enumText(group, a.toStatus)}</span></div>
                     )}
                     {a.note && <p className="text-sm leading-relaxed bg-muted/30 px-3 py-2 rounded-xl border border-muted/50">{a.note}</p>}
                     <div className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
@@ -569,7 +540,8 @@ export interface PaymentsOverview {
   subcontractorCertificates: any[];
   chargebacks: any[];
   subcontractors: any[];
-  clearances: any[];
+  // licence and transaction fees from الرخص والمعاملات
+  permits: PermitFeeRow[];
   fines: any[];
   purchaseOrders: PoSummary[];
   suppliers: { id: string; projectId: string; name: string; taxNumber: string | null }[];
@@ -584,11 +556,12 @@ export const poLabel =(po?: { poNumber: string; supplierName: string | null } | 
 
 // A visible alert, never a block: the PO's invoices/payments exceed its value
 export function PoOverAlert({ po, projected }: { po: { poNumber: string; value: number }; projected: number }) {
+  const { t } = useTranslation("payments");
   return (
     <div className="flex items-start gap-2 rounded-xl border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">
       <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
       <span>
-        <b>تنبيه:</b> إجمالي المفوتر والمدفوع على أمر الشراء {po.poNumber} ({money(projected)}) يتجاوز قيمته ({money(po.value)}) بمقدار {money(projected - po.value)}. يمكنك المتابعة، لكن راجع أمر الشراء أو ملاحقه.
+        <b>{t("po.alert")}</b> {t("po.over_alert", { poNumber: po.poNumber, projected: money(projected), value: money(po.value), excess: money(projected - po.value) })}
       </span>
     </div>
   );
@@ -596,26 +569,27 @@ export function PoOverAlert({ po, projected }: { po: { poNumber: string; value: 
 
 // Where a purchase order stands: its value, what is invoiced, ordered and paid, and what is left
 export function PoCard({ po }: { po: PoSummary }) {
+  const { t } = useTranslation("payments");
   const stat = (label: string, value: number, cls = "") => (
     <div><div className="text-xs text-muted-foreground">{label}</div><div className={cn("font-semibold tabular-nums", cls)}>{money(value)}</div></div>
   );
   return (
     <div className="space-y-2">
-      <div className="flex items-center gap-2 text-sm font-bold"><ShoppingCart className="w-4 h-4" /> أمر الشراء <span className="font-mono">{po.poNumber}</span>{po.supplierName && <span className="font-normal text-muted-foreground">· {po.supplierName}</span>}
-        <Link href={`/reports?report=po&po=${po.id}&project=${po.projectId}`} className="ms-auto inline-flex items-center gap-1 text-xs font-normal text-primary hover:underline" title="كشف أمر الشراء">
-          <BarChart3 className="w-3.5 h-3.5" /> كشف أمر الشراء
+      <div className="flex items-center gap-2 text-sm font-bold"><ShoppingCart className="w-4 h-4" /> {t("po.title")} <span className="font-mono">{po.poNumber}</span>{po.supplierName && <span className="font-normal text-muted-foreground">· {po.supplierName}</span>}
+        <Link href={`/reports?report=po&po=${po.id}&project=${po.projectId}`} className="ms-auto inline-flex items-center gap-1 text-xs font-normal text-primary hover:underline" title={t("po.statement")}>
+          <BarChart3 className="w-3.5 h-3.5" /> {t("po.statement")}
         </Link>
       </div>
       <div className="rounded-2xl border bg-muted/30 p-3 grid grid-cols-2 sm:grid-cols-6 gap-3 text-sm">
-        {stat("قيمة الأمر", po.value)}
+        {stat(t("po.value"), po.value)}
         <div>
-          <div className="text-xs text-muted-foreground">المستلم</div>
+          <div className="text-xs text-muted-foreground">{t("po.received")}</div>
           <div className="font-semibold tabular-nums">{money(po.receivedValue)} <span className="text-xs font-normal text-muted-foreground">({po.receivedPct.toFixed(0)}%)</span></div>
         </div>
-        {stat("المفوتر", po.invoiced)}
-        {stat("أوامر الدفع", po.ordered)}
-        {stat("المدفوع", po.paid, "text-emerald-700 dark:text-emerald-300")}
-        {stat("المتبقي", po.remaining, po.over ? "text-destructive" : "")}
+        {stat(t("po.invoiced"), po.invoiced)}
+        {stat(t("po.ordered"), po.ordered)}
+        {stat(t("po.paid"), po.paid, "text-emerald-700 dark:text-emerald-300")}
+        {stat(t("po.remaining"), po.remaining, po.over ? "text-destructive" : "")}
       </div>
       {po.over && <PoOverAlert po={po} projected={po.committed} />}
     </div>

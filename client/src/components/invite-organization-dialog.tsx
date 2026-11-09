@@ -296,7 +296,7 @@ export function InviteOrganizationDialog({ trigger, onSubmit }: InviteOrganizati
               disabled={isSubmitting || !projectId || unusableOrganization}
               data-testid="button-send-invitation"
             >
-              {isSubmitting && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+              {isSubmitting && <Loader2 className="w-4 h-4 me-2 animate-spin" />}
               Send Invitation
             </Button>
           </DialogFooter>

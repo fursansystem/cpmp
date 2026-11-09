@@ -373,7 +373,7 @@ export function DeliveryFormDialog({
         <DialogContent className="max-w-4xl max-h-[92vh] flex flex-col overflow-hidden p-0 rounded-[2.5rem] border-none shadow-2xl bg-[#f8f9fa] dark:bg-background">
           {/* Header Section */}
           <div className="relative bg-gradient-to-br from-primary to-primary/80 p-8 text-white shrink-0 overflow-hidden">
-            <div className="absolute top-0 right-0 p-20 bg-white/10 blur-3xl rounded-full -mr-20 -mt-20 animate-pulse" />
+            <div className="absolute top-0 right-0 p-20 bg-white/10 blur-3xl rounded-full -me-20 -mt-20 animate-pulse" />
             <div className="relative flex items-center justify-between">
               <div className="flex items-center gap-6">
                 <div className="w-16 h-16 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center shadow-xl border border-white/20 transition-transform hover:rotate-3">
@@ -408,7 +408,7 @@ export function DeliveryFormDialog({
                       name="shipmentNumber"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60 ml-1">Delivery No.</FormLabel>
+                          <FormLabel className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60 ms-1">Delivery No.</FormLabel>
                           <FormControl>
                             <Input
                               {...field}
@@ -426,11 +426,11 @@ export function DeliveryFormDialog({
                     name="deliveryInvoiceNumber"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60 ml-1">Invoice / DN No.</FormLabel>
+                        <FormLabel className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60 ms-1">Invoice / DN No.</FormLabel>
                         <FormControl>
                           <div className="relative">
-                            <ClipboardList className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/40" />
-                            <Input {...field} value={field.value || ""} placeholder="e.g. INV-2024" className="pl-11 bg-muted/20 border-none h-11 rounded-2xl text-sm font-bold focus:ring-2 focus:ring-primary/20" />
+                            <ClipboardList className="absolute start-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/40" />
+                            <Input {...field} value={field.value || ""} placeholder="e.g. INV-2024" className="ps-11 bg-muted/20 border-none h-11 rounded-2xl text-sm font-bold focus:ring-2 focus:ring-primary/20" />
                           </div>
                         </FormControl>
                         <FormMessage />
@@ -442,7 +442,7 @@ export function DeliveryFormDialog({
                     name="supplierId"
                     render={({ field }) => (
                       <FormItem className="lg:col-span-2">
-                        <FormLabel className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60 ml-1">Supplier / Vendor</FormLabel>
+                        <FormLabel className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60 ms-1">Supplier / Vendor</FormLabel>
                         <Popover open={isSupplierPopoverOpen} onOpenChange={setIsSupplierPopoverOpen}>
                           <PopoverTrigger asChild>
                             <FormControl>
@@ -462,7 +462,7 @@ export function DeliveryFormDialog({
                                   )}
                                   {form.watch("supplier") || "Select or type supplier..."}
                                 </span>
-                                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-40" />
+                                <ChevronsUpDown className="ms-2 h-4 w-4 shrink-0 opacity-40" />
                               </Button>
                             </FormControl>
                           </PopoverTrigger>
@@ -486,7 +486,7 @@ export function DeliveryFormDialog({
                                       setNewSupplierOpen(true);
                                     }}
                                   >
-                                    <Plus className="w-4 h-4 mr-3" />
+                                    <Plus className="w-4 h-4 me-3" />
                                     Register "{supplierSearch}" as a new supplier
                                   </Button>
                                 </CommandEmpty>
@@ -537,7 +537,7 @@ export function DeliveryFormDialog({
                     name="arrivalDate"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60 ml-1">Logistics Date</FormLabel>
+                        <FormLabel className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60 ms-1">Logistics Date</FormLabel>
                         <FormControl>
                           <Input {...field} type="date" className="bg-muted/20 border-none h-11 rounded-2xl text-sm font-bold focus:ring-2 focus:ring-primary/20" />
                         </FormControl>
@@ -547,7 +547,7 @@ export function DeliveryFormDialog({
                   />
 
                   <div className="col-span-full">
-                    <FormLabel className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60 ml-1 mb-2 block">Official Documentation (Storage)</FormLabel>
+                    <FormLabel className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60 ms-1 mb-2 block">Official Documentation (Storage)</FormLabel>
                     <div className="flex items-center gap-4">
                       {selectedDocument ? (
                         <div className="flex-1 flex items-center justify-between px-5 bg-primary/5 border border-primary/10 h-12 rounded-2xl group transition-all hover:bg-primary/10">
@@ -592,7 +592,7 @@ export function DeliveryFormDialog({
                   <div className="bg-white dark:bg-muted/5 rounded-[2.5rem] border border-white dark:border-muted/20 shadow-xl overflow-hidden p-2">
                     <div className="grid grid-cols-1 md:grid-cols-12 gap-4 p-6 items-end bg-[#fafafa] dark:bg-muted/10 rounded-[2rem]">
                       <div className="md:col-span-6 space-y-2">
-                        <label className="text-[10px] font-black text-muted-foreground/60 uppercase tracking-widest ml-1 flex items-center gap-1.5">
+                        <label className="text-[10px] font-black text-muted-foreground/60 uppercase tracking-widest ms-1 flex items-center gap-1.5">
                           <Package className="w-3 h-3" /> Material Name
                         </label>
                         <Popover open={isMaterialPopoverOpen} onOpenChange={setIsMaterialPopoverOpen}>
@@ -608,7 +608,7 @@ export function DeliveryFormDialog({
                               <span className="truncate">
                                 {draftItem.materialName || "Select or type material..."}
                               </span>
-                              <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-40" />
+                              <ChevronsUpDown className="ms-2 h-4 w-4 shrink-0 opacity-40" />
                             </Button>
                           </PopoverTrigger>
                           <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0 rounded-3xl shadow-2xl border-none overflow-hidden" align="start">
@@ -631,7 +631,7 @@ export function DeliveryFormDialog({
                                       setNewMaterialOpen(true);
                                     }}
                                   >
-                                    <Plus className="w-4 h-4 mr-3" />
+                                    <Plus className="w-4 h-4 me-3" />
                                     Add "{materialSearch}" to the catalog
                                   </Button>
                                 </CommandEmpty>
@@ -672,7 +672,7 @@ export function DeliveryFormDialog({
                         </Popover>
                       </div>
                       <div className="md:col-span-3 space-y-2">
-                        <label className="text-[10px] font-black text-muted-foreground/60 uppercase tracking-widest ml-1">Quantity</label>
+                        <label className="text-[10px] font-black text-muted-foreground/60 uppercase tracking-widest ms-1">Quantity</label>
                         <Input
                           type="number"
                           value={draftItem.arrivalQuantity}
@@ -682,7 +682,7 @@ export function DeliveryFormDialog({
                         />
                       </div>
                       <div className="md:col-span-2 space-y-2">
-                        <label className="text-[10px] font-black text-muted-foreground/60 uppercase tracking-widest ml-1">Unit</label>
+                        <label className="text-[10px] font-black text-muted-foreground/60 uppercase tracking-widest ms-1">Unit</label>
                         <Input
                           value={draftItem.unit}
                           onChange={(e) => setDraftItem({ ...draftItem, unit: e.target.value })}
@@ -691,7 +691,7 @@ export function DeliveryFormDialog({
                         />
                       </div>
                       <div className="md:col-span-2 space-y-2">
-                        <label className="text-[10px] font-black text-muted-foreground/60 uppercase tracking-widest ml-1">Category</label>
+                        <label className="text-[10px] font-black text-muted-foreground/60 uppercase tracking-widest ms-1">Category</label>
                         <Input
                           value={draftItem.category}
                           onChange={(e) => setDraftItem({ ...draftItem, category: e.target.value })}
@@ -700,7 +700,7 @@ export function DeliveryFormDialog({
                         />
                       </div>
                       <div className="md:col-span-8 space-y-2">
-                        <label className="text-[10px] font-black text-muted-foreground/60 uppercase tracking-widest ml-1">Material Description (Optional)</label>
+                        <label className="text-[10px] font-black text-muted-foreground/60 uppercase tracking-widest ms-1">Material Description (Optional)</label>
                         <Input
                           value={draftItem.materialDescription}
                           onChange={(e) => setDraftItem({ ...draftItem, materialDescription: e.target.value })}
@@ -853,7 +853,7 @@ export function DeliveryFormDialog({
                     >
                       {mutation.isPending ? (
                         <>
-                          <Loader2 className="w-4 h-4 mr-3 animate-spin" />
+                          <Loader2 className="w-4 h-4 me-3 animate-spin" />
                           Processing...
                         </>
                       ) : (

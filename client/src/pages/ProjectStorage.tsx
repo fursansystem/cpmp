@@ -385,7 +385,7 @@ export default function ProjectStorage() {
               onClick={() => navigate(`/projects/${projectId}`)}
               className="h-9 w-9 shrink-0 rounded-xl hover:bg-primary/10 hover:text-primary transition-all"
             >
-              <ArrowLeft className="w-5 h-5" />
+              <ArrowLeft className="w-5 h-5 rtl:rotate-180" />
             </Button>
             <h1 className="text-2xl font-bold font-display flex items-center gap-3">
               <div className="bg-primary p-2 rounded-xl text-primary-foreground shadow-lg shadow-primary/20">
@@ -394,7 +394,7 @@ export default function ProjectStorage() {
               Project Storage
             </h1>
           </div>
-          <p className="text-xs text-muted-foreground font-medium ml-12">
+          <p className="text-xs text-muted-foreground font-medium ms-12">
             Managing assets for <span className="text-primary font-bold">{project?.name || "Project"}</span>
           </p>
         </div>
@@ -411,7 +411,7 @@ export default function ProjectStorage() {
             className="rounded-xl font-bold"
             disabled={!canManageStorage}
           >
-            <Plus className="w-4 h-4 mr-2" />
+            <Plus className="w-4 h-4 me-2" />
             New Folder
           </Button>
           <Button
@@ -420,7 +420,7 @@ export default function ProjectStorage() {
             className="rounded-xl font-bold shadow-lg shadow-primary/20"
             disabled={!canManageStorage}
           >
-            <Upload className="w-4 h-4 mr-2" />
+            <Upload className="w-4 h-4 me-2" />
             Upload Files
           </Button>
         </div>
@@ -432,7 +432,7 @@ export default function ProjectStorage() {
           {/* Breadcrumbs & Actions */}
           <div className="px-8 py-4 flex items-center justify-between bg-background border-b z-10 sticky top-0 shadow-sm">
             <div className="flex items-center gap-2 overflow-hidden min-w-0">
-              <div className="flex items-center gap-2 mr-2">
+              <div className="flex items-center gap-2 me-2">
                 <Checkbox
                   checked={
                     (filteredFolders.length > 0 || filteredDocs.length > 0) &&
@@ -466,7 +466,7 @@ export default function ProjectStorage() {
               </button>
               {breadcrumbs.map((f, i) => (
                 <div key={f.id} className="flex items-center gap-2 min-w-0">
-                  <ChevronRight className="w-4 h-4 text-muted-foreground/30 flex-shrink-0" />
+                  <ChevronRight className="w-4 h-4 text-muted-foreground/30 flex-shrink-0 rtl:rotate-180" />
                   <button
                     onClick={() => setCurrentFolderId(f.id)}
                     className={cn(
@@ -481,10 +481,10 @@ export default function ProjectStorage() {
             </div>
             <div className="flex items-center gap-3">
               <div className="relative w-64 group">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground group-focus-within:text-primary transition-colors" />
+                <Search className="absolute start-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground group-focus-within:text-primary transition-colors" />
                 <Input
                   placeholder="Search storage..."
-                  className="pl-9 h-9 border-muted/50 bg-muted/20 focus-visible:ring-primary focus-visible:bg-background transition-all rounded-xl text-[11px] font-medium"
+                  className="ps-9 h-9 border-muted/50 bg-muted/20 focus-visible:ring-primary focus-visible:bg-background transition-all rounded-xl text-[11px] font-medium"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                 />
@@ -519,7 +519,7 @@ export default function ProjectStorage() {
                       }}
                     >
                       <div className={cn(
-                        "absolute top-2 left-2 z-10 transition-opacity selection-area",
+                        "absolute top-2 start-2 z-10 transition-opacity selection-area",
                         selectedIds.size > 0 || selectedIds.has(item.id) ? "opacity-100" : "opacity-0 group-hover:opacity-100"
                       )}>
                         <Checkbox
@@ -541,7 +541,7 @@ export default function ProjectStorage() {
                           {item.name}
                         </span>
                       </div>
-                      <div className="absolute top-2 right-2 z-10 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <div className="absolute top-2 end-2 z-10 opacity-0 group-hover:opacity-100 transition-opacity">
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <button className="p-1 rounded-full bg-background/80 shadow-md hover:bg-muted scale-90" onClick={(e) => e.stopPropagation()}>
@@ -553,16 +553,16 @@ export default function ProjectStorage() {
                               setEditingItem(item as any);
                               setEditingItemName(item.name);
                             }} className="font-bold py-2.5 px-3.5 rounded-lg text-xs" disabled={!canManageStorage}>
-                              <Edit2 className="w-3.5 h-3.5 mr-2.5 text-primary" />
+                              <Edit2 className="w-3.5 h-3.5 me-2.5 text-primary" />
                               Rename
                             </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => setMovingItem(item as any)} className="font-bold py-2.5 px-3.5 rounded-lg text-xs text-muted-foreground" disabled={!canManageStorage}>
-                              <Move className="w-3.5 h-3.5 mr-2.5 text-primary" />
+                              <Move className="w-3.5 h-3.5 me-2.5 text-primary" />
                               Move to Folder
                             </DropdownMenuItem>
                             <DropdownMenuSeparator />
                             <DropdownMenuItem onClick={() => setDeletingItem(item as any)} className="font-bold py-2.5 px-3.5 rounded-lg text-xs text-destructive hover:bg-destructive/10" disabled={!canDeleteItems}>
-                              <Trash2 className="w-3.5 h-3.5 mr-2.5" />
+                              <Trash2 className="w-3.5 h-3.5 me-2.5" />
                               Delete Folder
                             </DropdownMenuItem>
                           </DropdownMenuContent>
@@ -578,7 +578,7 @@ export default function ProjectStorage() {
                       )}
                     >
                       <div className={cn(
-                        "absolute top-4 left-4 z-10 transition-opacity selection-area",
+                        "absolute top-4 start-4 z-10 transition-opacity selection-area",
                         selectedIds.size > 0 || selectedIds.has(item.id) ? "opacity-100" : "opacity-0 group-hover:opacity-100"
                       )}>
                         <Checkbox
@@ -589,7 +589,7 @@ export default function ProjectStorage() {
                       </div>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                          <button className="absolute top-4 right-4 z-10 opacity-0 group-hover:opacity-100 transition-all hover:bg-muted p-1 rounded-full bg-background/80 shadow-md scale-90">
+                          <button className="absolute top-4 end-4 z-10 opacity-0 group-hover:opacity-100 transition-all hover:bg-muted p-1 rounded-full bg-background/80 shadow-md scale-90">
                             <MoreVertical className="w-3.5 h-3.5" />
                           </button>
                         </DropdownMenuTrigger>
@@ -598,27 +598,27 @@ export default function ProjectStorage() {
                             setEditingItem(item as any);
                             setEditingItemName(item.name);
                           }} className="font-bold py-2.5 px-3.5 rounded-lg text-xs" disabled={!canManageStorage}>
-                            <Edit2 className="w-3.5 h-3.5 mr-2.5 text-primary" />
+                            <Edit2 className="w-3.5 h-3.5 me-2.5 text-primary" />
                             Rename
                           </DropdownMenuItem>
                           <DropdownMenuItem onClick={() => setPreviewDoc(item as any)} className="font-bold py-2.5 px-3.5 rounded-lg text-xs">
-                            <Search className="w-3.5 h-3.5 mr-2.5 text-primary" />
+                            <Search className="w-3.5 h-3.5 me-2.5 text-primary" />
                             Preview
                           </DropdownMenuItem>
                           <DropdownMenuItem onClick={() => {
                             setEditingItem(item as any);
                             setIsMetadataDialogOpen(true);
                           }} className="font-bold py-2.5 px-3.5 rounded-lg text-xs text-muted-foreground" disabled={!canManageStorage}>
-                            <Filter className="w-3.5 h-3.5 mr-2.5 text-primary" />
+                            <Filter className="w-3.5 h-3.5 me-2.5 text-primary" />
                             Edit Tags & Category
                           </DropdownMenuItem>
                           <DropdownMenuItem onClick={() => setMovingItem(item as any)} className="font-bold py-2.5 px-3.5 rounded-lg text-xs text-muted-foreground" disabled={!canManageStorage}>
-                            <Move className="w-3.5 h-3.5 mr-2.5 text-primary" />
+                            <Move className="w-3.5 h-3.5 me-2.5 text-primary" />
                             Move to Folder
                           </DropdownMenuItem>
                           <DropdownMenuSeparator />
                           <DropdownMenuItem onClick={() => setDeletingItem(item as any)} className="font-bold py-2.5 px-3.5 rounded-lg text-xs text-destructive hover:bg-destructive/10" disabled={!canDeleteItems}>
-                            <Trash2 className="w-3.5 h-3.5 mr-2.5" />
+                            <Trash2 className="w-3.5 h-3.5 me-2.5" />
                             Delete File
                           </DropdownMenuItem>
                         </DropdownMenuContent>
@@ -778,7 +778,7 @@ export default function ProjectStorage() {
               {(previewDocDetail || (previewDoc && (previewDoc.fileUrl || previewDoc.fileData))) && (
                 <Button variant="outline" size="sm" className="rounded-xl font-bold h-9 bg-background/50 border-primary/20 text-primary hover:bg-primary/5 hidden sm:flex" asChild>
                   <a href={getFileUrl((previewDocDetail?.fileUrl || previewDocDetail?.fileData) || (previewDoc?.fileUrl || previewDoc?.fileData))} target="_blank" rel="noopener noreferrer">
-                    <Link2 className="w-4 h-4 mr-2" />
+                    <Link2 className="w-4 h-4 me-2" />
                     Open Original
                   </a>
                 </Button>

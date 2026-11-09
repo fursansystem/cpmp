@@ -56,10 +56,10 @@ passport.use(new LocalStrategy(async (username, password, done) => {
   try {
     const user = await storage.getUserByUsername(username);
     if (!user) {
-      return done(null, false, { message: 'اسم المستخدم غير صحيح' });
+      return done(null, false, { message: 'Invalid username' });
     }
     if (!user.isActive) {
-      return done(null, false, { message: 'الحساب معطل' });
+      return done(null, false, { message: 'Account is disabled' });
     }
     
     // التحقق مما إذا كانت كلمة المرور في قاعدة البيانات مشفرة بصيغة bcrypt
@@ -74,7 +74,7 @@ passport.use(new LocalStrategy(async (username, password, done) => {
     }
 
     if (!isValid) {
-      return done(null, false, { message: 'كلمة المرور غير صحيحة' });
+      return done(null, false, { message: 'Incorrect password' });
     }
     return done(null, user);
   } catch (error) {

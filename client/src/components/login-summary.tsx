@@ -1,5 +1,6 @@
 // ملخص ما ينتظرك: shown once after signing in, only when something is waiting or unread.
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { BellRing, ChevronLeft, ClipboardCheck } from "lucide-react";
@@ -27,6 +28,7 @@ interface SummaryGroup { key: string; label: string; count: number; latestTitle:
 interface InboxItem { key: string; label: string; count: number; tab: string; ids: string[]; projectId: string | null }
 
 export function LoginSummary() {
+  const { t } = useTranslation();
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [, navigate] = useLocation();
@@ -87,22 +89,22 @@ export function LoginSummary() {
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && close()}>
-      <DialogContent hideCloseButton className="max-w-lg max-h-[85vh] overflow-y-auto" dir="rtl">
+      <DialogContent hideCloseButton className="max-w-lg max-h-[85vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2"><BellRing className="w-5 h-5 text-primary" /> ملخص ما ينتظرك</DialogTitle>
-          <DialogDescription>أهم ما يحتاج متابعتك الآن وما وصلك منذ آخر زيارة.</DialogDescription>
+          <DialogTitle className="flex items-center gap-2"><BellRing className="w-5 h-5 text-primary" /> {t("notifications:summary.title")}</DialogTitle>
+          <DialogDescription>{t("notifications:summary.description")}</DialogDescription>
         </DialogHeader>
 
         {waiting.length > 0 && (
           <section className="space-y-2">
-            <h3 className="text-sm font-bold flex items-center gap-2"><ClipboardCheck className="w-4 h-4" /> المطلوب منك</h3>
+            <h3 className="text-sm font-bold flex items-center gap-2"><ClipboardCheck className="w-4 h-4" /> {t("notifications:summary.required_from_you")}</h3>
             <ul className="space-y-1.5">
               {waiting.map((i) => (
                 <li key={i.key}>
                   <button type="button" onClick={() => go(`/payments?tab=${i.tab}${i.projectId ? `&project=${i.projectId}` : ""}${i.ids.length === 1 ? `&focus=${i.ids[0]}` : ""}`)} className="w-full flex items-center gap-3 rounded-xl border bg-primary/5 px-3 py-2 text-start hover-elevate">
                     <span className="min-w-8 text-center rounded-full bg-primary text-primary-foreground text-sm font-bold px-2">{i.count}</span>
-                    <span className="flex-1 text-sm">{i.label}</span>
-                    <ChevronLeft className="w-4 h-4 text-muted-foreground" />
+                    <span className="flex-1 text-sm">{t(`notifications:summary.inbox.${i.key}`, { defaultValue: i.label })}</span>
+                    <ChevronLeft className="w-4 h-4 text-muted-foreground rtl:rotate-180" />
                   </button>
                 </li>
               ))}
@@ -112,7 +114,7 @@ export function LoginSummary() {
 
         {groups.length > 0 && (
           <section className="space-y-2">
-            <h3 className="text-sm font-bold">تنبيهات غير مقروءة ({summary.data?.total ?? 0})</h3>
+            <h3 className="text-sm font-bold">{t("notifications:summary.unread_count", { count: summary.data?.total ?? 0 })}</h3>
             <ul className="space-y-1.5">
               {groups.map((g) => (
                 <li key={g.key}>
@@ -122,7 +124,7 @@ export function LoginSummary() {
                       <span className="block text-sm font-semibold">{g.label}</span>
                       <span className="block text-xs text-muted-foreground truncate" dir="auto">{g.latestTitle}{g.latestMessage ? ` — ${g.latestMessage}` : ""}</span>
                     </span>
-                    {g.link && <ChevronLeft className="w-4 h-4 text-muted-foreground" />}
+                    {g.link && <ChevronLeft className="w-4 h-4 text-muted-foreground rtl:rotate-180" />}
                   </button>
                 </li>
               ))}
@@ -132,12 +134,12 @@ export function LoginSummary() {
 
         <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer" htmlFor="login-summary-hide">
           <input id="login-summary-hide" type="checkbox" className="h-4 w-4" checked={hideNext} onChange={(e) => setHideNext(e.target.checked)} />
-          لا تُظهر هذا الملخص عند تسجيل الدخول
+          {t("notifications:summary.do_not_show")}
         </label>
 
         <DialogFooter className="gap-2 sm:gap-2">
-          {groups.length > 0 && <Button variant="outline" disabled={markAll.isPending} onClick={() => markAll.mutate()}>تحديد الكل كمقروء</Button>}
-          <Button onClick={close}>إغلاق</Button>
+          {groups.length > 0 && <Button variant="outline" disabled={markAll.isPending} onClick={() => markAll.mutate()}>{t("notifications:summary.mark_all_read")}</Button>}
+          <Button onClick={close}>{t("notifications:summary.close")}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

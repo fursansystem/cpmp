@@ -192,7 +192,7 @@ export default function Invitations() {
                       disabled={blocked || respond.isPending}
                       data-testid={`button-accept-${invitation.id}`}
                     >
-                      <Check className="w-4 h-4 mr-2" />
+                      <Check className="w-4 h-4 me-2" />
                       Accept
                     </Button>
                     <Button
@@ -207,7 +207,7 @@ export default function Invitations() {
                       disabled={blocked || respond.isPending}
                       data-testid={`button-reject-${invitation.id}`}
                     >
-                      <X className="w-4 h-4 mr-2" />
+                      <X className="w-4 h-4 me-2" />
                       Decline
                     </Button>
                   </div>

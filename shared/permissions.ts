@@ -459,3 +459,40 @@ export const InventoryPermissions = {
     };
   },
 };
+
+// Permits & transactions (الرخص والمعاملات)
+//
+// The project's developer (the owning organization) runs the section: it opens transactions, edits their
+// steps and requirements and assigns them. Anyone on the project (developer, contractor or consultant
+// team) can be assigned a transaction or a step, and sees only what is assigned to them.
+export const PermitPermissions = {
+  isDeveloper(user: PermissionUser, project: PermissionProject, userOrgId?: string | null): boolean {
+    if (user.role === "super_admin") return true;
+    return !!userOrgId && project.organizationId === userOrgId;
+  },
+
+  canManage(user: PermissionUser, project: PermissionProject, userOrgId?: string | null): boolean {
+    return this.isDeveloper(user, project, userOrgId);
+  },
+
+  canDelete(user: PermissionUser, project: PermissionProject, userOrgId?: string | null): boolean {
+    if (user.role === "super_admin") return true;
+    if (!this.isDeveloper(user, project, userOrgId)) return false;
+    return user.role === "developer_admin" || user.role === "org_admin";
+  },
+
+  // Works on a transaction: the developer, or someone it (or one of its steps) is assigned to
+  canWorkOn(user: PermissionUser, project: PermissionProject, userOrgId: string | null | undefined, assigneeIds: (string | null)[]): boolean {
+    return this.canManage(user, project, userOrgId) || assigneeIds.includes(user.id);
+  },
+
+  canManageSystemCatalog(user: PermissionUser): boolean {
+    return user.role === "super_admin";
+  },
+
+  // A developer organization's administrators keep their own service templates
+  canManageOrgCatalog(user: PermissionUser): boolean {
+    if (user.role === "super_admin") return true;
+    return (user.role === "developer_admin" || user.role === "org_admin") && user.organizationSectorType === DEVELOPER_SECTOR;
+  },
+};

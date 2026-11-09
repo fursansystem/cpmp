@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Upload, Search, FileText, Download, Trash2, File, LayoutGrid, List, Eye } from "lucide-react";
-import { format } from "date-fns";
+import { format } from "@/lib/date-format";
 import { useToast } from "@/hooks/use-toast";
 import {
   Select,
@@ -196,7 +196,7 @@ export default function Documents() {
           onClick={() => setIsDialogOpen(true)}
           data-testid="button-upload"
         >
-          <Upload className="w-4 h-4 mr-2" />
+          <Upload className="w-4 h-4 me-2" />
           Upload Document
         </Button>
       </div>
@@ -235,12 +235,12 @@ export default function Documents() {
       <div className="flex items-center gap-4 flex-wrap justify-between">
         <div className="flex items-center gap-2 flex-wrap">
           <div className="relative flex-1 min-w-[200px] max-w-md">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Search className="absolute start-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <Input
               placeholder="Search documents..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10"
+              className="ps-10"
               data-testid="input-search"
             />
           </div>
@@ -479,7 +479,7 @@ export default function Documents() {
                       }}
                       data-testid="button-download"
                     >
-                      <Download className="w-4 h-4 mr-2" />
+                      <Download className="w-4 h-4 me-2" />
                       Download File
                     </Button>
                   )}

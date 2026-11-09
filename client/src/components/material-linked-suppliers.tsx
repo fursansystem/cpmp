@@ -58,7 +58,7 @@ export function MaterialLinkedSuppliers({ materialId, materialName, onEditSuppli
   return (
     <div className="relative border border-border/40 rounded-2xl p-4 bg-muted/5 supplier-item">
       {materialName && (
-        <div className="absolute -top-3 left-4 bg-white dark:bg-card px-2 text-xs font-bold text-primary flex items-center gap-1.5 border border-primary/20 rounded-lg py-0.5">
+        <div className="absolute -top-3 start-4 bg-white dark:bg-card px-2 text-xs font-bold text-primary flex items-center gap-1.5 border border-primary/20 rounded-lg py-0.5">
           <Package className="w-3 h-3" />
           {materialName}
         </div>
@@ -102,12 +102,12 @@ export function MaterialLinkedSuppliers({ materialId, materialName, onEditSuppli
                         </Badge>
                         {supplier.taxNumber && (
                           <Badge variant="outline" className="bg-muted/30 text-muted-foreground border-border/50 text-xs font-medium py-0.5 px-2.5" title="VAT Number">
-                            <Hash className="w-3.5 h-3.5 mr-1.5 opacity-60" /> {supplier.taxNumber}
+                            <Hash className="w-3.5 h-3.5 me-1.5 opacity-60" /> {supplier.taxNumber}
                           </Badge>
                         )}
                         {supplier.experienceYears && (
                           <Badge variant="outline" className="bg-muted/30 text-muted-foreground border-border/50 text-xs font-medium py-0.5 px-2.5" title="Experience Years">
-                            <Briefcase className="w-3.5 h-3.5 mr-1.5 opacity-60" /> {supplier.experienceYears}+ XP
+                            <Briefcase className="w-3.5 h-3.5 me-1.5 opacity-60" /> {supplier.experienceYears}+ XP
                           </Badge>
                         )}
                       </div>

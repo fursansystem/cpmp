@@ -159,7 +159,7 @@ export function ProjectStorageModal({
             setSearchQuery("");
           }}
           className={cn(
-            "flex items-center gap-2 px-3 py-1.5 text-sm transition-colors rounded-md group text-left w-full",
+            "flex items-center gap-2 px-3 py-1.5 text-sm transition-colors rounded-md group text-start w-full",
             isSelected ? "bg-primary/10 text-primary font-medium" : "hover:bg-muted text-muted-foreground"
           )}
           style={{ paddingLeft: `${(level + 1) * 12}px` }}
@@ -170,7 +170,7 @@ export function ProjectStorageModal({
             <Folder className={cn("h-4 w-4 shrink-0", isSelected ? "fill-primary/20 text-primary" : "text-muted-foreground/50")} />
           )}
           <span className="truncate">{folder.name}</span>
-          {isSelected && <div className="ml-auto w-1 h-4 bg-primary rounded-full transition-all" />}
+          {isSelected && <div className="ms-auto w-1 h-4 bg-primary rounded-full transition-all" />}
         </button>
         {folders
           .filter(f => f.parentId === folder.id)
@@ -190,7 +190,7 @@ export function ProjectStorageModal({
       }}>
       <DialogContent className="max-w-6xl h-[750px] flex flex-col p-0 gap-0 overflow-hidden shadow-2xl border-none">
         <DialogHeader className="p-5 border-b bg-muted/10">
-          <div className="flex items-center justify-between pr-8">
+          <div className="flex items-center justify-between pe-8">
             <div className="flex flex-col gap-0.5">
               <DialogTitle className="text-xl font-bold flex items-center gap-2.5">
                 <div className="bg-primary p-2 rounded-xl text-primary-foreground shadow-lg shadow-primary/20">
@@ -198,7 +198,7 @@ export function ProjectStorageModal({
                 </div>
                 {step === 1 ? "Project Storage" : "Set Document Titles"}
               </DialogTitle>
-              <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-bold ml-11">
+              <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-bold ms-11">
                 {step === 1 ? "Asset & Document browser" : "Provide a label for each selected document"}
               </p>
             </div>
@@ -237,7 +237,7 @@ export function ProjectStorageModal({
           {step === 1 ? (
             <>
               {/* Left Panel: Folder Tree */}
-              <div className="w-64 border-r bg-muted/5 flex flex-col shrink-0">
+              <div className="w-64 border-e bg-muted/5 flex flex-col shrink-0">
                 <div className="p-4 flex flex-col gap-1.5">
                   <h3 className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60 mb-2 px-1">
                     Navigation
@@ -248,7 +248,7 @@ export function ProjectStorageModal({
                       setSearchQuery("");
                     }}
                     className={cn(
-                      "flex items-center gap-2.5 px-3 py-2 text-sm transition-all rounded-lg w-full text-left font-medium group",
+                      "flex items-center gap-2.5 px-3 py-2 text-sm transition-all rounded-lg w-full text-start font-medium group",
                       currentFolderId === null && !searchQuery ? "bg-primary text-primary-foreground shadow-lg shadow-primary/20 scale-[1.02]" : "text-muted-foreground hover:bg-muted/80"
                     )}
                   >
@@ -273,10 +273,10 @@ export function ProjectStorageModal({
                 <div className="p-4 border-b bg-background flex flex-col gap-3 shadow-sm z-10">
                   <div className="flex items-center gap-3">
                     <div className="relative flex-1 group">
-                      <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground group-focus-within:text-primary transition-colors" />
+                      <Search className="absolute start-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground group-focus-within:text-primary transition-colors" />
                       <Input
                         placeholder="Search documents by name..."
-                        className="pl-10 h-10 border-muted/50 bg-muted/20 focus-visible:ring-primary focus-visible:bg-background transition-all"
+                        className="ps-10 h-10 border-muted/50 bg-muted/20 focus-visible:ring-primary focus-visible:bg-background transition-all"
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
                       />
@@ -306,7 +306,7 @@ export function ProjectStorageModal({
                   </div>
                   <div className="flex items-center gap-6">
                     <span className="w-28 text-center">Category</span>
-                    <span className="w-16 text-right">Size</span>
+                    <span className="w-16 text-end">Size</span>
                     <div className="w-10 shrink-0" />
                   </div>
                 </div>
@@ -334,7 +334,7 @@ export function ProjectStorageModal({
                               )}
                               onClick={() => toggleSelect(doc.id)}
                             >
-                              <div className="flex items-center gap-4 min-w-0 pr-4">
+                              <div className="flex items-center gap-4 min-w-0 pe-4">
                                 <div className={cn(
                                   "h-10 w-10 flex items-center justify-center rounded-xl transition-all shrink-0",
                                   isSelected
@@ -367,7 +367,7 @@ export function ProjectStorageModal({
                                     {doc.category}
                                   </span>
                                 </div>
-                                <span className="w-16 text-[11px] text-muted-foreground font-bold text-right tabular-nums">
+                                <span className="w-16 text-[11px] text-muted-foreground font-bold text-end tabular-nums">
                                   {formatFileSize(doc.size || (doc as any).fileSize)}
                                 </span>
                                 <div className="w-10 flex justify-center">
@@ -437,7 +437,7 @@ export function ProjectStorageModal({
                         </div>
 
                         <div className="space-y-3">
-                          <div className="flex items-center justify-between ml-1">
+                          <div className="flex items-center justify-between ms-1">
                              <Label className="text-xs font-black text-muted-foreground uppercase tracking-widest">
                                {suggestions.length > 0 ? "Select Category" : "Document Title"}
                              </Label>
@@ -452,7 +452,7 @@ export function ProjectStorageModal({
                                   className="w-full justify-between rounded-xl h-10 border-muted/50 bg-background/50 text-xs font-medium hover:bg-background"
                                 >
                                   {docTitles[doc.id] || "Search or type category..."}
-                                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                                  <ChevronsUpDown className="ms-2 h-4 w-4 shrink-0 opacity-50" />
                                 </Button>
                               </PopoverTrigger>
                               <PopoverContent className="w-[450px] p-0 rounded-xl shadow-2xl border-primary/10" align="start">
@@ -481,7 +481,7 @@ export function ProjectStorageModal({
                                           }}
                                           className="text-xs py-2 cursor-pointer"
                                         >
-                                          <Check className={cn("mr-2 h-4 w-4 text-primary", docTitles[doc.id] === s ? "opacity-100" : "opacity-0")} />
+                                          <Check className={cn("me-2 h-4 w-4 text-primary", docTitles[doc.id] === s ? "opacity-100" : "opacity-0")} />
                                           {s}
                                         </CommandItem>
                                       ))}

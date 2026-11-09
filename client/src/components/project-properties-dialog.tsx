@@ -115,7 +115,7 @@ function GeneralInfoTab({ project }: { project: Project }) {
   const isDeveloperOrSuperAdmin = isSuperAdmin || isDeveloperOrg;
 
   return (
-    <ScrollArea className="h-[500px] pr-4">
+    <ScrollArea className="h-[500px] pe-4">
       <div className="space-y-6">
         <Card>
           <CardHeader>
@@ -416,11 +416,11 @@ function WorkLocationTab({ projectId }: { projectId: string }) {
           {isContractorOrAdmin && (
             <>
               <Button size="sm" variant="outline" onClick={handleDownloadTemplate} data-testid="button-download-template">
-                <FileText className="w-4 h-4 mr-2" />
+                <FileText className="w-4 h-4 me-2" />
                 Template
               </Button>
               <Button size="sm" variant="outline" onClick={handleExport} data-testid="button-export-locations">
-                <Download className="w-4 h-4 mr-2" />
+                <Download className="w-4 h-4 me-2" />
                 Export
               </Button>
               <div className="relative">
@@ -433,7 +433,7 @@ function WorkLocationTab({ projectId }: { projectId: string }) {
                 />
                 <Button size="sm" variant="outline" asChild data-testid="button-import-locations">
                   <label htmlFor="import-locations-input" className="cursor-pointer">
-                    <Upload className="w-4 h-4 mr-2" />
+                    <Upload className="w-4 h-4 me-2" />
                     Import
                   </label>
                 </Button>
@@ -447,7 +447,7 @@ function WorkLocationTab({ projectId }: { projectId: string }) {
               disabled={isAddingNew || editingId !== null}
               data-testid="button-add-location"
             >
-              <Plus className="w-4 h-4 mr-2" />
+              <Plus className="w-4 h-4 me-2" />
               Add Location
             </Button>
           )}
@@ -939,11 +939,11 @@ function WorkLevelsTab({ projectId }: { projectId: string }) {
           {canModify && (
             <>
               <Button size="sm" variant="outline" onClick={handleDownloadTemplate} data-testid="button-download-levels-template">
-                <FileText className="w-4 h-4 mr-2" />
+                <FileText className="w-4 h-4 me-2" />
                 Template
               </Button>
               <Button size="sm" variant="outline" onClick={handleExport} data-testid="button-export-levels">
-                <Download className="w-4 h-4 mr-2" />
+                <Download className="w-4 h-4 me-2" />
                 Export
               </Button>
               <div className="relative">
@@ -956,7 +956,7 @@ function WorkLevelsTab({ projectId }: { projectId: string }) {
                 />
                 <Button size="sm" variant="outline" asChild data-testid="button-import-levels">
                   <label htmlFor="import-levels-input" className="cursor-pointer">
-                    <Upload className="w-4 h-4 mr-2" />
+                    <Upload className="w-4 h-4 me-2" />
                     Import
                   </label>
                 </Button>
@@ -967,7 +967,7 @@ function WorkLevelsTab({ projectId }: { projectId: string }) {
                 disabled={isAddingNew || editingId !== null}
                 data-testid="button-add-work-level"
               >
-                <Plus className="w-4 h-4 mr-2" />
+                <Plus className="w-4 h-4 me-2" />
                 Add Level
               </Button>
             </>
@@ -983,7 +983,7 @@ function WorkLevelsTab({ projectId }: { projectId: string }) {
               <TableHead className="w-24 bg-background border-b sticky top-0">Code</TableHead>
               <TableHead className="bg-background border-b sticky top-0">English Title</TableHead>
               <TableHead dir="rtl" className="bg-background border-b sticky top-0">Arabic Title</TableHead>
-              <TableHead className="w-24 text-right bg-background border-b sticky top-0">Actions</TableHead>
+              <TableHead className="w-24 text-end bg-background border-b sticky top-0">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -1232,7 +1232,7 @@ function FormSettingsTab({ projectId }: { projectId: string }) {
     .sort((a, b) => a.sort_order - b.sort_order);
 
   return (
-    <ScrollArea className="h-[500px] pr-4">
+    <ScrollArea className="h-[500px] pe-4">
       <div className="space-y-4">
         {/* Form Settings Card with Type Selector */}
         <Collapsible open={formSettingsOpen} onOpenChange={setFormSettingsOpen}>
@@ -1244,7 +1244,7 @@ function FormSettingsTab({ projectId }: { projectId: string }) {
                     <FileText className="w-4 h-4" />
                     Form Settings
                   </div>
-                  {formSettingsOpen ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+                  {formSettingsOpen ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4 rtl:rotate-180" />}
                 </CardTitle>
               </CardHeader>
             </CollapsibleTrigger>
@@ -1398,7 +1398,7 @@ function FormSettingsTab({ projectId }: { projectId: string }) {
                     <Shield className="w-4 h-4" />
                     Role-Based Access Control (RBAC)
                   </div>
-                  {rbacOpen ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+                  {rbacOpen ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4 rtl:rotate-180" />}
                 </CardTitle>
               </CardHeader>
             </CollapsibleTrigger>
@@ -1406,7 +1406,7 @@ function FormSettingsTab({ projectId }: { projectId: string }) {
               <CardContent className="pt-0 space-y-4">
                 <p className="text-sm text-muted-foreground">
                   Team member permissions for each form type
-                  {!canEditPermissions && <span className="text-xs ml-2">(View only - Admin access required to edit)</span>}
+                  {!canEditPermissions && <span className="text-xs ms-2">(View only - Admin access required to edit)</span>}
                 </p>
 
                 <div>

@@ -64,6 +64,12 @@ import { requests, requestRevisions, requestWorkLocations, requestPurposes, work
 import { Resend } from "resend";
 import { registerProgressMatrixRoutes } from "./progress-matrix-routes";
 import { registerPaymentsRoutes } from "./payments-routes";
+import { registerPermitsRoutes } from "./permits-routes";
+import { permitsService } from "./permits-service";
+import { registerWebhookRoutes } from "./webhook-routes";
+import { webhookService } from "./webhook-service";
+import { translate, dirOf } from "@shared/i18n";
+import { registerErpRoutes } from "./erp-routes";
 import { applyApprovedWirRevision, countCertificatesByProject } from "./progress-matrix-service";
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
@@ -539,7 +545,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Handle not found errors
-      if (error.message.includes("not found") || error.message.includes("غير موجود")) {
+      if (error.message.includes("not found") || error.message.includes("غير موجود") || error.message.includes("غير موجودة")) {
         return res.status(404).json({ error: error.message });
       }
 
@@ -550,7 +556,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         error.message.includes("لا يمكن") ||
         error.message.includes("يجب") ||
         error.message.includes("مطلوب") ||
-        error.message.includes("لا ينتمي")
+        error.message.includes("لا ينتمي") ||
+        error.message.includes("لا تنتمي")
       ) {
         return res.status(400).json({ error: error.message });
       }
@@ -571,7 +578,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Progress Matrix & Payment Certificates (مصفوفة الإنجاز والمستخلصات)
   registerProgressMatrixRoutes(app, { getCurrentUserWithOrg, handleError });
-  registerPaymentsRoutes(app, { getCurrentUserWithOrg, handleError });
+  const { markOrderPaidFromErp } = registerPaymentsRoutes(app, { getCurrentUserWithOrg, handleError });
+  // Licences and government transactions (الرخص والمعاملات), and the hourly expiry / overdue sweep
+  registerPermitsRoutes(app, { getCurrentUserWithOrg, handleError });
+  permitsService.start();
+
+  // Outgoing webhooks (ERP integration): endpoint management, and the worker that retries deliveries
+  registerWebhookRoutes(app, { getCurrentUserWithOrg, handleError });
+  webhookService.start();
+  // Incoming from ERPNext: suppliers, payment confirmations, supplier statements
+  registerErpRoutes(app, { getCurrentUserWithOrg, handleError, markOrderPaidFromErp });
 
   app.post("/api/deliveries/bulk", async (req, res) => {
     try {
@@ -589,7 +605,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!ctx) return res.status(401).json({ error: "Authentication required" });
       if (!ctx.permissions.canReceiveWithoutPo) {
         return res.status(403).json({
-          error: "الاستلام بدون أمر شراء يحتاج صلاحية أعلى. سجّل الاستلام من أمر الشراء المعتمد.",
+          error: "Receiving without a purchase order requires higher permissions. Record receiving against an approved purchase order.",
         });
       }
 
@@ -1312,29 +1328,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       } else if (needsRegistrationLink && token) {
         const inviteUrl = `${process.env.APP_URL || 'http://localhost:5000'}/accept-invitation?token=${token}`;
+        const inviterLang = (req.user as any)?.language || "ar";
+        const emailSubject = translate("notifications", "email.invitation.subject", { projectName: project.name }, inviterLang);
+        const emailTitle = translate("notifications", "email.invitation.title", undefined, inviterLang);
+        const emailGreeting = translate("notifications", "email.invitation.greeting", undefined, inviterLang);
+        const emailBody = translate("notifications", "email.invitation.body", { inviterName, projectName: project.name, roleLabel }, inviterLang);
+        const emailInstructions = translate("notifications", "email.invitation.instructions", undefined, inviterLang);
+        const emailCta = translate("notifications", "email.invitation.cta", undefined, inviterLang);
+        const emailCopyLink = translate("notifications", "email.invitation.copy_link", undefined, inviterLang);
+        const emailPrivacy = translate("notifications", "email.invitation.privacy_note", undefined, inviterLang);
+        const emailExpiry = translate("notifications", "email.invitation.expiry_note", undefined, inviterLang);
+        const emailDir = dirOf(inviterLang);
+
         const sendResult = await sendTransactionalEmail({
           to: normalizedEmail!,
-          subject: `دعوة للمشاركة في مشروع ${project.name} - نظام إدارة المشاريع`,
+          subject: emailSubject,
           html: `
-            <div dir="rtl" style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-              <h2 style="color: #333;">دعوة للمشاركة في مشروع</h2>
-              <p>السلام عليكم،</p>
-              <p>دعتكم <strong>${inviterName}</strong> للمشاركة في مشروع <strong>${project.name}</strong> بصفة <strong>${roleLabel}</strong>.</p>
-              <p>سجّلوا بيانات منشأتكم من الرابط أدناه، ثم تجدون الدعوة بانتظار ردّكم عند أول دخول:</p>
+            <div dir="${emailDir}" style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+              <h2 style="color: #333;">${emailTitle}</h2>
+              <p>${emailGreeting}</p>
+              <p>${emailBody}</p>
+              <p>${emailInstructions}</p>
               <div style="text-align: center; margin: 30px 0;">
                 <a href="${inviteUrl}" style="background-color: #007bff; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; display: inline-block;">
-                  تسجيل المنشأة
+                  ${emailCta}
                 </a>
               </div>
-              <p>أو انسخ الرابط التالي:</p>
+              <p>${emailCopyLink}</p>
               <p style="background-color: #f5f5f5; padding: 10px; border-radius: 5px; word-break: break-all;">
                 ${inviteUrl}
               </p>
               <p style="color: #666; font-size: 14px;">
-                بيانات منشأتكم تدخلونها بأنفسكم وتبقى تحت إدارتكم وحدكم، ولكم قبول المشروع أو رفضه.
+                ${emailPrivacy}
               </p>
               <p style="color: #666; font-size: 14px;">
-                هذا الرابط صالح لمدة 7 أيام ويُستخدم مرة واحدة.
+                ${emailExpiry}
               </p>
             </div>
           `,
@@ -1748,6 +1776,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
           userName: "System",
         });
         broadcastActivityUpdate(statusActivity);
+      }
+      // A task mirroring a licence/transaction step moves the step with it
+      if (task.sourceType === "permit_step") {
+        await permitsService.applyTaskStatus(task, (req.user as User | undefined)?.id ?? null);
       }
 
       res.json(task);
@@ -3172,7 +3204,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const ctx = await getInventoryContext(req, req.params.projectId);
       if (!ctx) return res.status(401).json({ error: "Authentication required" });
       if (!ctx.permissions.canManageWarehouses) {
-        return res.status(403).json({ error: "ليس لديك صلاحية إدارة المستودعات" });
+        return res.status(403).json({ error: "You do not have permission to manage warehouses" });
       }
       const validated = insertWarehouseSchema.parse({ ...req.body, projectId: req.params.projectId });
       res.status(201).json(await storage.createWarehouse(validated));
@@ -3189,7 +3221,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const ctx = await getInventoryContext(req, warehouse.projectId);
       if (!ctx) return res.status(401).json({ error: "Authentication required" });
       if (!ctx.permissions.canManageWarehouses) {
-        return res.status(403).json({ error: "ليس لديك صلاحية إدارة المستودعات" });
+        return res.status(403).json({ error: "You do not have permission to manage warehouses" });
       }
       const validated = updateWarehouseSchema.parse(req.body);
       res.json(await storage.updateWarehouse(req.params.id, validated));
@@ -3206,7 +3238,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const ctx = await getInventoryContext(req, warehouse.projectId);
       if (!ctx) return res.status(401).json({ error: "Authentication required" });
       if (!ctx.permissions.canManageWarehouses) {
-        return res.status(403).json({ error: "ليس لديك صلاحية إدارة المستودعات" });
+        return res.status(403).json({ error: "You do not have permission to manage warehouses" });
       }
       await storage.deleteWarehouse(req.params.id);
       res.status(204).send();
@@ -3262,7 +3294,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const ctx = await getInventoryContext(req, req.params.projectId);
       if (!ctx) return res.status(401).json({ error: "Authentication required" });
       if (!ctx.permissions.canAdjust) {
-        return res.status(403).json({ error: "ليس لديك صلاحية تسجيل تسويات المخزون" });
+        return res.status(403).json({ error: "You do not have permission to record stock adjustments" });
       }
 
       const validated = createManualStockMovementSchema.parse(req.body);
@@ -3271,6 +3303,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         performedBy: ctx.currentUser.user.id,
       });
       res.status(201).json(movement);
+      webhookService.emit({ event: "stock_movement", action: "created", projectId: req.params.projectId, record: movement, actorId: ctx.currentUser.user.id });
 
       if (stockDirection(movement.movementType) === "out") {
         void alertLowStock(
@@ -3395,7 +3428,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const ctx = await getInventoryContext(req, req.params.projectId);
       if (!ctx) return res.status(401).json({ error: "Authentication required" });
       if (!ctx.permissions.canView) {
-        return res.status(403).json({ error: "ليس لديك صلاحية عرض مخزون هذا المشروع" });
+        return res.status(403).json({ error: "You do not have permission to view inventory for this project" });
       }
       res.json(await storage.getStockTransfersByProject(req.params.projectId));
     } catch (error) {
@@ -3408,7 +3441,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const ctx = await getInventoryContext(req, req.params.projectId);
       if (!ctx) return res.status(401).json({ error: "Authentication required" });
       if (!ctx.permissions.canTransfer) {
-        return res.status(403).json({ error: "ليس لديك صلاحية التحويل بين المستودعات" });
+        return res.status(403).json({ error: "You do not have permission to transfer between warehouses" });
       }
 
       const validated = createStockTransferSchema.parse({
@@ -3420,6 +3453,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         createdBy: ctx.currentUser.user.id,
       });
       res.status(201).json(transfer);
+      webhookService.emit({ event: "stock_transfer", action: "created", projectId: req.params.projectId, record: transfer, actorId: ctx.currentUser.user.id });
     } catch (error) {
       handleError(res, error);
     }
@@ -3432,7 +3466,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const ctx = await getInventoryContext(req, req.params.projectId);
       if (!ctx) return res.status(401).json({ error: "Authentication required" });
       if (!ctx.permissions.canView) {
-        return res.status(403).json({ error: "ليس لديك صلاحية عرض مخزون هذا المشروع" });
+        return res.status(403).json({ error: "You do not have permission to view inventory for this project" });
       }
 
       const issues = await storage.getMaterialIssuesByProject(req.params.projectId);
@@ -3472,7 +3506,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const ctx = await getInventoryContext(req, req.params.projectId);
       if (!ctx) return res.status(401).json({ error: "Authentication required" });
       if (!ctx.permissions.canIssue) {
-        return res.status(403).json({ error: "ليس لديك صلاحية صرف مواد من هذا المشروع" });
+        return res.status(403).json({ error: "You do not have permission to issue materials from this project" });
       }
 
       const validated = createMaterialIssueSchema.parse({
@@ -3484,6 +3518,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         createdBy: ctx.currentUser.user.id,
       });
       res.status(201).json(issue);
+      webhookService.emit({ event: "material_issue", action: "created", projectId: req.params.projectId, recordId: issue.id, actorId: ctx.currentUser.user.id });
 
       // A pending voucher has not moved any stock yet, so there is nothing to alert on.
       if (issue.status === "issued") {
@@ -3506,9 +3541,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const ctx = await getInventoryContext(req, issue.projectId);
       if (!ctx) return res.status(401).json({ error: "Authentication required" });
       if (!ctx.permissions.canApproveIssue) {
-        return res.status(403).json({ error: "منصبك لا يملك صلاحية اعتماد سندات الصرف في هذا المشروع" });
+        return res.status(403).json({ error: "Your position does not have permission to approve material issue vouchers in this project" });
       }
       res.json(await storage.approveMaterialIssue(req.params.id, ctx.currentUser.user.id));
+      webhookService.emit({ event: "material_issue", action: "approved", projectId: issue.projectId, recordId: issue.id, actorId: ctx.currentUser.user.id });
 
       // Approval is where a pending voucher's stock actually leaves the warehouse.
       void alertLowStock(
@@ -3529,10 +3565,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const ctx = await getInventoryContext(req, issue.projectId);
       if (!ctx) return res.status(401).json({ error: "Authentication required" });
       if (!ctx.permissions.canApproveIssue) {
-        return res.status(403).json({ error: "منصبك لا يملك صلاحية رفض سندات الصرف في هذا المشروع" });
+        return res.status(403).json({ error: "Your position does not have permission to reject material issue vouchers in this project" });
       }
       const { rejectionReason } = rejectMaterialIssueSchema.parse(req.body);
       res.json(await storage.rejectMaterialIssue(req.params.id, ctx.currentUser.user.id, rejectionReason));
+      webhookService.emit({ event: "material_issue", action: "rejected", projectId: issue.projectId, recordId: issue.id, actorId: ctx.currentUser.user.id, change: { note: rejectionReason } });
     } catch (error) {
       handleError(res, error);
     }
@@ -3546,9 +3583,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const ctx = await getInventoryContext(req, issue.projectId);
       if (!ctx) return res.status(401).json({ error: "Authentication required" });
       if (!ctx.permissions.canCancelIssue) {
-        return res.status(403).json({ error: "ليس لديك صلاحية إلغاء سندات الصرف" });
+        return res.status(403).json({ error: "You do not have permission to cancel material issue vouchers" });
       }
       res.json(await storage.cancelMaterialIssue(req.params.id, ctx.currentUser.user.id));
+      webhookService.emit({ event: "material_issue", action: "cancelled", projectId: issue.projectId, recordId: issue.id, actorId: ctx.currentUser.user.id });
     } catch (error) {
       handleError(res, error);
     }
@@ -3574,7 +3612,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const ctx = await getInventoryContext(req, req.params.projectId);
       if (!ctx) return res.status(401).json({ error: "Authentication required" });
       if (!ctx.permissions.canManageApprovers) {
-        return res.status(403).json({ error: "ليس لديك صلاحية تعديل معتمدي سندات الصرف" });
+        return res.status(403).json({ error: "You do not have permission to modify material issue approvers" });
       }
 
       const { positionIds } = z.object({ positionIds: z.array(z.string()) }).parse(req.body);
@@ -5279,7 +5317,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 request.requestNumber || "",
                 request.projectId,
                 "created",
-                askerUser?.username || "مستشار",
+                askerUser?.username || "Consultant",
                 contractorUserIds
               );
             }
@@ -5432,7 +5470,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               request.id,
               request.requestNumber || "",
               request.projectId,
-              senderUser?.username || "مستخدم",
+              senderUser?.username || "User",
               targetUserIds
             ).catch(err => console.error("[MessageNotify] Notification error:", err));
 
@@ -5585,7 +5623,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               request as any,
               statusCode,
               validCode.label,
-              approverUser?.username || "مستشار",
+              approverUser?.username || "Consultant",
               currentUser.user.id
             );
           }
@@ -5945,7 +5983,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             associatedRequest.id,
             associatedRequest.requestNumber || "",
             associatedRequest.projectId,
-            uploaderUser?.username || "مستشار",
+            uploaderUser?.username || "Consultant",
             fileName,
             contractorUserIds
           );
@@ -6417,7 +6455,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             request,
             effectiveCode,
             validCode.label,
-            approverUser?.username || "مدير المشروع",
+            approverUser?.username || "Project Manager",
             userId
           );
         }
@@ -6589,7 +6627,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const tm = await storage.getTeamMember(utm.teamMemberId);
       if (tm) {
         const pos = (tm.position || "").toLowerCase();
-        if (pos.includes("project manager") || pos.includes("مدير")) {
+        if (pos.includes("project manager") || pos.includes("مدير مشروع")) {
           return true;
         }
       }
@@ -7333,14 +7371,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/auth/login", (req: Request, res: Response, next: NextFunction) => {
     passport.authenticate("local", async (err: any, user: any, info: any) => {
       if (err) {
-        return res.status(500).json({ error: "خطأ في الخادم" });
+        return res.status(500).json({ error: "Server error" });
       }
       if (!user) {
-        return res.status(401).json({ error: info?.message || "فشل تسجيل الدخول" });
+        return res.status(401).json({ error: info?.message || "Login failed" });
       }
       req.logIn(user, async (err) => {
         if (err) {
-          return res.status(500).json({ error: "خطأ في تسجيل الدخول" });
+          return res.status(500).json({ error: "Login failed" });
         }
         const { password, ...safeUser } = user;
 
@@ -7377,7 +7415,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/auth/logout", (req: Request, res: Response) => {
     req.logout((err) => {
       if (err) {
-        return res.status(500).json({ error: "خطأ في تسجيل الخروج" });
+        return res.status(500).json({ error: "Logout failed" });
       }
       res.json({ success: true });
     });
@@ -7463,7 +7501,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { email } = forgotPasswordSchema.parse(req.body);
 
       // Always respond with success to prevent email enumeration
-      const successMessage = "إذا كان البريد الإلكتروني مسجلاً لدينا، ستتلقى رابط لاسترجاع كلمة المرور";
+      const successMessage = "If this email is registered with us, you will receive a password reset link.";
 
       const user = await storage.getUserByEmail(email);
       if (!user) {
@@ -7489,37 +7527,49 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Clean up expired tokens periodically
       await storage.deleteExpiredTokens();
 
+      const userLang = (user as any).language || "ar";
       const resetUrl = `${process.env.APP_URL || 'http://localhost:5000'}/reset-password?token=${token}`;
-      const userName = user.fullNameArabic || user.fullName || user.username || "المستخدم";
+      const defaultUser = translate("notifications", "email.password_reset.default_user", undefined, userLang);
+      const userName = userLang === "en" ? (user.fullName || user.username || defaultUser) : (user.fullNameArabic || user.fullName || user.username || defaultUser);
+      const emailSubject = translate("notifications", "email.password_reset.subject", undefined, userLang);
+      const emailTitle = translate("notifications", "email.password_reset.title", undefined, userLang);
+      const emailGreeting = translate("notifications", "email.password_reset.greeting", { userName }, userLang);
+      const emailBody = translate("notifications", "email.password_reset.body", undefined, userLang);
+      const emailCtaInstruction = translate("notifications", "email.password_reset.cta_instruction", undefined, userLang);
+      const emailCta = translate("notifications", "email.password_reset.cta", undefined, userLang);
+      const emailCopyLink = translate("notifications", "email.password_reset.copy_link", undefined, userLang);
+      const emailExpiry = translate("notifications", "email.password_reset.expiry_note", undefined, userLang);
+      const emailIgnore = translate("notifications", "email.password_reset.ignore_note", undefined, userLang);
+      const emailDir = dirOf(userLang);
 
       // The response stays identical either way so it cannot be used to probe which
       // addresses are registered; a failure is recorded in the server log instead.
       const sendResult = await sendTransactionalEmail({
-            to: email,
-            subject: "استرجاع كلمة المرور - نظام إدارة المشاريع",
-            html: `
-              <div dir="rtl" style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-                <h2 style="color: #333;">استرجاع كلمة المرور</h2>
-                <p>مرحباً ${userName}،</p>
-                <p>لقد تلقينا طلباً لاسترجاع كلمة المرور الخاصة بحسابك.</p>
-                <p>اضغط على الزر أدناه لإعادة تعيين كلمة المرور:</p>
-                <div style="text-align: center; margin: 30px 0;">
-                  <a href="${resetUrl}" style="background-color: #007bff; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; display: inline-block;">
-                    إعادة تعيين كلمة المرور
-                  </a>
-                </div>
-                <p>أو انسخ الرابط التالي:</p>
-                <p style="background-color: #f5f5f5; padding: 10px; border-radius: 5px; word-break: break-all;">
-                  ${resetUrl}
-                </p>
-                <p style="color: #666; font-size: 14px;">
-                  هذا الرابط صالح لمدة ساعة واحدة فقط.
-                </p>
-                <p style="color: #666; font-size: 14px;">
-                  إذا لم تطلب استرجاع كلمة المرور، يمكنك تجاهل هذه الرسالة.
-                </p>
-              </div>
-            `,
+        to: email,
+        subject: emailSubject,
+        html: `
+          <div dir="${emailDir}" style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+            <h2 style="color: #333;">${emailTitle}</h2>
+            <p>${emailGreeting}</p>
+            <p>${emailBody}</p>
+            <p>${emailCtaInstruction}</p>
+            <div style="text-align: center; margin: 30px 0;">
+              <a href="${resetUrl}" style="background-color: #007bff; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; display: inline-block;">
+                ${emailCta}
+              </a>
+            </div>
+            <p>${emailCopyLink}</p>
+            <p style="background-color: #f5f5f5; padding: 10px; border-radius: 5px; word-break: break-all;">
+              ${resetUrl}
+            </p>
+            <p style="color: #666; font-size: 14px;">
+              ${emailExpiry}
+            </p>
+            <p style="color: #666; font-size: 14px;">
+              ${emailIgnore}
+            </p>
+          </div>
+        `,
       });
 
       if (!sendResult.ok) {
@@ -7542,13 +7592,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const resetToken = await storage.getPasswordResetTokenByHash(tokenHash);
       if (!resetToken) {
-        return res.status(400).json({ error: "رمز الاسترجاع غير صالح أو منتهي الصلاحية" });
+        return res.status(400).json({ error: "Invalid or expired reset token" });
       }
 
       // Check if token is expired
       if (new Date(resetToken.expiresAt) < new Date()) {
         await storage.markTokenAsUsed(resetToken.id);
-        return res.status(400).json({ error: "رمز الاسترجاع منتهي الصلاحية" });
+        return res.status(400).json({ error: "Reset token has expired" });
       }
 
       // Hash the new password and update
@@ -7561,7 +7611,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Clean up expired tokens
       await storage.deleteExpiredTokens();
 
-      res.json({ message: "تم تغيير كلمة المرور بنجاح" });
+      res.json({ message: "Password has been successfully changed" });
     } catch (error) {
       handleError(res, error);
     }
@@ -7575,11 +7625,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const resetToken = await storage.getPasswordResetTokenByHash(tokenHash);
       if (!resetToken) {
-        return res.status(400).json({ valid: false, error: "رمز الاسترجاع غير صالح" });
+        return res.status(400).json({ valid: false, error: "Invalid reset token" });
       }
 
       if (new Date(resetToken.expiresAt) < new Date()) {
-        return res.status(400).json({ valid: false, error: "رمز الاسترجاع منتهي الصلاحية" });
+        return res.status(400).json({ valid: false, error: "Reset token has expired" });
       }
 
       res.json({ valid: true });
@@ -7611,15 +7661,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       const user = req.user as User;
       const unread = (await storage.getNotificationsByUser(user.id)).filter((n) => !n.isRead);
+      const lang = (user as any).language || "ar";
       const paymentTabs: Record<string, string> = {
-        bills: "أصول الفواتير", orders: "أوامر الدفع", subcontractors: "مستخلصات الباطن", clearances: "الرخص", fines: "الخصومات",
+        bills: translate("notifications", "summary.groups.bills", undefined, lang),
+        orders: translate("notifications", "summary.groups.orders", undefined, lang),
+        subcontractors: translate("notifications", "summary.groups.subcontractors", undefined, lang),
+        fines: translate("notifications", "summary.groups.fines", undefined, lang),
       };
+      const paymentsPrefix = translate("notifications", "summary.groups.payments", undefined, lang);
+      const permitsLabel = translate("notifications", "summary.groups.permits", undefined, lang);
+      const messagesLabel = translate("notifications", "summary.groups.messages", undefined, lang);
+      const otherLabel = translate("notifications", "summary.groups.other", undefined, lang);
       type Group = { key: string; label: string; count: number; latestTitle: string; latestMessage: string; link: string | null; payments: boolean };
       const groups = new Map<string, Group>();
       for (const n of unread) {
         const tab = /^\/payments\?tab=([a-z]+)/.exec(n.link ?? "")?.[1];
-        const key = tab ? `payments:${tab}` : ["message", "mention"].includes(n.type) ? "messages" : "other";
-        const label = tab ? `المدفوعات · ${paymentTabs[tab] ?? tab}` : key === "messages" ? "الرسائل والإشارات" : "تنبيهات أخرى";
+        const permit = !tab && (n.link ?? "").startsWith("/permits");
+        const key = tab ? `payments:${tab}` : permit ? "permits" : ["message", "mention"].includes(n.type) ? "messages" : "other";
+        const label = tab ? `${paymentsPrefix} · ${paymentTabs[tab] ?? tab}` : permit ? permitsLabel : key === "messages" ? messagesLabel : otherLabel;
         const existing = groups.get(key);
         if (existing) existing.count += 1;
         // the list is newest first, so the first one seen in a group is its latest
@@ -8188,7 +8247,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         action: "CREATED",
         fromStatus: null,
         toStatus: item.status || "open",
-        comments: "تم توثيق وتوجيه الملاحظة الميدانية",
+        comments: "Field observation documented and directed",
         performedBy: user?.id || null,
       });
 
@@ -8278,7 +8337,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         || data.consultantReviewComment 
         || data.pmReviewComment 
         || data.resolutionDescription 
-        || `تحديث حالة الملاحظة إلى ${data.status || item.status}`;
+        || `Status updated to ${data.status || item.status}`;
 
       await storage.createSnagItemHistory({
         snagItemId: item.id,
@@ -8339,7 +8398,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           action: action || "WORKFLOW_TRANSITION",
           fromStatus: list.status,
           toStatus: status || list.status,
-          comments: comments || `تحويل حالة القائمة: ${action}`,
+          comments: comments || `List status transition: ${action}`,
           performedBy: user?.id || null,
         });
       }
@@ -8632,6 +8691,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const assignments = Array.isArray(req.body?.assignments) ? req.body.assignments : [];
       const pos = await storage.createPurchaseOrdersFromAssignments(req.params.rfqId, assignments, user?.id);
       res.status(201).json(pos);
+      for (const po of pos) {
+        if (po) webhookService.emit({ event: "purchase_order", action: "created", projectId: po.projectId, record: po, actorId: user?.id });
+      }
     } catch (error: any) {
       if (error instanceof Error && !(error as any).code) {
         return res.status(400).json({ message: error.message });
@@ -8704,6 +8766,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const fullPo = await storage.getPurchaseOrder(po.id);
       res.status(201).json(fullPo);
+      webhookService.emit({ event: "purchase_order", action: "created", projectId, record: fullPo, actorId: user?.id });
     } catch (error) {
       handleError(res, error);
     }
@@ -8721,10 +8784,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         currentUser.user.role === "developer_admin" ||
         currentUser.user.role === "org_admin";
       if (!canApprove) {
-        return res.status(403).json({ error: "ليس لديك صلاحية اعتماد أوامر الشراء" });
+        return res.status(403).json({ error: "You do not have permission to approve purchase orders" });
       }
       const po = await storage.approvePurchaseOrder(req.params.id, currentUser.user.id);
       res.json(po);
+      webhookService.emit({ event: "purchase_order", action: "approved", projectId: po.projectId, recordId: po.id, actorId: currentUser.user.id });
     } catch (error) {
       handleError(res, error);
     }
@@ -8742,7 +8806,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const ctx = await getInventoryContext(req, po.projectId);
       if (!ctx) return res.status(401).json({ error: "Authentication required" });
       if (!ctx.permissions.canReceive) {
-        return res.status(403).json({ error: "ليس لديك صلاحية تسجيل استلام في هذا المشروع" });
+        return res.status(403).json({ error: "You do not have permission to record receiving in this project" });
       }
 
       const validated = createPoReceiptSchema.parse(req.body);
@@ -8753,6 +8817,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         performedBy: ctx.currentUser.user.id,
       });
       res.status(201).json(receipt);
+      // data is the order with its updated received quantities; the shipment itself rides along
+      webhookService.emit({ event: "purchase_order", action: "received", projectId: po.projectId, recordId: po.id, actorId: ctx.currentUser.user.id, extra: { receipt } });
     } catch (error) {
       handleError(res, error);
     }

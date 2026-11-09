@@ -122,7 +122,8 @@ export default function Tasks() {
       return {
         id: task.id,
         title: task.title,
-        type: (task as any).type as "general" | "inspection_request" | "permission_request" | "approval_request",
+        type: (task as any).type as "general" | "inspection_request" | "permission_request" | "approval_request" | "permit_step",
+        href: task.sourceType === "permit_step" && task.sourceId ? `/permits?step=${task.sourceId}` : undefined,
         priority: task.priority as "low" | "medium" | "high" | "urgent",
         status: task.status as "todo" | "in-progress" | "completed",
         assignedTo: teamMember?.name || "Unassigned",
@@ -193,8 +194,10 @@ export default function Tasks() {
             title={task.title}
             priority={task.priority}
             status={task.status}
+            type={task.type}
             assignedTo={task.assignedTo}
             dueDate={task.dueDate}
+            href={task.href}
             onToggle={() => handleToggleTask(task)}
             onEdit={() => console.log('Edit task:', task.id)}
             onDelete={() => handleDeleteTask(task.id)}
@@ -216,7 +219,7 @@ export default function Tasks() {
         <TaskFormDialog
           trigger={
             <Button data-testid="button-new-task">
-              <Plus className="w-4 h-4 mr-2" />
+              <Plus className="w-4 h-4 me-2" />
               New Activity
             </Button>
           }
@@ -228,12 +231,12 @@ export default function Tasks() {
 
       <div className="flex items-center gap-4 flex-wrap">
         <div className="relative flex-1 min-w-[200px] max-w-md">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <Search className="absolute start-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <Input
             placeholder="Search activity..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-10"
+            className="ps-10"
             data-testid="input-search"
           />
         </div>

@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Plus, Search, Paperclip, AlertTriangle, Banknote, Trash2, Save, HandHelping, CheckCircle2, XCircle, FileBadge, Gavel } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -13,13 +14,9 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/lib/auth";
 import { apiRequest } from "@/lib/queryClient";
 import {
-  CLEARANCE_EXPIRY_WARNING_DAYS,
-  CLEARANCE_LABELS,
   FINE_LABELS,
   LIABLE_PARTY_LABELS,
-  OPEN_CLEARANCE,
-  OPEN_PAYMENT_ORDER,
-} from "@shared/payments";
+  OPEN_PAYMENT_ORDER, LIABLE_PARTIES, FINE_STATUSES } from "@shared/payments";
 import {
   LatestActivity,
   PaymentDialog,
@@ -34,65 +31,45 @@ import {
   useFocusFromUrl,
 } from "./payments-common";
 import { SubcontractorSelect } from "./subcontractor-select";
+import { enumText, enumOptions, type EnumGroup } from "@/lib/enums";
 
 const todayIso = () => new Date().toISOString().slice(0, 10);
 
-// Mirrors the server's report logic so the table and the manager report agree
-export function clearanceAttention(c: any): "expired" | "expiring" | "overdue" | null {
-  const today = todayIso();
-  const warnUntil = new Date(Date.now() + CLEARANCE_EXPIRY_WARNING_DAYS * 86_400_000).toISOString().slice(0, 10);
-  if (c.status === "expired" || (c.status === "obtained" && c.expiryDate && c.expiryDate < today)) return "expired";
-  if (c.status === "obtained" && c.expiryDate && c.expiryDate <= warnUntil) return "expiring";
-  if ((OPEN_CLEARANCE as readonly string[]).includes(c.status) && c.dueDate && c.dueDate < today) return "overdue";
-  return null;
-}
-
-const ATTENTION_LABEL = { expired: "منتهي", expiring: "ينتهي قريباً", overdue: "متأخر" } as const;
-
-function AttentionBadge({ kind }: { kind: keyof typeof ATTENTION_LABEL | null }) {
-  if (!kind) return null;
-  return (
-    <Badge variant="secondary" className="border-none bg-destructive/10 text-destructive font-semibold gap-1">
-      <AlertTriangle className="w-3 h-3" /> {ATTENTION_LABEL[kind]}
-    </Badge>
-  );
-}
-
 function ProjectSelect({ ctx, value, onChange, disabled }: { ctx: PaymentsContext; value: string; onChange: (v: string) => void; disabled?: boolean }) {
+  const { t } = useTranslation("payments");
   return (
     <div className="space-y-1.5">
-      <Label>المشروع</Label>
+      <Label>{t("common.project")}</Label>
       <Select value={value} onValueChange={onChange} disabled={disabled}>
-        <SelectTrigger><SelectValue placeholder="اختر المشروع" /></SelectTrigger>
+        <SelectTrigger><SelectValue placeholder={t("common.select_project")} /></SelectTrigger>
         <SelectContent>{ctx.projects.map((p) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent>
       </Select>
     </div>
   );
 }
 
-function Toolbar({ search, setSearch, status, setStatus, labels, onNew, newLabel }: {
+function Toolbar({ search, setSearch, status, setStatus, group, codes, onNew, newLabel }: {
   search: string; setSearch: (v: string) => void; status: string; setStatus: (v: string) => void;
-  labels: Record<string, string>; onNew: () => void; newLabel: string;
+  group: EnumGroup; codes: readonly string[]; onNew: () => void; newLabel: string;
 }) {
+  const { t } = useTranslation("payments");
   return (
     <div className="flex flex-wrap items-center gap-2">
       <div className="relative flex-1 min-w-[200px] max-w-sm">
         <Search className="absolute start-3 top-2.5 w-4 h-4 text-muted-foreground" />
-        <Input className="ps-9" placeholder="بحث…" value={search} onChange={(e) => setSearch(e.target.value)} />
+        <Input className="ps-9" placeholder={t("common.search_ellipsis")} value={search} onChange={(e) => setSearch(e.target.value)} />
       </div>
       <Select value={status} onValueChange={setStatus}>
         <SelectTrigger className="w-[210px]"><SelectValue /></SelectTrigger>
         <SelectContent>
-          <SelectItem value="all">كل الحالات</SelectItem>
-          {Object.entries(labels).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}
+          <SelectItem value="all">{t("common.all_statuses")}</SelectItem>
+          {enumOptions(group, codes).map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
         </SelectContent>
       </Select>
-      <Button className="ms-auto" onClick={onNew}><Plus className="w-4 h-4 mr-1" /> {newLabel}</Button>
+      <Button className="ms-auto" onClick={onNew}><Plus className="w-4 h-4 me-1" /> {newLabel}</Button>
     </div>
   );
 }
-
-// ---------------------------------------------------------------- Clearances
 
 interface TabProps {
   ctx: PaymentsContext;
@@ -102,172 +79,12 @@ interface TabProps {
   onRequestPayment: (id: string) => void;
 }
 
-const emptyClearance = { title: "", authority: "", referenceNo: "", status: "pending", responsibleName: "", dueDate: "", issueDate: "", expiryDate: "", feeAmount: "", notes: "" };
-
-export function ClearancesTab({ ctx, projectId, rows, orders, onRequestPayment }: TabProps) {
-  const [status, setStatus] = useState("all");
-  const [search, setSearch] = useState("");
-  const [editing, setEditing] = useState<any | "new" | null>(null);
-
-  const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    return rows.filter((r) => (status === "all" || r.status === status) && (!q || [r.title, r.authority, r.referenceNo, r.projectName, r.responsibleName].some((s) => String(s ?? "").toLowerCase().includes(q))));
-  }, [rows, status, search]);
-
-  const current = editing && editing !== "new" ? rows.find((r) => r.id === editing.id) ?? null : null;
-
-  return (
-    <div className="space-y-4">
-      <Toolbar search={search} setSearch={setSearch} status={status} setStatus={setStatus} labels={CLEARANCE_LABELS} onNew={() => setEditing("new")} newLabel="رخصة / تصريح جديد" />
-      <Card className="rounded-2xl">
-        <CardContent className="p-0 overflow-x-auto">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>البند</TableHead>
-                {projectId === "all" && <TableHead>المشروع</TableHead>}
-                <TableHead>الجهة</TableHead>
-                <TableHead>المسؤول</TableHead>
-                <TableHead>الاستحقاق</TableHead>
-                <TableHead>الانتهاء</TableHead>
-                <TableHead className="text-end">الرسوم</TableHead>
-                <TableHead>الحالة</TableHead>
-                <TableHead />
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filtered.length === 0 && <TableRow><TableCell colSpan={9} className="text-center text-muted-foreground py-10">لا توجد بنود</TableCell></TableRow>}
-              {filtered.map((r) => (
-                <TableRow key={r.id} className="cursor-pointer" onClick={() => setEditing(r)}>
-                  <TableCell className="font-semibold">{r.title}{r.referenceNo && <div className="text-xs font-normal text-muted-foreground">{r.referenceNo}</div>}</TableCell>
-                  {projectId === "all" && <TableCell>{r.projectName}</TableCell>}
-                  <TableCell>{r.authority ?? "—"}</TableCell>
-                  <TableCell>{r.responsibleName ?? "—"}</TableCell>
-                  <TableCell>{fmtDate(r.dueDate)}</TableCell>
-                  <TableCell>{fmtDate(r.expiryDate)}</TableCell>
-                  <TableCell className="text-end tabular-nums">
-                    {Number(r.feeAmount) > 0 ? money(r.feeAmount) : "—"}
-                    {Number(r.feeAmount) > 0 && <div className="text-xs text-muted-foreground">{r.feePaid ? "مدفوعة" : "غير مدفوعة"}</div>}
-                  </TableCell>
-                  <TableCell className="space-y-1">
-                    <StatusBadge status={r.status} labels={CLEARANCE_LABELS} />
-                    <div><AttentionBadge kind={clearanceAttention(r)} /></div>
-                  </TableCell>
-                  <TableCell className="text-muted-foreground text-xs whitespace-nowrap"><Paperclip className="w-3.5 h-3.5 inline mr-1" />{r.attachments.length}</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
-      {editing && (
-        <ClearanceDialog ctx={ctx} defaultProjectId={projectId} row={current} orders={orders} onClose={() => setEditing(null)} onRequestPayment={(id) => { setEditing(null); onRequestPayment(id); }} />
-      )}
-    </div>
-  );
-}
-
-function ClearanceDialog({ ctx, defaultProjectId, row, orders, onClose, onRequestPayment }: { ctx: PaymentsContext; defaultProjectId: string; row: any | null; orders: any[]; onClose: () => void; onRequestPayment: (id: string) => void }) {
-  const { toast } = useToast();
-  const { user } = useAuth();
-  const queryClient = useQueryClient();
-  const [projectId, setProjectId] = useState(row?.projectId ?? (defaultProjectId === "all" ? "" : defaultProjectId));
-  const [form, setForm] = useState(
-    row
-      ? { title: row.title, authority: row.authority ?? "", referenceNo: row.referenceNo ?? "", status: row.status, responsibleName: row.responsibleName ?? "", dueDate: row.dueDate ?? "", issueDate: row.issueDate ?? "", expiryDate: row.expiryDate ?? "", feeAmount: String(Number(row.feeAmount) || ""), notes: row.notes ?? "" }
-      : emptyClearance,
-  );
-  const set = (k: keyof typeof form) => (v: string) => setForm((f) => ({ ...f, [k]: v }));
-
-  const body = () => ({
-    ...form,
-    authority: form.authority || null,
-    referenceNo: form.referenceNo || null,
-    responsibleName: form.responsibleName || null,
-    dueDate: form.dueDate || null,
-    issueDate: form.issueDate || null,
-    expiryDate: form.expiryDate || null,
-    feeAmount: form.feeAmount || 0,
-    notes: form.notes || null,
-  });
-
-  const save = useMutation({
-    mutationFn: async () => row
-      ? apiRequest("PATCH", `/api/payments/clearances/${row.id}`, body())
-      : apiRequest("POST", "/api/payments/clearances", { projectId, ...body() }),
-    onSuccess: () => { invalidatePayments(queryClient); toast({ title: row ? "تم الحفظ" : "تمت الإضافة" }); onClose(); },
-    onError: (e) => toast({ title: "تعذّر الحفظ", description: errorMessage(e), variant: "destructive" }),
-  });
-  const remove = useMutation({
-    mutationFn: async () => apiRequest("DELETE", `/api/payments/clearances/${row.id}`),
-    onSuccess: () => { invalidatePayments(queryClient); onClose(); },
-    onError: (e) => toast({ title: "تعذّر الحذف", description: errorMessage(e), variant: "destructive" }),
-  });
-
-  const hasLiveOrder = row ? orders.some((o) => o.clearanceId === row.id && ([...OPEN_PAYMENT_ORDER, "paid"] as string[]).includes(o.status)) : false;
-  const canRequestPayment = ctx.perms.isAccounting && row && Number(row.feeAmount) > 0 && !row.feePaid && !hasLiveOrder;
-
-  return (
-    <PaymentDialog
-      onClose={onClose}
-      icon={FileBadge}
-      kind="رخصة / تصريح"
-      title={row ? row.title : "رخصة / تصريح جديد"}
-      badge={row ? <StatusBadge status={row.status} labels={CLEARANCE_LABELS} /> : undefined}
-      description={row ? row.projectName : "تتبّع الرخص ورسومها مع المشروع والمالية"}
-      amount={Number(form.feeAmount) > 0 ? money(form.feeAmount) : undefined}
-      amountLabel={row?.feePaid ? "الرسوم (مسددة)" : "الرسوم"}
-      footer={
-        <>
-          <Button disabled={save.isPending || !form.title.trim() || !projectId} onClick={() => save.mutate()}><Save className="w-4 h-4 mr-1" /> حفظ</Button>
-          {canRequestPayment && <Button variant="outline" onClick={() => onRequestPayment(row.id)}><Banknote className="w-4 h-4 mr-1" /> أمر دفع للرسوم</Button>}
-          {row && ctx.perms.isAccounting && (
-            <Button variant="ghost" className="text-destructive" disabled={remove.isPending} onClick={() => remove.mutate()}><Trash2 className="w-4 h-4 mr-1" /> حذف</Button>
-          )}
-        </>
-      }
-    >
-        <div className="grid sm:grid-cols-2 gap-3">
-          <div className="sm:col-span-2"><ProjectSelect ctx={ctx} value={projectId} onChange={setProjectId} disabled={!!row} /></div>
-          <div className="space-y-1.5 sm:col-span-2"><Label>البند</Label><Input value={form.title} onChange={(e) => set("title")(e.target.value)} placeholder="مثال: رخصة الدفاع المدني، شهادة إتمام البناء…" /></div>
-          <div className="space-y-1.5"><Label>الجهة</Label><Input value={form.authority} onChange={(e) => set("authority")(e.target.value)} /></div>
-          <div className="space-y-1.5"><Label>رقم المرجع</Label><Input value={form.referenceNo} onChange={(e) => set("referenceNo")(e.target.value)} /></div>
-          <div className="space-y-1.5">
-            <Label>الحالة</Label>
-            <Select value={form.status} onValueChange={set("status")}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>{Object.entries(CLEARANCE_LABELS).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}</SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-1.5"><Label>المسؤول عن المتابعة</Label><Input value={form.responsibleName} onChange={(e) => set("responsibleName")(e.target.value)} /></div>
-          <div className="space-y-1.5"><Label>مطلوب الحصول عليه قبل</Label><Input type="date" value={form.dueDate} onChange={(e) => set("dueDate")(e.target.value)} /></div>
-          <div className="space-y-1.5"><Label>تاريخ الإصدار</Label><Input type="date" value={form.issueDate} onChange={(e) => set("issueDate")(e.target.value)} /></div>
-          <div className="space-y-1.5"><Label>تاريخ الانتهاء</Label><Input type="date" value={form.expiryDate} onChange={(e) => set("expiryDate")(e.target.value)} /></div>
-          <div className="space-y-1.5">
-            <Label>الرسوم</Label>
-            <Input type="number" min="0" step="0.01" value={form.feeAmount} onChange={(e) => set("feeAmount")(e.target.value)} disabled={!!row?.feePaid} />
-            {row?.feePaid && <p className="text-xs text-muted-foreground">تم سداد الرسوم.</p>}
-          </div>
-          <div className="space-y-1.5 sm:col-span-2"><Label>ملاحظات</Label><Textarea rows={2} value={form.notes} onChange={(e) => set("notes")(e.target.value)} /></div>
-        </div>
-
-        {row && (
-          <>
-            <LatestActivity entityType="clearance" entityId={row.id} labels={CLEARANCE_LABELS} />
-            <div className="rounded-md border border-dashed border-primary/20 bg-primary/5 p-3">
-              <AttachmentsPanel entityType="clearance" entityId={row.id} projectId={row.projectId} files={row.attachments} editable canRemove={(f) => f.uploadedBy === user?.id || ctx.perms.isAccounting} hint="أرفق صورة الرخصة أو إيصال الرسوم." />
-            </div>
-          </>
-        )}
-    </PaymentDialog>
-  );
-}
-
 // --------------------------------------------------------------------- Fines
 
 const emptyFine = { title: "", authority: "", referenceNo: "", reason: "", liableParty: "contractor", subcontractorId: "", amount: "", issueDate: "", dueDate: "", status: "open", notes: "" };
 
 export function FinesTab({ ctx, projectId, rows, orders, onRequestPayment }: TabProps) {
+  const { t } = useTranslation("payments");
   const [status, setStatus] = useState("all");
   const [search, setSearch] = useState("");
   const [editing, setEditing] = useState<any | "new" | null>(null);
@@ -283,25 +100,25 @@ export function FinesTab({ ctx, projectId, rows, orders, onRequestPayment }: Tab
 
   return (
     <div className="space-y-4">
-      <Toolbar search={search} setSearch={setSearch} status={status} setStatus={setStatus} labels={FINE_LABELS} onNew={() => setEditing("new")} newLabel="خصم جديد" />
+      <Toolbar search={search} setSearch={setSearch} status={status} setStatus={setStatus} group="fine" codes={FINE_STATUSES} onNew={() => setEditing("new")} newLabel={t("fines.new_btn")} />
       <Card className="rounded-2xl">
         <CardContent className="p-0 overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>الخصم</TableHead>
-                {projectId === "all" && <TableHead>المشروع</TableHead>}
-                <TableHead>الجهة</TableHead>
-                <TableHead>المتحمّل</TableHead>
-                <TableHead className="text-end">المبلغ</TableHead>
-                <TableHead className="text-end">المسدد</TableHead>
-                <TableHead>الاستحقاق</TableHead>
-                <TableHead>الحالة</TableHead>
+                <TableHead>{t("fines.table.fine")}</TableHead>
+                {projectId === "all" && <TableHead>{t("common.project")}</TableHead>}
+                <TableHead>{t("fines.table.authority")}</TableHead>
+                <TableHead>{t("fines.table.liable")}</TableHead>
+                <TableHead className="text-end">{t("fines.table.amount")}</TableHead>
+                <TableHead className="text-end">{t("fines.table.paid")}</TableHead>
+                <TableHead>{t("common.due_date")}</TableHead>
+                <TableHead>{t("common.status")}</TableHead>
                 <TableHead />
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filtered.length === 0 && <TableRow><TableCell colSpan={9} className="text-center text-muted-foreground py-10">لا توجد خصومات</TableCell></TableRow>}
+              {filtered.length === 0 && <TableRow><TableCell colSpan={9} className="text-center text-muted-foreground py-10">{t("fines.no_items")}</TableCell></TableRow>}
               {filtered.map((r) => {
                 const overdue = ["open", "under_appeal"].includes(r.status) && r.dueDate && r.dueDate < today;
                 return (
@@ -309,12 +126,12 @@ export function FinesTab({ ctx, projectId, rows, orders, onRequestPayment }: Tab
                     <TableCell className="font-semibold">{r.title}{r.referenceNo && <div className="text-xs font-normal text-muted-foreground">{r.referenceNo}</div>}</TableCell>
                     {projectId === "all" && <TableCell>{r.projectName}</TableCell>}
                     <TableCell>{r.authority ?? "—"}</TableCell>
-                    <TableCell>{LIABLE_PARTY_LABELS[r.liableParty as keyof typeof LIABLE_PARTY_LABELS] ?? r.liableParty}{r.subcontractorName && <div className="text-xs text-muted-foreground">{r.subcontractorName}</div>}</TableCell>
+                    <TableCell>{enumText("liable_party", r.liableParty)}{r.subcontractorName && <div className="text-xs text-muted-foreground">{r.subcontractorName}</div>}</TableCell>
                     <TableCell className="text-end tabular-nums">{money(r.amount)}</TableCell>
                     <TableCell className="text-end tabular-nums">{money(r.paidAmount)}</TableCell>
-                    <TableCell className={overdue ? "text-destructive font-semibold" : ""}>{overdue && <AlertTriangle className="w-3.5 h-3.5 inline mr-1" />}{fmtDate(r.dueDate)}</TableCell>
-                    <TableCell><StatusBadge status={r.status} labels={FINE_LABELS} /></TableCell>
-                    <TableCell className="text-muted-foreground text-xs whitespace-nowrap"><Paperclip className="w-3.5 h-3.5 inline mr-1" />{r.attachments.length}</TableCell>
+                    <TableCell className={overdue ? "text-destructive font-semibold" : ""}>{overdue && <AlertTriangle className="w-3.5 h-3.5 inline me-1" />}{fmtDate(r.dueDate)}</TableCell>
+                    <TableCell><StatusBadge status={r.status} group="fine" /></TableCell>
+                    <TableCell className="text-muted-foreground text-xs whitespace-nowrap"><Paperclip className="w-3.5 h-3.5 inline me-1" />{r.attachments.length}</TableCell>
                   </TableRow>
                 );
               })}
@@ -341,6 +158,7 @@ export interface DeductionPrefill {
 
 export function FineDialog({ ctx, defaultProjectId, row, orders, onClose, onRequestPayment, prefill }: {
   prefill?: DeductionPrefill; ctx: PaymentsContext; defaultProjectId: string; row: any | null; orders: any[]; onClose: () => void; onRequestPayment: (id: string) => void }) {
+  const { t } = useTranslation("payments");
   const { toast } = useToast();
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -369,30 +187,30 @@ export function FineDialog({ ctx, defaultProjectId, row, orders, onClose, onRequ
       const body = { ...form, subcontractorId: form.liableParty === "subcontractor" ? form.subcontractorId || null : null, authority: form.authority || null, referenceNo: form.referenceNo || null, reason: form.reason || null, issueDate: form.issueDate || null, dueDate: form.dueDate || null, amount: form.amount || 0, notes: form.notes || null };
       return row ? apiRequest("PATCH", `/api/payments/fines/${row.id}`, body) : apiRequest("POST", "/api/payments/fines", { projectId, ...body, sourceType: prefill?.sourceType ?? null, sourceId: prefill?.sourceId ?? null });
     },
-    onSuccess: () => { invalidatePayments(queryClient); toast({ title: row ? "تم الحفظ" : "تمت الإضافة" }); onClose(); },
-    onError: (e) => toast({ title: "تعذّر الحفظ", description: errorMessage(e), variant: "destructive" }),
+    onSuccess: () => { invalidatePayments(queryClient); toast({ title: row ? t("toasts.saved") : t("toasts.added") }); onClose(); },
+    onError: (e) => toast({ title: t("errors.save_failed"), description: errorMessage(e), variant: "destructive" }),
   });
   const remove = useMutation({
     mutationFn: async () => apiRequest("DELETE", `/api/payments/fines/${row.id}`),
     onSuccess: () => { invalidatePayments(queryClient); onClose(); },
-    onError: (e) => toast({ title: "تعذّر الحذف", description: errorMessage(e), variant: "destructive" }),
+    onError: (e) => toast({ title: t("errors.delete_failed"), description: errorMessage(e), variant: "destructive" }),
   });
 
   const waiver = useMutation({
     mutationFn: async (v: { action: string; note?: string }) => apiRequest("POST", `/api/payments/fines/${row.id}/waiver`, v),
     onSuccess: (_d, v) => {
       invalidatePayments(queryClient);
-      const msg: Record<string, string> = { request: "أُرسل طلب الإعفاء لمدير المشروع", withdraw: "تم سحب طلب الإعفاء", approve: "تم اعتماد الإعفاء", reject: "تم رفض طلب الإعفاء" };
+      const msg: Record<string, string> = { request: t("toasts.waiver_sent"), withdraw: t("toasts.waiver_withdrawn"), approve: t("toasts.waiver_approved"), reject: t("toasts.waiver_rejected") };
       toast({ title: msg[v.action] });
       onClose();
     },
-    onError: (e) => toast({ title: "تعذّر تنفيذ الإجراء", description: errorMessage(e), variant: "destructive" }),
+    onError: (e) => toast({ title: t("errors.waiver_failed"), description: errorMessage(e), variant: "destructive" }),
   });
 
   const recover = useMutation({
     mutationFn: async (note: string) => apiRequest("POST", `/api/payments/fines/${row.id}/recover`, { note }),
-    onSuccess: () => { invalidatePayments(queryClient); toast({ title: "سُجّل استرداد الخصم" }); onClose(); },
-    onError: (e) => toast({ title: "تعذّر تسجيل الاسترداد", description: errorMessage(e), variant: "destructive" }),
+    onSuccess: () => { invalidatePayments(queryClient); toast({ title: t("toasts.recovery_recorded") }); onClose(); },
+    onError: (e) => toast({ title: t("errors.recover_failed"), description: errorMessage(e), variant: "destructive" }),
   });
 
   const hasLiveOrder = row ? orders.some((o) => o.fineId === row.id && ([...OPEN_PAYMENT_ORDER, "paid"] as string[]).includes(o.status)) : false;
@@ -408,22 +226,22 @@ export function FineDialog({ ctx, defaultProjectId, row, orders, onClose, onRequ
     <PaymentDialog
       onClose={onClose}
       icon={Gavel}
-      kind="خصم"
-      title={row ? row.title : "خصم جديد"}
-      badge={row ? <StatusBadge status={row.status} labels={FINE_LABELS} /> : undefined}
-      description={row ? row.projectName : "سجّل الخصم لتُتابع مع المشروع والمالية حتى السداد"}
+      kind={t("fines.kind")}
+      title={row ? row.title : t("fines.new_title")}
+      badge={row ? <StatusBadge status={row.status} group="fine" /> : undefined}
+      description={row ? row.projectName : t("fines.description")}
       amount={Number(form.amount) > 0 ? money(form.amount) : undefined}
       panel={waiverPanel && (
         <Section
-          title={waiverPanel === "request" ? "لماذا يجب إعفاء هذا الخصم؟" : waiverPanel === "recover" ? "كيف استُرد هذا الخصم من المقاول؟" : "سبب رفض الإعفاء"}
+          title={waiverPanel === "request" ? t("fines.waiver_panel_title") : waiverPanel === "recover" ? t("fines.recover_panel_title") : t("fines.reject_waiver_title")}
           icon={waiverPanel === "reject" ? XCircle : waiverPanel === "recover" ? CheckCircle2 : HandHelping}
           tone={waiverPanel === "reject" ? "danger" : undefined}
         >
           <Textarea rows={2} value={waiverNote} onChange={(e) => setWaiverNote(e.target.value)} autoFocus />
           <div className="flex justify-end gap-2">
-            <Button variant="outline" size="sm" onClick={() => setWaiverPanel(null)}>تراجع</Button>
+            <Button variant="outline" size="sm" onClick={() => setWaiverPanel(null)}>{t("common.back_btn")}</Button>
             <Button size="sm" variant={waiverPanel === "reject" ? "destructive" : "default"} disabled={!waiverNote.trim() || waiver.isPending || recover.isPending} onClick={() => (waiverPanel === "recover" ? recover.mutate(waiverNote) : waiver.mutate({ action: waiverPanel, note: waiverNote }))}>
-              {waiverPanel === "request" ? "إرسال الطلب" : waiverPanel === "recover" ? "تسجيل الاسترداد" : "رفض الطلب"}
+              {waiverPanel === "request" ? t("common.send_request") : waiverPanel === "recover" ? t("fines.record_recovery") : t("common.reject")}
             </Button>
           </div>
         </Section>
@@ -431,82 +249,82 @@ export function FineDialog({ ctx, defaultProjectId, row, orders, onClose, onRequ
       footer={
         <>
           {/* The step this deduction is waiting for comes first */}
-          {!locked && <Button disabled={save.isPending || !form.title.trim() || !projectId} onClick={() => save.mutate()}><Save className="w-4 h-4 mr-1" /> حفظ</Button>}
+          {!locked && <Button disabled={save.isPending || !form.title.trim() || !projectId} onClick={() => save.mutate()}><Save className="w-4 h-4 me-1" /> {t("common.save")}</Button>}
           {row?.status === "waiver_requested" && ctx.perms.canApprove && (
             <>
-              <Button disabled={waiver.isPending || ownWaiverRequest} title={ownWaiverRequest ? "لا يمكنك اعتماد طلب قدمته" : undefined} onClick={() => waiver.mutate({ action: "approve" })}>
-                <CheckCircle2 className="w-4 h-4 mr-1" /> اعتماد الإعفاء
+              <Button disabled={waiver.isPending || ownWaiverRequest} title={ownWaiverRequest ? t("fines.cannot_approve_own_waiver") : undefined} onClick={() => waiver.mutate({ action: "approve" })}>
+                <CheckCircle2 className="w-4 h-4 me-1" /> {t("fines.approve_waiver")}
               </Button>
               <Button variant="outline" disabled={waiver.isPending} onClick={() => { setWaiverNote(""); setWaiverPanel("reject"); }}>
-                <XCircle className="w-4 h-4 mr-1" /> رفض
+                <XCircle className="w-4 h-4 me-1" /> {t("fines.reject_waiver")}
               </Button>
             </>
           )}
-          {canRequestPayment && <Button variant="outline" onClick={() => onRequestPayment(row.id)}><Banknote className="w-4 h-4 mr-1" /> أمر دفع للخصم</Button>}
-          {canRecover && <Button variant="outline" onClick={() => { setWaiverNote(""); setWaiverPanel("recover"); }}><CheckCircle2 className="w-4 h-4 mr-1" /> تسجيل الاسترداد</Button>}
-          {canRequestWaiver && <Button variant="outline" onClick={() => { setWaiverNote(""); setWaiverPanel("request"); }}><HandHelping className="w-4 h-4 mr-1" /> طلب إعفاء</Button>}
+          {canRequestPayment && <Button variant="outline" onClick={() => onRequestPayment(row.id)}><Banknote className="w-4 h-4 me-1" /> {t("fines.order_for_fine")}</Button>}
+          {canRecover && <Button variant="outline" onClick={() => { setWaiverNote(""); setWaiverPanel("recover"); }}><CheckCircle2 className="w-4 h-4 me-1" /> {t("fines.record_recovery")}</Button>}
+          {canRequestWaiver && <Button variant="outline" onClick={() => { setWaiverNote(""); setWaiverPanel("request"); }}><HandHelping className="w-4 h-4 me-1" /> {t("fines.request_waiver")}</Button>}
           {row?.status === "waiver_requested" && (row.waiverRequestedBy === user?.id || ctx.perms.canApprove) && (
-            <Button variant="ghost" disabled={waiver.isPending} onClick={() => waiver.mutate({ action: "withdraw" })}>سحب الطلب</Button>
+            <Button variant="ghost" disabled={waiver.isPending} onClick={() => waiver.mutate({ action: "withdraw" })}>{t("common.withdraw_request")}</Button>
           )}
           {row && ctx.perms.isAccounting && !locked && (
-            <Button variant="ghost" className="text-destructive" disabled={remove.isPending} onClick={() => remove.mutate()}><Trash2 className="w-4 h-4 mr-1" /> حذف</Button>
+            <Button variant="ghost" className="text-destructive" disabled={remove.isPending} onClick={() => remove.mutate()}><Trash2 className="w-4 h-4 me-1" /> {t("common.delete")}</Button>
           )}
         </>
       }
     >
         <div className="grid sm:grid-cols-2 gap-3">
           <div className="sm:col-span-2"><ProjectSelect ctx={ctx} value={projectId} onChange={setProjectId} disabled={!!row} /></div>
-          <div className="space-y-1.5 sm:col-span-2"><Label>الخصم</Label><Input value={form.title} disabled={locked} onChange={(e) => set("title")(e.target.value)} placeholder="مثال: خصم تأخير، مخالفة سلامة موقع…" /></div>
-          <div className="space-y-1.5"><Label>الجهة المصدرة</Label><Input value={form.authority} disabled={locked} onChange={(e) => set("authority")(e.target.value)} /></div>
-          <div className="space-y-1.5"><Label>رقم المرجع</Label><Input value={form.referenceNo} disabled={locked} onChange={(e) => set("referenceNo")(e.target.value)} /></div>
+          <div className="space-y-1.5 sm:col-span-2"><Label>{t("fines.title_label")}</Label><Input value={form.title} disabled={locked} onChange={(e) => set("title")(e.target.value)} placeholder={t("fines.title_placeholder")} /></div>
+          <div className="space-y-1.5"><Label>{t("fines.authority")}</Label><Input value={form.authority} disabled={locked} onChange={(e) => set("authority")(e.target.value)} /></div>
+          <div className="space-y-1.5"><Label>{t("fines.reference_no")}</Label><Input value={form.referenceNo} disabled={locked} onChange={(e) => set("referenceNo")(e.target.value)} /></div>
           <div className="space-y-1.5">
-            <Label>المتحمّل</Label>
+            <Label>{t("fines.liable_party")}</Label>
             <Select value={form.liableParty} onValueChange={set("liableParty")} disabled={locked}>
               <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>{Object.entries(LIABLE_PARTY_LABELS).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}</SelectContent>
+              <SelectContent>{enumOptions("liable_party", LIABLE_PARTIES).map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent>
             </Select>
           </div>
           {form.liableParty === "subcontractor" && (
-            <div className="space-y-1.5 sm:col-span-2"><Label>مقاول الباطن</Label><SubcontractorSelect projectId={projectId} value={form.subcontractorId} disabled={locked} onChange={(id) => set("subcontractorId")(id)} /></div>
+            <div className="space-y-1.5 sm:col-span-2"><Label>{t("subcontractors.kind")}</Label><SubcontractorSelect projectId={projectId} value={form.subcontractorId} disabled={locked} onChange={(id) => set("subcontractorId")(id)} /></div>
           )}
-          <div className="space-y-1.5"><Label>المبلغ</Label><Input type="number" min="0" step="0.01" value={form.amount} disabled={locked} onChange={(e) => set("amount")(e.target.value)} /></div>
-          <div className="space-y-1.5"><Label>تاريخ الإصدار</Label><Input type="date" value={form.issueDate} disabled={locked} onChange={(e) => set("issueDate")(e.target.value)} /></div>
-          <div className="space-y-1.5"><Label>آخر موعد للسداد</Label><Input type="date" value={form.dueDate} disabled={locked} onChange={(e) => set("dueDate")(e.target.value)} /></div>
+          <div className="space-y-1.5"><Label>{t("fines.amount_label")}</Label><Input type="number" min="0" step="0.01" value={form.amount} disabled={locked} onChange={(e) => set("amount")(e.target.value)} /></div>
+          <div className="space-y-1.5"><Label>{t("fines.issue_date")}</Label><Input type="date" value={form.issueDate} disabled={locked} onChange={(e) => set("issueDate")(e.target.value)} /></div>
+          <div className="space-y-1.5"><Label>{t("fines.deadline")}</Label><Input type="date" value={form.dueDate} disabled={locked} onChange={(e) => set("dueDate")(e.target.value)} /></div>
           {!locked && (
             <div className="space-y-1.5">
-              <Label>الحالة</Label>
+              <Label>{t("common.status")}</Label>
               <Select value={form.status} onValueChange={set("status")}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>{editableStatuses.map((k) => <SelectItem key={k} value={k}>{FINE_LABELS[k as keyof typeof FINE_LABELS]}</SelectItem>)}</SelectContent>
+                <SelectContent>{editableStatuses.map((k) => <SelectItem key={k} value={k}>{enumText("fine", k)}</SelectItem>)}</SelectContent>
               </Select>
             </div>
           )}
-          {row && <div className="space-y-1.5"><Label>المسدد حتى الآن</Label><div className="h-10 flex items-center text-sm tabular-nums">{money(row.paidAmount)}</div></div>}
-          <div className="space-y-1.5 sm:col-span-2"><Label>سبب الخصم</Label><Textarea rows={2} value={form.reason} disabled={locked} onChange={(e) => set("reason")(e.target.value)} /></div>
-          <div className="space-y-1.5 sm:col-span-2"><Label>ملاحظات</Label><Textarea rows={2} value={form.notes} disabled={locked} onChange={(e) => set("notes")(e.target.value)} /></div>
+          {row && <div className="space-y-1.5"><Label>{t("fines.paid_so_far")}</Label><div className="h-10 flex items-center text-sm tabular-nums">{money(row.paidAmount)}</div></div>}
+          <div className="space-y-1.5 sm:col-span-2"><Label>{t("fines.reason")}</Label><Textarea rows={2} value={form.reason} disabled={locked} onChange={(e) => set("reason")(e.target.value)} /></div>
+          <div className="space-y-1.5 sm:col-span-2"><Label>{t("common.notes")}</Label><Textarea rows={2} value={form.notes} disabled={locked} onChange={(e) => set("notes")(e.target.value)} /></div>
         </div>
-        {locked && <p className="text-xs text-muted-foreground">هذا الخصم ضمن مسار السداد أو الإعفاء ولا يمكن تعديلها.</p>}
+        {locked && <p className="text-xs text-muted-foreground">{t("fines.locked_note")}</p>}
         {row?.waiverReason && ["waiver_requested", "waived"].includes(row.status) && (
           <div className="rounded-md border bg-violet-50 dark:bg-violet-900/10 p-3 text-sm">
-            <div className="font-bold mb-1">سبب طلب الإعفاء</div>
+            <div className="font-bold mb-1">{t("fines.waiver_reason_title")}</div>
             {row.waiverReason}
           </div>
         )}
         {row?.status === "recovered" && (
           <div className="rounded-md border bg-emerald-50 dark:bg-emerald-900/10 p-3 text-sm">
-            <div className="font-bold mb-1">مُسترَد من المقاول{row.subcontractorName ? ` (${row.subcontractorName})` : ""}</div>
+            <div className="font-bold mb-1">{t("fines.recovered_title")}{row.subcontractorName ? ` (${row.subcontractorName})` : ""}</div>
             {row.recoveredNote}
           </div>
         )}
         {row?.deductedCertificateId && row.status === "open" && (
-          <div className="rounded-md border bg-violet-50 dark:bg-violet-900/10 p-3 text-sm">محجوز للخصم من مستخلص مقاول الباطن، ويُسجَّل مُستَرَدّاً عند اعتماد المستخلص.</div>
+          <div className="rounded-md border bg-violet-50 dark:bg-violet-900/10 p-3 text-sm">{t("fines.reserved_note")}</div>
         )}
 
         {row && (
           <>
-            <LatestActivity entityType="fine" entityId={row.id} labels={FINE_LABELS} />
+            <LatestActivity entityType="fine" entityId={row.id} group="fine" />
             <div className="rounded-md border border-dashed border-primary/20 bg-primary/5 p-3">
-              <AttachmentsPanel entityType="fine" entityId={row.id} projectId={row.projectId} files={row.attachments} editable canRemove={(f) => f.uploadedBy === user?.id || ctx.perms.isAccounting} hint="أرفق إشعار الخصم وأي مراسلات اعتراض أو إيصال السداد." />
+              <AttachmentsPanel entityType="fine" entityId={row.id} projectId={row.projectId} files={row.attachments} editable canRemove={(f) => f.uploadedBy === user?.id || ctx.perms.isAccounting} hint={t("fines.hint_attachments")} />
             </div>
           </>
         )}

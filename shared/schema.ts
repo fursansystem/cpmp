@@ -3,6 +3,7 @@ import { pgTable, text, varchar, integer, decimal, date, boolean, timestamp, uni
 import { relations } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
+import { LANGUAGES, enumMap } from "./i18n";
 
 export const organizations = pgTable("organizations", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -72,6 +73,9 @@ export const tasks = pgTable("tasks", {
   priority: text("priority").notNull(),
   status: text("status").notNull(),
   dueDate: date("due_date"),
+  // Set when the task mirrors a step of another section (permit_step: a step of a permit transaction)
+  sourceType: text("source_type"),
+  sourceId: varchar("source_id"),
 });
 
 export const documents = pgTable("documents", {
@@ -190,6 +194,7 @@ export const users = pgTable("users", {
   phone: text("phone"),
   photo: text("photo"),
   signature: text("signature"),
+  language: text("language").notNull().default("ar"), // ar | en — direction follows from it, never set on its own
 });
 
 // User-Team Member Junction Table - Many-to-many relationship
@@ -669,6 +674,7 @@ export const suppliers = pgTable("suppliers", {
   logoUrl: text("logo_url"), // شعار المورد
   category: text("category"), // فئة المورد (مثل: مدني، ميكانيكا، إلخ)
   experienceYears: integer("experience_years"), // سنوات الخبرة
+  erpSupplier: text("erp_supplier"), // معرّف المورد في ERPNext، يبقيه متزامناً معه
 });
 
 // Material Suppliers - Junction table for many-to-many relationship
@@ -1243,7 +1249,7 @@ export type AcceptOrganizationInvitation = z.infer<typeof acceptOrganizationInvi
 export const insertTaskSchema = createInsertSchema(tasks).extend({
   priority: z.enum(["low", "medium", "high", "urgent"]),
   status: z.enum(["todo", "in-progress", "completed"]),
-  type: z.enum(["general", "inspection_request", "permission_request", "approval_request"]),
+  type: z.enum(["general", "inspection_request", "permission_request", "approval_request", "permit_step"]),
   id: z.string().optional(),
 });
 
@@ -1269,55 +1275,7 @@ export const positions = pgTable("positions", {
 });
 
 // Default positions for seeding
-export const DEFAULT_POSITIONS = [
-  { titleEnglish: "Project Manager", titleArabic: "مدير مشروع" },
-  { titleEnglish: "Civil Engineer", titleArabic: "مهندس مدني" },
-  { titleEnglish: "Architect Engineer", titleArabic: "مهندس معماري" },
-  { titleEnglish: "Mechanical Engineer", titleArabic: "مهندس ميكانيكي" },
-  { titleEnglish: "Customer Team", titleArabic: "فريق المالك" },
-  { titleEnglish: "Owner Representative", titleArabic: "ممثل المالك" },
-  { titleEnglish: "Electrical Engineer", titleArabic: "مهندس كهربائي" },
-  { titleEnglish: "Quantity Surveyor", titleArabic: "محاسب كميات" },
-  { titleEnglish: "Surveyor", titleArabic: "مساح" },
-  { titleEnglish: "General Inspector", titleArabic: "مراقب عام" },
-  { titleEnglish: "Fresh Graduated Engineer", titleArabic: "مهندس حديث تخرج" },
-  { titleEnglish: "Civil Inspector", titleArabic: "مراقب مدني" },
-  { titleEnglish: "Architectural Inspector", titleArabic: "مراقب معماري" },
-  { titleEnglish: "Electrical Inspector", titleArabic: "مراقب كهربائي" },
-  { titleEnglish: "Mechanical Inspector", titleArabic: "مراقب ميكانيكي" },
-  { titleEnglish: "Safety Officer", titleArabic: "مسؤول امن وسلامة" },
-  { titleEnglish: "Document Controller", titleArabic: "مراقب المستندات" },
-  { titleEnglish: "Accountant", titleArabic: "محاسب" },
-  { titleEnglish: "Administrative Manager", titleArabic: "مدير إداري" },
-  { titleEnglish: "Administrative Assistant", titleArabic: "مساعد إداري" },
-  { titleEnglish: "Reporter", titleArabic: "مراسل" },
-  { titleEnglish: "Technician", titleArabic: "فني" },
-  { titleEnglish: "HR Operation Specialist", titleArabic: "أخصائي عمليات موارد بشرية" },
-  { titleEnglish: "Project Engineer", titleArabic: "مهندس مشروع" },
-  { titleEnglish: "Draftsman Map", titleArabic: "رسام خرائط و مخططات" },
-  { titleEnglish: "Sales Engineer", titleArabic: "مهندس مبيعات" },
-  { titleEnglish: "Building Technician and Supervisor", titleArabic: "فني و مراقب أبنية" },
-  { titleEnglish: "Secretary", titleArabic: "سكرتيرة" },
-  { titleEnglish: "Buildings Technician", titleArabic: "فني أبنية" },
-  { titleEnglish: "Draftsman", titleArabic: "رسام عام" },
-  { titleEnglish: "Marketing Specialist", titleArabic: "أخصائي تسويق" },
-  { titleEnglish: "Man Draft Architect", titleArabic: "رسام معماري" },
-  { titleEnglish: "Survey Technician", titleArabic: "فني مساحة" },
-  { titleEnglish: "General Maintenance Mechanic", titleArabic: "فني ميكانيك صيانة عامة" },
-  { titleEnglish: "Administrative Officer", titleArabic: "موظف إداري" },
-  { titleEnglish: "Design Manager", titleArabic: "مدير تصميم" },
-  { titleEnglish: "Building Carpenter", titleArabic: "نجار مباني" },
-  { titleEnglish: "Document Keeper", titleArabic: "حافظ وثائق" },
-  { titleEnglish: "Planning Engineer", titleArabic: "مهندس تنظيم" },
-  { titleEnglish: "Chief Surveyor", titleArabic: "رئيس المساح" },
-  { titleEnglish: "QA/QC HSE Manager", titleArabic: "مدير ضمان / مراقبة الجودة، الصحة والسلامة والبيئة" },
-  { titleEnglish: "QA/QC", titleArabic: "ضمان / مراقبة الجودة" },
-  { titleEnglish: "Construction Manager", titleArabic: "مدير التشييد" },
-  { titleEnglish: "Technical Office Manager", titleArabic: "مدير المكتب الفني" },
-  { titleEnglish: "Project Coordinator", titleArabic: "منسق المشروع" },
-  { titleEnglish: "CEO", titleArabic: "المدير التنفيذي" },
-  { titleEnglish: "General Manager", titleArabic: "المدير العام" },
-];
+export { DEFAULT_POSITIONS } from "./positions-seed";
 
 // Purpose schemas and types
 export const insertPurposeSchema = createInsertSchema(purposes, {
@@ -1534,6 +1492,7 @@ export const updateUserSchema = z.object({
   phone: z.string().optional().nullable(),
   photo: z.string().optional().nullable(),
   signature: z.string().optional().nullable(),
+  language: z.enum(LANGUAGES).optional(),
 });
 
 export const updatePasswordSchema = z.object({
@@ -1553,12 +1512,12 @@ export type InsertPasswordResetToken = z.infer<typeof insertPasswordResetTokenSc
 export type PasswordResetToken = typeof passwordResetTokens.$inferSelect;
 
 export const forgotPasswordSchema = z.object({
-  email: z.string().email("البريد الإلكتروني غير صالح"),
+  email: z.string().email("Invalid email address"),
 });
 
 export const resetPasswordSchema = z.object({
-  token: z.string().min(1, "رمز الاسترجاع مطلوب"),
-  password: z.string().min(6, "كلمة المرور يجب أن تكون 6 أحرف على الأقل"),
+  token: z.string().min(1, "Reset token is required"),
+  password: z.string().min(6, "Password must be at least 6 characters"),
 });
 
 export type ForgotPasswordInput = z.infer<typeof forgotPasswordSchema>;
@@ -1927,14 +1886,7 @@ export const NON_PO_RECEIPT_SOURCES = [
   "emergency",
 ] as const;
 
-export const RECEIPT_SOURCE_LABELS: Record<ReceiptSource, string> = {
-  purchase_order: "أمر شراء",
-  owner_supplied: "مواد من المالك",
-  project_transfer: "نقل من مشروع آخر",
-  sample: "عينة",
-  emergency: "شراء طارئ",
-  legacy: "سابق للنظام",
-};
+export const RECEIPT_SOURCE_LABELS: Record<ReceiptSource, string> = enumMap("receipt_source", RECEIPT_SOURCES);
 
 export const insertDeliverySchema = createInsertSchema(deliveries, {
   projectId: z.string().min(1, "Project ID is required"),
@@ -2171,14 +2123,7 @@ export const MANUAL_MOVEMENT_TYPES = [
   "opening_balance",
 ] as const;
 
-export const MANUAL_MOVEMENT_LABELS: Record<(typeof MANUAL_MOVEMENT_TYPES)[number], string> = {
-  adjustment_in: "تسوية جرد - زيادة",
-  adjustment_out: "تسوية جرد - نقص",
-  waste: "تالف / مفقود",
-  return_to_supplier: "إرجاع للمورد",
-  return_from_site: "مرتجع من موقع العمل",
-  opening_balance: "رصيد افتتاحي",
-};
+export const MANUAL_MOVEMENT_LABELS: Record<(typeof MANUAL_MOVEMENT_TYPES)[number], string> = enumMap("manual_movement", MANUAL_MOVEMENT_TYPES);
 
 export const createManualStockMovementSchema = insertStockMovementSchema
   .omit({ sourceType: true, sourceId: true, projectId: true })
@@ -2288,14 +2233,14 @@ export const createPoReceiptSchema = z.object({
   lines: z
     .array(
       z.object({
-        poItemId: z.string().min(1, "بند أمر الشراء مطلوب"),
+        poItemId: z.string().min(1, "PO item is required"),
         quantity: z
           .string()
-          .regex(/^\d+(\.\d{1,2})?$/, "كمية غير صالحة"),
+          .regex(/^\d+(\.\d{1,2})?$/, "Invalid quantity"),
         notes: z.string().optional().nullable(),
       })
     )
-    .min(1, "يجب إدخال كمية مستلمة لبند واحد على الأقل"),
+    .min(1, "At least one item quantity is required"),
 });
 export type CreatePoReceipt = z.infer<typeof createPoReceiptSchema>;
 
@@ -2699,7 +2644,7 @@ export type ProgressPaymentCertificate = typeof progressPaymentCertificates.$inf
 export type ProgressPaymentCertificateLine = typeof progressPaymentCertificateLines.$inferSelect;
 
 // ---------------------------------------------------------------------------
-// Payments (المدفوعات): bill-attachment requests, payment orders, clearances and fines.
+// Payments (المدفوعات): bill-attachment requests, payment orders and fines (licence fees live in الرخص والمعاملات).
 // The status vocabularies live in shared/payments.ts.
 // ---------------------------------------------------------------------------
 
@@ -2795,7 +2740,7 @@ export const paymentChargebacks = pgTable("payment_chargebacks", {
 }));
 
 // A payment order is the instruction to pay. It has one source: a received bill request, a
-// fine, a clearance fee, or none, in which case `reason` explains what it is for.
+// fine, a permit/transaction fee, or none, in which case `reason` explains what it is for.
 export const paymentOrders = pgTable("payment_orders", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   projectId: varchar("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
@@ -2803,7 +2748,8 @@ export const paymentOrders = pgTable("payment_orders", {
   orderNo: text("order_no").notNull(), // PO-... is taken by purchase orders, so payment orders are PAY-0001
   billRequestId: varchar("bill_request_id").references(() => paymentBillRequests.id, { onDelete: "set null" }),
   fineId: varchar("fine_id"),
-  clearanceId: varchar("clearance_id"),
+  // The permit/transaction (الرخص والمعاملات) whose fee this order pays
+  permitTransactionId: varchar("permit_transaction_id"),
   subcontractorCertificateId: varchar("subcontractor_certificate_id"),
   // The page this order was started from (a purchase order, a delivery...)
   sourceType: text("source_type"),
@@ -2812,7 +2758,7 @@ export const paymentOrders = pgTable("payment_orders", {
   purchaseOrderId: varchar("purchase_order_id").references(() => purchaseOrders.id, { onDelete: "set null" }),
   certificateId: varchar("certificate_id").references(() => progressPaymentCertificates.id, { onDelete: "set null" }),
   payeeName: text("payee_name").notNull(),
-  purpose: text("purpose"), // bill, fine, clearance, advance, other (null on rows made before this column existed)
+  purpose: text("purpose"), // bill, fine, clearance (a permit/transaction fee), subcontractor, advance, other (null on rows made before this column existed)
   reason: text("reason"),
   amount: decimal("amount", { precision: 14, scale: 2 }).notNull(),
   status: text("status").notNull().default("draft"), // draft, pending_approval, approved, paid, rejected, cancelled
@@ -2870,28 +2816,6 @@ export const paymentSubcontractorCertificates = pgTable("payment_subcontractor_c
   projectIdx: index("payment_sub_certs_project_idx").on(table.projectId),
 }));
 
-// Permits and clearances (authority approvals, handover/utility clearances...) tracked per project
-export const paymentClearances = pgTable("payment_clearances", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  projectId: varchar("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
-  title: text("title").notNull(),
-  authority: text("authority"),
-  referenceNo: text("reference_no"),
-  status: text("status").notNull().default("pending"), // pending, in_progress, obtained, rejected, expired
-  responsibleName: text("responsible_name"),
-  dueDate: date("due_date"),
-  issueDate: date("issue_date"),
-  expiryDate: date("expiry_date"),
-  feeAmount: decimal("fee_amount", { precision: 14, scale: 2 }).notNull().default("0"),
-  feePaid: boolean("fee_paid").notNull().default(false),
-  notes: text("notes"),
-  createdBy: varchar("created_by").references(() => users.id, { onDelete: "set null" }),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-  updatedAt: timestamp("updated_at").notNull().defaultNow(),
-}, (table) => ({
-  projectIdx: index("payment_clearances_project_idx").on(table.projectId),
-}));
-
 export const paymentFines = pgTable("payment_fines", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   projectId: varchar("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
@@ -2926,11 +2850,11 @@ export const paymentFines = pgTable("payment_fines", {
   projectIdx: index("payment_fines_project_idx").on(table.projectId),
 }));
 
-// Files attached to any of the four records above (original bills, clearance copies, fine notices...)
+// Files attached to any of the four records above (original bills, payment receipts, fine notices...)
 export const paymentAttachments = pgTable("payment_attachments", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   projectId: varchar("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
-  entityType: text("entity_type").notNull(), // bill_request, payment_order, clearance, fine
+  entityType: text("entity_type").notNull(), // bill_request, payment_order, fine, ...
   entityId: varchar("entity_id").notNull(),
   fileName: text("file_name").notNull(),
   objectPath: text("object_path").notNull(),
@@ -2964,9 +2888,286 @@ export type PaymentChargeback = typeof paymentChargebacks.$inferSelect;
 export type ProjectSubcontractor = typeof projectSubcontractors.$inferSelect;
 export type PaymentOrder = typeof paymentOrders.$inferSelect;
 export type PaymentSubcontractorCertificate = typeof paymentSubcontractorCertificates.$inferSelect;
-export type PaymentClearance = typeof paymentClearances.$inferSelect;
 export type PaymentFine = typeof paymentFines.$inferSelect;
 export type PaymentAttachment = typeof paymentAttachments.$inferSelect;
 export type PaymentActivity = typeof paymentActivity.$inferSelect;
 
 
+
+// ==================== PERMITS & TRANSACTIONS (الرخص والمعاملات) ====================
+// A catalogue of government (and other) services modelled on the national portal's service cards, and the
+// transactions a developer runs from it for each project. Status vocabularies live in shared/permits.ts.
+
+// The authority a service belongs to. organization_id null = built-in, shared by everyone.
+export const permitAuthorities = pgTable("permit_authorities", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  organizationId: varchar("organization_id").references(() => organizations.id, { onDelete: "cascade" }),
+  code: text("code"), // stable key of built-in authorities (seeded)
+  name: text("name").notNull(),
+  nameEn: text("name_en"),
+  portalUrl: text("portal_url"),
+  active: boolean("active").notNull().default(true),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+// A service template. organization_id null = built-in catalogue (edited by a super admin).
+export const permitServices = pgTable("permit_services", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  organizationId: varchar("organization_id").references(() => organizations.id, { onDelete: "cascade" }),
+  code: text("code"), // stable key of built-in services (seeded)
+  authorityId: varchar("authority_id").references(() => permitAuthorities.id, { onDelete: "set null" }),
+  name: text("name").notNull(),
+  category: text("category").notNull().default("other"),
+  description: text("description"),
+  serviceUrl: text("service_url"),
+  channels: text("channels"),
+  isLicense: boolean("is_license").notNull().default(false),
+  validityMonths: integer("validity_months"),
+  renewalLeadDays: integer("renewal_lead_days").notNull().default(30),
+  feeAmount: decimal("fee_amount", { precision: 14, scale: 2 }).notNull().default("0"),
+  feeNote: text("fee_note"),
+  slaDays: integer("sla_days"),
+  active: boolean("active").notNull().default(true),
+  createdBy: varchar("created_by").references(() => users.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => ({
+  orgIdx: index("permit_services_org_idx").on(table.organizationId),
+}));
+
+export const permitServiceSteps = pgTable("permit_service_steps", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  serviceId: varchar("service_id").notNull().references(() => permitServices.id, { onDelete: "cascade" }),
+  seq: integer("seq").notNull(),
+  title: text("title").notNull(),
+  description: text("description"),
+  party: text("party").notNull().default("any"), // developer | contractor | consultant | any
+  slaDays: integer("sla_days"),
+  isPaymentStep: boolean("is_payment_step").notNull().default(false),
+}, (table) => ({
+  serviceIdx: index("permit_service_steps_service_idx").on(table.serviceId),
+}));
+
+export const permitServiceRequirements = pgTable("permit_service_requirements", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  serviceId: varchar("service_id").notNull().references(() => permitServices.id, { onDelete: "cascade" }),
+  seq: integer("seq").notNull(),
+  kind: text("kind").notNull().default("document"), // document | condition
+  title: text("title").notNull(),
+  description: text("description"),
+  mandatory: boolean("mandatory").notNull().default(true),
+}, (table) => ({
+  serviceIdx: index("permit_service_requirements_service_idx").on(table.serviceId),
+}));
+
+// One run of a service for one project
+export const permitTransactions = pgTable("permit_transactions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  projectId: varchar("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
+  seq: integer("seq").notNull(),
+  transactionNo: text("transaction_no").notNull(), // TR-0001, numbered per project
+  serviceId: varchar("service_id").references(() => permitServices.id, { onDelete: "set null" }),
+  kind: text("kind").notNull().default("transaction"), // license | transaction
+  title: text("title").notNull(),
+  category: text("category").notNull().default("other"),
+  authorityName: text("authority_name"),
+  portalUrl: text("portal_url"),
+  status: text("status").notNull().default("not_started"),
+  assigneeUserId: varchar("assignee_user_id").references(() => users.id, { onDelete: "set null" }),
+  responsibleName: text("responsible_name"), // free text, kept from records made before assignees existed
+  referenceNo: text("reference_no"), // the request number at the authority
+  licenseNo: text("license_no"),
+  startDate: date("start_date"),
+  dueDate: date("due_date"),
+  submittedAt: timestamp("submitted_at"),
+  issueDate: date("issue_date"),
+  expiryDate: date("expiry_date"),
+  renewalLeadDays: integer("renewal_lead_days"),
+  feeAmount: decimal("fee_amount", { precision: 14, scale: 2 }).notNull().default("0"),
+  feePaid: boolean("fee_paid").notNull().default(false),
+  feePaidAt: timestamp("fee_paid_at"),
+  renewalOfId: varchar("renewal_of_id"),
+  // The smallest "days before expiry" notice already sent, so the hourly sweep never repeats one
+  expiryNoticeLevel: integer("expiry_notice_level"),
+  notes: text("notes"),
+  createdBy: varchar("created_by").references(() => users.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => ({
+  seqUq: uniqueIndex("permit_transactions_seq_uq").on(table.projectId, table.seq),
+  projectIdx: index("permit_transactions_project_idx").on(table.projectId),
+}));
+
+export const permitTransactionSteps = pgTable("permit_transaction_steps", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  transactionId: varchar("transaction_id").notNull().references(() => permitTransactions.id, { onDelete: "cascade" }),
+  projectId: varchar("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
+  seq: integer("seq").notNull(),
+  title: text("title").notNull(),
+  description: text("description"),
+  party: text("party").notNull().default("any"),
+  isPaymentStep: boolean("is_payment_step").notNull().default(false),
+  assigneeUserId: varchar("assignee_user_id").references(() => users.id, { onDelete: "set null" }),
+  dueDate: date("due_date"),
+  status: text("status").notNull().default("pending"), // pending | in_progress | done | skipped
+  completedBy: varchar("completed_by").references(() => users.id, { onDelete: "set null" }),
+  completedAt: timestamp("completed_at"),
+  note: text("note"),
+  overdueNotifiedAt: timestamp("overdue_notified_at"),
+}, (table) => ({
+  transactionIdx: index("permit_transaction_steps_tx_idx").on(table.transactionId),
+  assigneeIdx: index("permit_transaction_steps_assignee_idx").on(table.assigneeUserId),
+}));
+
+export const permitTransactionRequirements = pgTable("permit_transaction_requirements", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  transactionId: varchar("transaction_id").notNull().references(() => permitTransactions.id, { onDelete: "cascade" }),
+  projectId: varchar("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
+  seq: integer("seq").notNull(),
+  kind: text("kind").notNull().default("document"),
+  title: text("title").notNull(),
+  description: text("description"),
+  mandatory: boolean("mandatory").notNull().default(true),
+  status: text("status").notNull().default("missing"), // missing | provided | not_applicable
+  updatedBy: varchar("updated_by").references(() => users.id, { onDelete: "set null" }),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => ({
+  transactionIdx: index("permit_transaction_requirements_tx_idx").on(table.transactionId),
+}));
+
+export const permitAttachments = pgTable("permit_attachments", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  projectId: varchar("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
+  transactionId: varchar("transaction_id").notNull().references(() => permitTransactions.id, { onDelete: "cascade" }),
+  requirementId: varchar("requirement_id"),
+  stepId: varchar("step_id"),
+  fileName: text("file_name").notNull(),
+  objectPath: text("object_path").notNull(),
+  contentType: text("content_type"),
+  size: integer("size"),
+  uploadedBy: varchar("uploaded_by").references(() => users.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => ({
+  transactionIdx: index("permit_attachments_tx_idx").on(table.transactionId),
+}));
+
+export const permitActivity = pgTable("permit_activity", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  projectId: varchar("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
+  transactionId: varchar("transaction_id").notNull().references(() => permitTransactions.id, { onDelete: "cascade" }),
+  action: text("action").notNull(),
+  fromStatus: text("from_status"),
+  toStatus: text("to_status"),
+  note: text("note"),
+  userId: varchar("user_id").references(() => users.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => ({
+  transactionIdx: index("permit_activity_tx_idx").on(table.transactionId),
+}));
+
+export type PermitAuthority = typeof permitAuthorities.$inferSelect;
+export type PermitService = typeof permitServices.$inferSelect;
+export type PermitServiceStep = typeof permitServiceSteps.$inferSelect;
+export type PermitServiceRequirement = typeof permitServiceRequirements.$inferSelect;
+export type PermitTransaction = typeof permitTransactions.$inferSelect;
+export type PermitTransactionStep = typeof permitTransactionSteps.$inferSelect;
+export type PermitTransactionRequirement = typeof permitTransactionRequirements.$inferSelect;
+export type PermitAttachment = typeof permitAttachments.$inferSelect;
+export type PermitActivity = typeof permitActivity.$inferSelect;
+
+
+// ==================== OUTGOING WEBHOOKS ====================
+// An organization registers a URL (its ERP, usually) and the event types it wants. Every matching
+// event becomes a delivery row that the webhook service signs and POSTs, retrying until it lands.
+export const webhooks = pgTable("webhooks", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  organizationId: varchar("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  url: text("url").notNull(),
+  // Kept in plain text because every delivery is signed with it; the API never returns it after creation
+  secret: text("secret").notNull(),
+  events: text("events").array().notNull().default(sql`ARRAY[]::text[]`),
+  active: boolean("active").notNull().default(true),
+  createdBy: varchar("created_by").references(() => users.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => ({
+  orgIdx: index("webhooks_org_idx").on(table.organizationId),
+}));
+
+export const webhookDeliveries = pgTable("webhook_deliveries", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  webhookId: varchar("webhook_id").notNull().references(() => webhooks.id, { onDelete: "cascade" }),
+  event: text("event").notNull(),
+  action: text("action"),
+  payload: jsonb("payload").$type<Record<string, unknown>>().notNull(),
+  // pending → success | failed (failed only once the retries run out)
+  status: text("status").notNull().default("pending"),
+  attempts: integer("attempts").notNull().default(0),
+  nextAttemptAt: timestamp("next_attempt_at").defaultNow(),
+  responseStatus: integer("response_status"),
+  responseBody: text("response_body"),
+  error: text("error"),
+  durationMs: integer("duration_ms"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  deliveredAt: timestamp("delivered_at"),
+}, (table) => ({
+  webhookIdx: index("webhook_deliveries_webhook_idx").on(table.webhookId, table.createdAt),
+  dueIdx: index("webhook_deliveries_due_idx").on(table.status, table.nextAttemptAt),
+}));
+
+export type Webhook = typeof webhooks.$inferSelect;
+export type WebhookDelivery = typeof webhookDeliveries.$inferSelect;
+
+// ==================== ERPNEXT (INCOMING) ====================
+// One ERPNext site per organization. ERPNext pushes Supplier and Payment Entry changes to us through its
+// own Webhook feature (signed with webhookSecret); supplier statements are pulled from its REST API
+// with the API key/secret.
+export const erpConnections = pgTable("erp_connections", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  organizationId: varchar("organization_id").notNull().unique().references(() => organizations.id, { onDelete: "cascade" }),
+  baseUrl: text("base_url").notNull(), // https://erp.example.com
+  company: text("company"), // the ERPNext Company the statements are for
+  apiKey: text("api_key"),
+  apiSecret: text("api_secret"),
+  webhookSecret: text("webhook_secret").notNull(),
+  active: boolean("active").notNull().default(true),
+  createdBy: varchar("created_by").references(() => users.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+// ERPNext's supplier list as last pushed to us. Project suppliers linked to an entry (by erpSupplier, or
+// matched on tax number) are kept in step with it.
+export const erpSuppliers = pgTable("erp_suppliers", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  organizationId: varchar("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  erpName: text("erp_name").notNull(), // ERPNext's Supplier ID (its "name")
+  supplierName: text("supplier_name").notNull(),
+  taxId: text("tax_id"),
+  email: text("email"),
+  phone: text("phone"),
+  supplierGroup: text("supplier_group"),
+  disabled: boolean("disabled").notNull().default(false),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => ({
+  erpNameUq: uniqueIndex("erp_suppliers_org_name_uq").on(table.organizationId, table.erpName),
+}));
+
+export const erpInboundLog = pgTable("erp_inbound_log", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  organizationId: varchar("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  doctype: text("doctype"),
+  docName: text("doc_name"),
+  event: text("event"),
+  status: text("status").notNull(), // applied | ignored | rejected
+  message: text("message"),
+  payload: jsonb("payload").$type<Record<string, unknown>>(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => ({
+  orgIdx: index("erp_inbound_log_org_idx").on(table.organizationId, table.createdAt),
+}));
+
+export type ErpConnection = typeof erpConnections.$inferSelect;
+export type ErpSupplier = typeof erpSuppliers.$inferSelect;
+export type ErpInboundLog = typeof erpInboundLog.$inferSelect;

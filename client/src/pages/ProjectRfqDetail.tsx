@@ -91,9 +91,9 @@ export default function ProjectRfqDetail() {
         variant="ghost"
         size="sm"
         onClick={() => navigate(`/projects/${projectId}/purchase-orders?tab=rfqs`)}
-        className="gap-1.5 -ml-2 text-muted-foreground"
+        className="gap-1.5 -ms-2 text-muted-foreground"
       >
-        <ArrowLeft className="w-4 h-4" /> Back to RFQs
+        <ArrowLeft className="w-4 h-4 rtl:rotate-180" /> Back to RFQs
       </Button>
 
       {/* Header */}
@@ -272,7 +272,7 @@ export default function ProjectRfqDetail() {
                           {SUPPLIER_STATUS[s.status] || s.status}
                         </Badge>
                       </TableCell>
-                      <TableCell className="text-right">
+                      <TableCell className="text-end">
                         {s.status !== "submitted" && (
                           <Button
                             size="sm"
@@ -325,7 +325,7 @@ export default function ProjectRfqDetail() {
                       <TableCell className="font-mono font-bold">
                         {Number(q.totalAmount).toLocaleString()} {q.currency}
                         {Number(q.totalAmount) === lowestTotal && quotations.length > 1 && (
-                          <Badge className="ml-2 text-[10px] bg-emerald-100 text-emerald-700" variant="secondary">
+                          <Badge className="ms-2 text-[10px] bg-emerald-100 text-emerald-700" variant="secondary">
                             Lowest
                           </Badge>
                         )}

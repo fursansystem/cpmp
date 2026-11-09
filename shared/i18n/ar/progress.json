@@ -1,0 +1,292 @@
+{
+  "save_cells": {
+    "saved": "تم الحفظ",
+    "saved_summary": "تم حفظ {{saved}} خانة{{locked_info}}.",
+    "skipped_locked": "، تم تخطي {{locked}} خانة مقفلة",
+    "failed": "لم يتم الحفظ"
+  },
+  "cell_dialog": {
+    "unit_title": "الوحدة {{label}}",
+    "building": "مبنى {{building}}",
+    "percent": "النسبة",
+    "source": "المصدر",
+    "wir_request": "طلب الفحص (WIR)",
+    "history": "السجل",
+    "table": {
+      "date": "التاريخ",
+      "old_to_new": "من ← إلى",
+      "source": "المصدر",
+      "by": "بواسطة",
+      "reason": "السبب"
+    },
+    "loading": "جارٍ التحميل…",
+    "no_history": "لا يوجد سجل",
+    "system": "النظام",
+    "edit_admin_title": "تعديل مدير النظام",
+    "edit_title": "تعديل النسبة",
+    "percent_label": "النسبة % (فارغ = مسح)",
+    "reason_label": "السبب",
+    "locked_note": "هذه الخانة مقفلة بفحص معتمد، ولا يعدّلها إلا مدير النظام.",
+    "close": "إغلاق",
+    "save": "حفظ",
+    "sources": {
+      "manual": "يدوي",
+      "wir": "فحص معتمد",
+      "override": "تعديل المدير",
+      "relink": "تغيير الربط",
+      "restructure": "إعادة هيكلة",
+      "delete": "حذف"
+    }
+  },
+  "matrix": {
+    "no_items_title": "لا توجد بنود بعد",
+    "no_items_desc": "ابدأ من تبويب «البنود والأوزان» بتوليد الهيكل من سجل الفحوصات.",
+    "building": "المبنى",
+    "floor": "الدور",
+    "type": "النوع",
+    "search_unit": "بحث عن وحدة",
+    "search_placeholder": "رقم الوحدة…",
+    "per_page": "لكل صفحة",
+    "all": "الكل",
+    "expand": "توسيع",
+    "phases": "المراحل",
+    "import": "استيراد",
+    "legend": {
+      "locked": "مقفل بفحص معتمد",
+      "leaf": "إدخال البند",
+      "computed": "محسوب",
+      "shortcuts": "Enter/رقم للتحرير · Enter حفظ ونزول · Tab تحريك · Esc إلغاء · Shift+نقرة = السجل"
+    },
+    "headers": {
+      "code": "الكود",
+      "item": "البند",
+      "local_weight": "الوزن المحلي %",
+      "global_weight": "الوزن الكلي %",
+      "progress": "الإنجاز"
+    },
+    "unit_weight_tooltip": "وزن الوحدة",
+    "unit_progress_tooltip": "إنجاز الوحدة",
+    "apply_all_units": "تطبيق % على كل الوحدات المعروضة",
+    "invalid_value_title": "قيمة غير صحيحة",
+    "invalid_value_desc": "أدخل نسبة بين 0 و 100.",
+    "locked_skipped_title": "تم تخطي المقفل",
+    "locked_skipped_desc": "تم تخطي {{count}} خانة مقفلة ولم تتغير.",
+    "no_changes_title": "لا تغييرات",
+    "importing_title": "جارٍ الاستيراد",
+    "read_file_error": "تعذّر قراءة الملف",
+    "fill_dialog": {
+      "title": "تطبيق نسبة على الوحدات المعروضة",
+      "desc": "{{code}} — {{name}}. {{count}} وحدة معروضة. الخانات المقفلة لن تتغير.",
+      "percent": "النسبة %",
+      "cancel": "إلغاء",
+      "apply": "تطبيق"
+    }
+  },
+  "units": {
+    "weight_mode": "طريقة وزن الوحدات",
+    "modes": {
+      "equal": "بالتساوي",
+      "area": "بالمساحة (م²)",
+      "value": "بالقيمة",
+      "manual": "يدوي"
+    },
+    "default_value": "القيمة الافتراضية للوحدة",
+    "drive_project_progress": "احتساب نسبة المشروع من المصفوفة",
+    "drive_project_progress_hint": "عند التفعيل تُستبدل نسبة إنجاز المشروع بنسبة المصفوفة ({{progress}}).",
+    "save_settings": "حفظ الإعدادات",
+    "drive_enabled_msg": "نسبة المشروع تُحتسب الآن من المصفوفة",
+    "search": "بحث",
+    "search_placeholder": "رقم الوحدة…",
+    "set_value_filtered": "تعيين قيمة للمفلترة",
+    "cost_and_ratio": "التكلفة والنسب",
+    "import_values": "استيراد القيم",
+    "no_values_title": "لا قيم",
+    "read_file_error": "تعذّر قراءة الملف",
+    "table": {
+      "unit": "الوحدة",
+      "building": "المبنى",
+      "flat": "الشقة",
+      "floor": "الدور",
+      "type": "النوع",
+      "area": "المساحة (م²)",
+      "value": "القيمة",
+      "weight": "الوزن %",
+      "included": "مشمولة",
+      "progress": "الإنجاز %",
+      "earned": "قيمة الاستحقاق",
+      "pending": "المعلّق",
+      "paid": "المدفوع",
+      "remaining": "المتبقي",
+      "filtered_total": "المجموع للمفلترة — {{count}}"
+    },
+    "bulk_dialog": {
+      "title": "تعيين قيمة للوحدات المفلترة",
+      "desc": "{{count}} وحدة. اترك الحقل فارغاً لاستخدام القيمة الافتراضية.",
+      "value": "القيمة",
+      "cancel": "إلغاء",
+      "apply": "تطبيق"
+    }
+  },
+  "certificates": {
+    "status": {
+      "draft": "مسودة",
+      "submitted": "مرفوع",
+      "approved": "معتمد",
+      "paid": "مدفوع",
+      "rejected": "مرفوض"
+    },
+    "claimable_now": "القابل للمطالبة الآن",
+    "claimable_units": "{{count}} وحدة · الإنجاز − (المعلّق + المدفوع)",
+    "new_certificate": "مستخلص جديد",
+    "loading": "جارٍ التحميل…",
+    "no_certificates": "لا توجد مستخلصات",
+    "units_count": "{{count}} وحدة",
+    "select_or_create": "اختر مستخلصاً أو أنشئ واحداً جديداً",
+    "certificate_no": "مستخلص رقم #{{number}}",
+    "reject_reason": "سبب الرفض: {{reason}}",
+    "total": "إجمالي المستخلص",
+    "dates": {
+      "created": "أنشئ:",
+      "submitted": "رُفع:",
+      "approved": "اعتُمد:",
+      "paid": "صُرف:",
+      "rejected": "رُفض:"
+    },
+    "actions": {
+      "refresh": "تحديث من المصفوفة",
+      "submit": "رفع",
+      "delete": "حذف",
+      "withdraw": "سحب",
+      "approve": "اعتماد",
+      "reject": "رفض",
+      "mark_paid": "تسجيل الصرف",
+      "excel": "Excel"
+    },
+    "table": {
+      "unit": "الوحدة",
+      "unit_value": "قيمة الوحدة",
+      "previous": "السابق %",
+      "cumulative": "التراكمي %",
+      "current": "الحالي %",
+      "amount": "المبلغ",
+      "no_lines": "لا توجد أسطر — لا يوجد إنجاز جديد قابل للمطالبة",
+      "total_lines": "المجموع — {{count}}"
+    },
+    "toasts": {
+      "done": "تم",
+      "failed": "فشلت العملية",
+      "draft_created": "تم إنشاء المسودة",
+      "refreshed": "تم التحديث",
+      "deleted": "تم الحذف"
+    },
+    "create_dialog": {
+      "title": "مستخلص جديد",
+      "desc": "يُنشأ كمسودة من الإنجاز الحالي: الحالي = التراكمي − ما سبقت المطالبة به.",
+      "title_label": "العنوان",
+      "from": "من",
+      "to": "إلى",
+      "notes": "ملاحظات",
+      "cancel": "إلغاء",
+      "create_draft": "إنشاء مسودة"
+    },
+    "reject_dialog": {
+      "title": "رفض المستخلص #{{number}}",
+      "desc": "تعود النسب قابلة للمطالبة في مستخلص لاحق.",
+      "reason": "السبب *",
+      "cancel": "إلغاء",
+      "reject": "رفض"
+    },
+    "delete_dialog": {
+      "title": "حذف المسودة #{{number}}؟",
+      "desc": "لا يمكن التراجع.",
+      "cancel": "إلغاء",
+      "delete": "حذف"
+    }
+  },
+  "wbs": {
+    "actions": {
+      "generate_wir": "توليد من سجل WIR",
+      "from_divisions": "توليد من أقسام…",
+      "sync_wir": "مزامنة من الفحوصات المعتمدة",
+      "add_phase": "إضافة مرحلة",
+      "save_weights": "حفظ الأوزان",
+      "discard": "تراجع"
+    },
+    "unsaved_weights": "{{count}} وزن غير محفوظ",
+    "no_items": "لا توجد بنود. استخدم «توليد من سجل WIR» لإنشاء المراحل والبنود من طلبات الفحص الخاصة بالمشروع.",
+    "table": {
+      "code": "الكود",
+      "item": "البند",
+      "weight": "الوزن %",
+      "children_sum": "Σ الأبناء",
+      "link": "الربط",
+      "cells": "الخانات",
+      "phases_total": "مجموع المراحل",
+      "equalize_phases": "توزيع متساوٍ",
+      "manual": "يدوي"
+    },
+    "menu": {
+      "edit": "تعديل",
+      "add_sub": "إضافة بند فرعي",
+      "add_sibling": "إضافة بند مجاور",
+      "split_level": "تقسيم حسب المستوى",
+      "equalize_children": "توزيع متساوٍ للأبناء",
+      "delete": "حذف"
+    },
+    "item_dialog": {
+      "add_title": "إضافة بند",
+      "edit_title": "تعديل بند",
+      "under": "تحت: {{code}} — {{name}}",
+      "top_level": "مرحلة رئيسية",
+      "code_label": "الكود",
+      "optional": " — اختياري",
+      "weight_label": "الوزن % بين الإخوة",
+      "name_ar": "الاسم بالعربي *",
+      "name_en": "الاسم بالإنجليزي",
+      "link_activity": "ربط النشاط (يملأ الخانات من الفحوصات المعتمدة)",
+      "work_level": "مستوى العمل (فلتر اختياري)",
+      "all_levels": "كل المستويات",
+      "cancel": "إلغاء",
+      "save": "حفظ"
+    },
+    "activity_picker": {
+      "no_link": "بدون ربط — يدوي",
+      "search_placeholder": "ابحث بالكود أو الاسم…",
+      "no_results": "لا نتائج",
+      "clear": "إزالة"
+    },
+    "split_dialog": {
+      "title": "تقسيم حسب مستوى العمل",
+      "desc": "{{code}} — {{name}}. سيُنشأ بند فرعي لكل مستوى بأوزان متساوية، وكل منها مرتبط بنفس النشاط والمستوى.",
+      "in_wir": "في سجل WIR",
+      "cancel": "إلغاء",
+      "split": "تقسيم — {{count}}"
+    },
+    "divisions_dialog": {
+      "title": "توليد من أقسام",
+      "desc": "يضيف كل أنشطة الأقسام المختارة غير المربوطة بعد. البنود الموجودة لا تتغير.",
+      "cancel": "إلغاء",
+      "generate": "توليد"
+    },
+    "delete_dialog": {
+      "title": "حذف البند {{code}}؟",
+      "desc": "سيُحذف البند و{{sub}} بنداً فرعياً و{{cells}} خانة منها {{locked}} مقفلة بفحوصات معتمدة.",
+      "cancel": "إلغاء",
+      "delete": "حذف"
+    },
+    "confirm_drop": {
+      "title": "تأكيد حذف الخانات",
+      "desc": "البند الأب فيه {{total}} خانة (منها {{locked}} مقفلة) ستُحذف لأنه سيصبح بنداً له أبناء.",
+      "cancel": "إلغاء",
+      "continue": "متابعة"
+    },
+    "toasts": {
+      "done": "تم",
+      "failed": "فشلت العملية",
+      "saved": "تم الحفظ",
+      "split_done": "تم التقسيم",
+      "empty_file": "الملف فارغ",
+      "read_file_error": "تعذّر قراءة الملف"
+    }
+  }
+}

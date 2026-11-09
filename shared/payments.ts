@@ -1,14 +1,13 @@
 // المدفوعات (Payments) — shared constants, labels and report types.
 // Used by both the server routes and the Payments page so the two never disagree on a status name.
 
+import { enumMap } from "./i18n";
+
 export const BILL_REQUEST_STATUSES = ["requested", "submitted", "received", "returned", "cancelled"] as const;
 export type BillRequestStatus = (typeof BILL_REQUEST_STATUSES)[number];
 
 export const PAYMENT_ORDER_STATUSES = ["requested", "request_approved", "draft", "pending_approval", "approved", "paid", "rejected", "cancelled"] as const;
 export type PaymentOrderStatus = (typeof PAYMENT_ORDER_STATUSES)[number];
-
-export const CLEARANCE_STATUSES = ["pending", "in_progress", "obtained", "rejected", "expired"] as const;
-export type ClearanceStatus = (typeof CLEARANCE_STATUSES)[number];
 
 export const FINE_STATUSES = ["open", "under_appeal", "waiver_requested", "payment_requested", "paid", "waived", "recovered", "cancelled"] as const;
 export type FineStatus = (typeof FINE_STATUSES)[number];
@@ -19,7 +18,8 @@ export type LiableParty = (typeof LIABLE_PARTIES)[number];
 export const PAYMENT_METHODS = ["bank_transfer", "cheque", "cash"] as const;
 export type PaymentMethod = (typeof PAYMENT_METHODS)[number];
 
-export const PAYMENT_ENTITY_TYPES = ["bill_request", "payment_order", "clearance", "fine", "subcontractor_certificate", "chargeback"] as const;
+// Licence and transaction fees are paid by orders too, but the records themselves live in الرخص والمعاملات (shared/permits.ts)
+export const PAYMENT_ENTITY_TYPES = ["bill_request", "payment_order", "fine", "subcontractor_certificate", "chargeback"] as const;
 export type PaymentEntityType = (typeof PAYMENT_ENTITY_TYPES)[number];
 
 // مستخلصات مقاولي الباطن: raised on the project side, approved by a project manager,
@@ -27,27 +27,14 @@ export type PaymentEntityType = (typeof PAYMENT_ENTITY_TYPES)[number];
 export const SUB_CERT_STATUSES = ["draft", "submitted", "approved", "rejected", "paid", "cancelled"] as const;
 export type SubCertStatus = (typeof SUB_CERT_STATUSES)[number];
 
-export const SUB_CERT_LABELS: Record<SubCertStatus, string> = {
-  draft: "مسودة (Draft)",
-  submitted: "بانتظار الاعتماد (Submitted)",
-  approved: "معتمد (Approved)",
-  rejected: "مرفوض (Rejected)",
-  paid: "مدفوع (Paid)",
-  cancelled: "ملغي (Cancelled)",
-};
+export const SUB_CERT_LABELS: Record<SubCertStatus, string> = enumMap("sub_cert", SUB_CERT_STATUSES);
 
 // تحميل فاتورة على مقاول باطن: part or all of a paid supplier invoice charged to a subcontractor. The invoice's own
 // history is never touched; the charge is a separate record that ends up as a deduction on a certificate (or a deduction record).
 export const CHARGEBACK_STATUSES = ["proposed", "approved", "applied", "converted", "cancelled"] as const;
 export type ChargebackStatus = (typeof CHARGEBACK_STATUSES)[number];
 
-export const CHARGEBACK_LABELS: Record<ChargebackStatus, string> = {
-  proposed: "بانتظار مدير المشروع (Proposed)",
-  approved: "معتمد، لم يُطبَّق (Approved)",
-  applied: "مطبَّق في مستخلص (Applied)",
-  converted: "حُوّل إلى خصم (Converted)",
-  cancelled: "ملغي (Cancelled)",
-};
+export const CHARGEBACK_LABELS: Record<ChargebackStatus, string> = enumMap("chargeback", CHARGEBACK_STATUSES);
 
 // The amount actually payable on a subcontractor certificate. One definition, used by the
 // server when it saves and by the form's live preview, so the two can never disagree:
@@ -72,58 +59,15 @@ export function computeSubCert(input: {
 export const SOURCE_TYPES = ["purchase_order", "delivery", "snag", "ncr", "project", "invoice"] as const;
 export type SourceType = (typeof SOURCE_TYPES)[number];
 
-export const BILL_REQUEST_LABELS: Record<BillRequestStatus, string> = {
-  requested: "مطلوب (Requested)",
-  submitted: "تم الإرسال (Submitted)",
-  received: "تم الاستلام (Received)",
-  returned: "معاد للتصحيح (Returned)",
-  cancelled: "ملغي (Cancelled)",
-};
+export const BILL_REQUEST_LABELS: Record<BillRequestStatus, string> = enumMap("bill_request", BILL_REQUEST_STATUSES);
 
-export const PAYMENT_ORDER_LABELS: Record<PaymentOrderStatus, string> = {
-  requested: "طلب بانتظار مدير المشروع (Requested)",
-  request_approved: "طلب بانتظار المحاسبة (Request approved)",
-  draft: "مسودة (Draft)",
-  pending_approval: "بانتظار الاعتماد (Pending approval)",
-  approved: "معتمد (Approved)",
-  paid: "مدفوع (Paid)",
-  rejected: "مرفوض (Rejected)",
-  cancelled: "ملغي (Cancelled)",
-};
+export const PAYMENT_ORDER_LABELS: Record<PaymentOrderStatus, string> = enumMap("payment_order", PAYMENT_ORDER_STATUSES);
 
-export const CLEARANCE_LABELS: Record<ClearanceStatus, string> = {
-  pending: "لم يبدأ (Pending)",
-  in_progress: "قيد المعالجة (In progress)",
-  obtained: "تم الحصول عليه (Obtained)",
-  rejected: "مرفوض (Rejected)",
-  expired: "منتهي (Expired)",
-};
+export const FINE_LABELS: Record<FineStatus, string> = enumMap("fine", FINE_STATUSES);
 
-export const FINE_LABELS: Record<FineStatus, string> = {
-  open: "مفتوح (Open)",
-  under_appeal: "قيد الاعتراض (Under appeal)",
-  payment_requested: "تم طلب السداد (Payment requested)",
-  paid: "مسدد (Paid)",
-  waiver_requested: "طلب إعفاء (Waiver requested)",
-  waived: "معفى (Waived)",
-  recovered: "مُسترَد (Recovered)",
-  cancelled: "ملغى (Cancelled)",
-};
+export const LIABLE_PARTY_LABELS: Record<LiableParty, string> = enumMap("liable_party", LIABLE_PARTIES);
 
-export const LIABLE_PARTY_LABELS: Record<LiableParty, string> = {
-  contractor: "المقاول الرئيسي (Main contractor)",
-  subcontractor: "مقاول الباطن (Subcontractor)",
-  owner: "المالك (Owner)",
-  consultant: "الاستشاري (Consultant)",
-  supplier: "المورد (Supplier)",
-  other: "أخرى (Other)",
-};
-
-export const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
-  bank_transfer: "تحويل بنكي (Bank transfer)",
-  cheque: "شيك (Cheque)",
-  cash: "نقداً (Cash)",
-};
+export const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = enumMap("payment_method", PAYMENT_METHODS);
 
 // What a person with the Payments section open is allowed to do. Computed once on the server
 // (it needs the user's job position, which lives in the database) and sent to the page.
@@ -137,11 +81,7 @@ export interface PaymentsPermissions {
 // Statuses that still need somebody to act, used by the reports and the "open" counters.
 export const OPEN_BILL_REQUEST = ["requested", "submitted", "returned"] as const;
 export const OPEN_PAYMENT_ORDER = ["draft", "pending_approval", "approved"] as const;
-export const OPEN_CLEARANCE = ["pending", "in_progress"] as const;
 export const OPEN_FINE = ["open", "under_appeal", "waiver_requested", "payment_requested"] as const;
-
-// How many days before expiry a clearance starts showing as "expiring soon"
-export const CLEARANCE_EXPIRY_WARNING_DAYS = 30;
 
 export interface PaymentsProjectSummary {
   projectId: string;
@@ -151,6 +91,7 @@ export interface PaymentsProjectSummary {
   pendingOrdersAmount: number;
   approvedUnpaidAmount: number;
   paidAmount: number;
+  // licences and transactions (الرخص والمعاملات) of the project
   openClearances: number;
   clearancesAttention: number; // expired, or expiring soon, or overdue
   openFinesAmount: number;

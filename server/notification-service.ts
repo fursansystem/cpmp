@@ -2,6 +2,7 @@ import { storage } from "./storage";
 import { notificationWss } from "./websocket";
 import type { InsertNotification, Request, WorkflowStep } from "@shared/schema";
 import { getStepAuthorizedUserIds } from "./step-authorization";
+import { enumLabel, translate } from "@shared/i18n";
 
 // "Your turn" notifications are the assignment-type ones tied to a request
 const STEP_TURN_TYPE = "assignment";
@@ -9,26 +10,6 @@ const STEP_TURN_TYPE = "assignment";
 // Reaching these steps means the decision is made; the result notification already
 // tells the contractor, so nobody gets a "your turn" notification for them
 const STEPS_WITHOUT_TURN = new Set(["Final Approval"]);
-
-const stepLabelsArabic: Record<string, string> = {
-  "Draft": "المسودة",
-  "Contractor Preparation": "إعداد المقاول",
-  "Contractor Submission": "تقديم المقاول",
-  "Site Inspection": "المعاينة الميدانية",
-  "Final Approval": "الاعتماد النهائي",
-  "Consultant Preparation": "إعداد الاستشاري",
-  "Consultant Submission": "تقديم الاستشاري",
-  "Consultant Review": "مراجعة الاستشاري",
-  "Issued to Contractor": "صادر للمقاول",
-  "Contractor Team Approval": "اعتماد فريق المقاول",
-  "Contractor Manager Approval": "اعتماد مدير المقاول",
-  "Contractor PM Approval": "اعتماد مدير مشروع المقاول",
-  "Engineer Review": "مراجعة المهندس",
-  "Consultant Team Approval": "اعتماد فريق الاستشاري",
-  "Consultant PM Review": "مراجعة مدير مشروع الاستشاري",
-  "Consultant PM Approval": "اعتماد مدير مشروع الاستشاري",
-  "Consultant Manager Approval": "اعتماد مدير الاستشاري",
-};
 
 type NotificationType = "info" | "success" | "warning" | "error" | "assignment" | "status_change" | "approval" | "mention" | "document";
 
@@ -72,6 +53,13 @@ class NotificationService {
     }
   }
 
+  // الرخص والمعاملات: a transaction or step was assigned, paid, is overdue or about to expire. The link opens it.
+  async notifyPermits(params: { userIds: string[]; title: string; message: string; projectId?: string; link: string; type?: NotificationType }) {
+    for (const userId of Array.from(new Set(params.userIds))) {
+      await this.createAndSend({ userId, type: params.type ?? "assignment", title: params.title, message: params.message, projectId: params.projectId, link: params.link });
+    }
+  }
+
   // A developer has offered this organization a role on one of its projects. Until the
   // invitation is answered the project itself is not visible to them, so the
   // notification carries everything needed to decide, and links to the answer screen.
@@ -85,8 +73,12 @@ class NotificationService {
     return this.createAndSend({
       userId: params.userId,
       type: "assignment",
-      title: "دعوة للمشاركة في مشروع",
-      message: `دعتكم ${params.invitingOrganizationName} للمشاركة في مشروع ${params.projectName} بصفة ${params.roleLabel}`,
+      title: translate("notifications", "invitation.title"),
+      message: translate("notifications", "invitation.message", {
+        invitingOrganizationName: params.invitingOrganizationName,
+        projectName: params.projectName,
+        roleLabel: params.roleLabel,
+      }),
       // Deliberately no projectId: the project is not theirs to open until they accept
       link: "/invitations",
     });
@@ -104,10 +96,11 @@ class NotificationService {
     return this.createAndSend({
       userId: params.userId,
       type: params.accepted ? "success" : "info",
-      title: params.accepted ? "قُبلت دعوة المشروع" : "اعتُذر عن دعوة المشروع",
-      message: params.accepted
-        ? `انضمّت ${params.organizationName} إلى مشروع ${params.projectName}`
-        : `اعتذرت ${params.organizationName} عن المشاركة في مشروع ${params.projectName}. الدور ما زال شاغراً`,
+      title: translate("notifications", params.accepted ? "invitation.accepted_title" : "invitation.declined_title"),
+      message: translate("notifications", params.accepted ? "invitation.accepted_message" : "invitation.declined_message", {
+        organizationName: params.organizationName,
+        projectName: params.projectName,
+      }),
       projectId: params.projectId,
       link: `/projects/${params.projectId}`,
     });
@@ -122,8 +115,11 @@ class NotificationService {
     return this.createAndSend({
       userId: params.userId,
       type: "warning",
-      title: "إنهاء المشاركة في مشروع",
-      message: `لم تعد منشأتكم ${params.roleLabel} مشروع ${params.projectName}`,
+      title: translate("notifications", "invitation.ended_title"),
+      message: translate("notifications", "invitation.ended_message", {
+        roleLabel: params.roleLabel,
+        projectName: params.projectName,
+      }),
     });
   }
 
@@ -135,8 +131,10 @@ class NotificationService {
     return this.createAndSend({
       userId: params.userId,
       type: "info",
-      title: "سُحبت دعوة مشروع",
-      message: `سُحبت دعوة المشاركة في مشروع ${params.projectName}`,
+      title: translate("notifications", "invitation.withdrawn_title"),
+      message: translate("notifications", "invitation.withdrawn_message", {
+        projectName: params.projectName,
+      }),
       link: "/invitations",
     });
   }
@@ -162,14 +160,17 @@ class NotificationService {
       }
 
       const requestNumber = request.requestNumber || "";
-      const stepLabel = stepLabelsArabic[step.stepName] || step.stepName;
+      const stepLabel = enumLabel("workflow_step", step.stepName);
 
       await Promise.all(recipientUserIds.map(userId =>
         this.createAndSend({
           userId,
           type: STEP_TURN_TYPE,
-          title: "طلب بانتظار إجرائك",
-          message: `الطلب ${requestNumber} بانتظار إجرائك في خطوة: ${stepLabel}`,
+          title: translate("notifications", "requests.awaiting_action_title"),
+          message: translate("notifications", "requests.awaiting_action_message", {
+            requestNumber,
+            stepLabel,
+          }),
           projectId: request.projectId,
           requestId: request.id,
           link: `/requests/${request.id}`,
@@ -528,18 +529,21 @@ class NotificationService {
 
       if (recipientUserIds.size === 0) return;
 
+      const minLabel = translate("notifications", "warehouse.min_stock_label");
       const summary = materials
-        .map((m) => `${m.materialName}: ${m.balance} ${m.unit} (الحد الأدنى ${m.minStockLevel})`)
+        .map((m) => `${m.materialName}: ${m.balance} ${m.unit} (${minLabel} ${m.minStockLevel})`)
         .join(" · ");
       const title =
-        materials.length === 1 ? "نقص مخزون" : `نقص مخزون في ${materials.length} مواد`;
+        materials.length === 1
+          ? translate("notifications", "warehouse.low_stock_single")
+          : translate("notifications", "warehouse.low_stock_multiple", { count: materials.length });
 
       for (const userId of Array.from(recipientUserIds)) {
         await this.createAndSend({
           userId,
           type: "warning",
           title,
-          message: `انخفض الرصيد تحت الحد الأدنى — ${summary}`,
+          message: translate("notifications", "warehouse.low_stock_message", { summary }),
           projectId,
           link: `/projects/${projectId}/warehouse?tab=balances`,
         });
