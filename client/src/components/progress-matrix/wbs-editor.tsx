@@ -1,5 +1,6 @@
 import { useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -26,6 +27,7 @@ import type { MatrixPayloadNode } from "@shared/progress-matrix";
 import type { WorkListActivity, WorkListChapter, WorkListDivision, WorkLevel } from "@shared/schema";
 import { type MatrixModel, useMatrixApi, parseApiError } from "./use-progress-matrix";
 import { exportWbsExcel, readWbsExcel } from "./excel";
+import { localizedName } from "@/lib/localized";
 
 type NodeForm = {
   mode: "create" | "edit";
@@ -49,6 +51,7 @@ function equalWeights(count: number) {
 }
 
 export function WbsEditor({ projectId, projectName, model }: { projectId: string; projectName: string; model: MatrixModel }) {
+  const { t } = useTranslation("progress");
   const { payload, summary } = model;
   const { tree } = summary;
   const canEdit = payload.permissions.canEdit;
@@ -81,10 +84,10 @@ export function WbsEditor({ projectId, projectName, model }: { projectId: string
     setBusy(label);
     try {
       const r = await fn();
-      if (done) toast({ title: "تم (Done)", description: done(r) });
+      if (done) toast({ title: t("wbs.toasts.done"), description: done(r) });
       return r;
     } catch (err) {
-      toast({ title: "فشلت العملية (Failed)", description: parseApiError(err).message, variant: "destructive" });
+      toast({ title: t("wbs.toasts.failed"), description: parseApiError(err).message, variant: "destructive" });
       throw err;
     } finally {
       setBusy(null);
@@ -136,10 +139,10 @@ export function WbsEditor({ projectId, projectName, model }: { projectId: string
       if (e.status === 409 && e.data?.needsConfirm) {
         setConfirm({
           message: e.message, total: e.data.total ?? 0, locked: e.data.locked ?? 0,
-          retry: () => { send(true).then(onDone).catch((er) => toast({ title: "فشلت العملية (Failed)", description: parseApiError(er).message, variant: "destructive" })); },
+          retry: () => { send(true).then(onDone).catch((er) => toast({ title: t("wbs.toasts.failed"), description: parseApiError(er).message, variant: "destructive" })); },
         });
       } else {
-        toast({ title: "فشلت العملية (Failed)", description: e.message, variant: "destructive" });
+        toast({ title: t("wbs.toasts.failed"), description: e.message, variant: "destructive" });
       }
     }
   };
@@ -159,7 +162,7 @@ export function WbsEditor({ projectId, projectName, model }: { projectId: string
       (confirmDropCells) => f.mode === "create"
         ? api("POST", "/progress-matrix/nodes", { ...body, parentId: f.parentId, confirmDropCells })
         : api("PATCH", `/progress-matrix/nodes/${f.id}`, { ...body, confirmDropCells }),
-      () => { setForm(null); toast({ title: "تم الحفظ (Saved)" }); },
+      () => { setForm(null); toast({ title: t("wbs.toasts.saved") }); },
     );
   };
 
@@ -182,7 +185,7 @@ export function WbsEditor({ projectId, projectName, model }: { projectId: string
     if (!n) return;
     withConfirm(
       (confirmDropCells) => api("POST", `/progress-matrix/nodes/${n.id}/split-levels`, { levelIds: Array.from(effectiveSplit), confirmDropCells }),
-      () => { setSplitNode(null); toast({ title: "تم التقسيم (Split done)" }); },
+      () => { setSplitNode(null); toast({ title: t("wbs.toasts.split_done") }); },
     );
   };
 
@@ -194,12 +197,12 @@ export function WbsEditor({ projectId, projectName, model }: { projectId: string
   const onImport = async (file: File) => {
     try {
       const rows = await readWbsExcel(file);
-      if (!rows.length) { toast({ title: "الملف فارغ (Empty file)" }); return; }
+      if (!rows.length) { toast({ title: t("wbs.toasts.empty_file") }); return; }
       await run("import", () => api<any>("POST", "/progress-matrix/wbs/import", { rows }),
         (r) => `${r.created} created, ${r.updated} updated. ${r.cellsSynced} cell(s) filled from approved WIRs${r.purgedCells ? `, ${r.purgedCells} cell(s) removed from items that now have sub-items` : ""}.`);
     } catch (err) {
       if (!(err instanceof Error && /^\d{3}:/.test(err.message))) {
-        toast({ title: "تعذّر قراءة الملف (Could not read file)", description: String(err instanceof Error ? err.message : err), variant: "destructive" });
+        toast({ title: t("wbs.toasts.read_file_error"), description: String(err instanceof Error ? err.message : err), variant: "destructive" });
       }
     }
   };
@@ -207,7 +210,7 @@ export function WbsEditor({ projectId, projectName, model }: { projectId: string
   const linkLabel = (n: MatrixPayloadNode) => {
     if (!n.workListActivityId) return null;
     const a = activityById.get(n.workListActivityId);
-    return `${n.activityCode ?? a?.code ?? ""} ${a?.nameEnglish ?? n.activityName ?? ""}`.trim();
+    return `${n.activityCode ?? a?.code ?? ""} ${a ? localizedName(a) : n.activityName ?? ""}`.trim();
   };
 
   return (
@@ -216,24 +219,24 @@ export function WbsEditor({ projectId, projectName, model }: { projectId: string
         {canEdit && (
           <>
             <Button size="sm" onClick={() => generate({ source: "wir" })} disabled={!!busy}>
-              <Wand2 className="w-4 h-4 mr-1" />{busy === "generate" ? "…" : "توليد من سجل WIR (Generate from WIR log)"}
+              <Wand2 className="w-4 h-4 me-1" />{busy === "generate" ? "…" : t("wbs.actions.generate_wir")}
             </Button>
             <Button size="sm" variant="outline" onClick={() => { setPickedDivisions(new Set()); setDivisionsOpen(true); }} disabled={!!busy}>
-              توليد من أقسام… (From divisions…)
+              {t("wbs.actions.from_divisions")}
             </Button>
             <Button size="sm" variant="outline" onClick={sync} disabled={!!busy}>
-              <RefreshCw className={cn("w-4 h-4 mr-1", busy === "sync" && "animate-spin")} />مزامنة من الفحوصات المعتمدة (Sync approved WIRs)
+              <RefreshCw className={cn("w-4 h-4 me-1", busy === "sync" && "animate-spin")} />{t("wbs.actions.sync_wir")}
             </Button>
             <Button size="sm" variant="outline" onClick={() => openCreate(null)} disabled={!!busy}>
-              <Plus className="w-4 h-4 mr-1" />إضافة مرحلة (Add phase)
+              <Plus className="w-4 h-4 me-1" />{t("wbs.actions.add_phase")}
             </Button>
           </>
         )}
-        <div className="ml-auto flex items-center gap-2">
-          <Button size="sm" variant="outline" onClick={() => exportWbsExcel(model, levels, projectName)}><Download className="w-4 h-4 mr-1" />Excel</Button>
+        <div className="ms-auto flex items-center gap-2">
+          <Button size="sm" variant="outline" onClick={() => exportWbsExcel(model, levels, projectName)}><Download className="w-4 h-4 me-1" />Excel</Button>
           {canEdit && (
             <>
-              <Button size="sm" variant="outline" onClick={() => fileRef.current?.click()} disabled={!!busy}><Upload className="w-4 h-4 mr-1" />استيراد (Import)</Button>
+              <Button size="sm" variant="outline" onClick={() => fileRef.current?.click()} disabled={!!busy}><Upload className="w-4 h-4 me-1" />{t("matrix.import")}</Button>
               <input ref={fileRef} type="file" accept=".xlsx" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) onImport(f); }} />
             </>
           )}
@@ -242,40 +245,39 @@ export function WbsEditor({ projectId, projectName, model }: { projectId: string
 
       {dirty.size > 0 && (
         <div className="flex items-center gap-3 rounded-lg border border-amber-300 bg-amber-50 dark:bg-amber-950/30 px-3 py-2 text-sm">
-          <span>{dirty.size} وزن غير محفوظ (unsaved weight changes)</span>
-          <Button size="sm" onClick={saveWeights} disabled={!!busy}><Save className="w-4 h-4 mr-1" />حفظ الأوزان (Save weights)</Button>
-          <Button size="sm" variant="ghost" onClick={() => setDirty(new Map())}><Undo2 className="w-4 h-4 mr-1" />تراجع (Discard)</Button>
+          <span>{t("wbs.unsaved_weights", { count: dirty.size })}</span>
+          <Button size="sm" onClick={saveWeights} disabled={!!busy}><Save className="w-4 h-4 me-1" />{t("wbs.actions.save_weights")}</Button>
+          <Button size="sm" variant="ghost" onClick={() => setDirty(new Map())}><Undo2 className="w-4 h-4 me-1" />{t("wbs.actions.discard")}</Button>
         </div>
       )}
 
       {!payload.nodes.length ? (
         <div className="rounded-xl border border-dashed p-10 text-center text-muted-foreground">
-          لا توجد بنود. استخدم «توليد من سجل WIR» لإنشاء المراحل والبنود من طلبات الفحص الخاصة بالمشروع.
-          <div className="text-xs mt-1">(No items. Use "Generate from WIR log" to build phases and items from this project's inspection requests.)</div>
+          {t("wbs.no_items")}
         </div>
       ) : (
         <div className="overflow-auto rounded-xl border max-h-[calc(100vh-330px)]">
           <table className="w-full text-sm">
             <thead className="bg-muted sticky top-0 z-10">
-              <tr className="text-left">
-                <th className="p-2 w-36">الكود (Code)</th>
-                <th className="p-2">البند (Item)</th>
-                <th className="p-2 w-28 text-right">الوزن % (Weight)</th>
-                <th className="p-2 w-28 text-center">Σ الأبناء (Children)</th>
-                <th className="p-2">الربط (Link)</th>
-                <th className="p-2 w-24 text-center">الخانات (Cells)</th>
+              <tr className="text-start">
+                <th className="p-2 w-36">{t("wbs.table.code")}</th>
+                <th className="p-2">{t("wbs.table.item")}</th>
+                <th className="p-2 w-28 text-end">{t("wbs.table.weight")}</th>
+                <th className="p-2 w-28 text-center">{t("wbs.table.children_sum")}</th>
+                <th className="p-2">{t("wbs.table.link")}</th>
+                <th className="p-2 w-24 text-center">{t("wbs.table.cells")}</th>
                 <th className="p-2 w-10" />
               </tr>
               <tr className="bg-muted/60 text-xs">
-                <td colSpan={2} className="px-2 py-1 text-muted-foreground">مجموع المراحل (Phases total)</td>
-                <td className="px-2 py-1 text-right" />
+                <td colSpan={2} className="px-2 py-1 text-muted-foreground">{t("wbs.table.phases_total")}</td>
+                <td className="px-2 py-1 text-end" />
                 <td className="px-2 py-1 text-center">
                   <Badge variant="outline" className={cn(Math.abs(rootSum - 100) > 0.01 ? "border-red-400 text-red-600" : "border-emerald-400 text-emerald-700")}>
                     {rootSum.toFixed(2)}%
                   </Badge>
                 </td>
                 <td colSpan={3} className="px-2 py-1">
-                  {canEdit && <button className="text-xs text-blue-600 hover:underline" onClick={() => equalize(null)}>توزيع متساوٍ (Equalize phases)</button>}
+                  {canEdit && <button className="text-xs text-blue-600 hover:underline" onClick={() => equalize(null)}>{t("wbs.table.equalize_phases")}</button>}
                 </td>
               </tr>
             </thead>
@@ -295,19 +297,18 @@ export function WbsEditor({ projectId, projectName, model }: { projectId: string
                       <div className="flex items-start gap-1" style={{ paddingLeft: depth * 16 }}>
                         {!leaf ? (
                           <button className="mt-0.5 text-muted-foreground" onClick={() => toggle(n.id)}>
-                            {collapsed.has(n.id) ? <ChevronRight className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                            {collapsed.has(n.id) ? <ChevronRight className="w-4 h-4 rtl:rotate-180" /> : <ChevronDown className="w-4 h-4" />}
                           </button>
                         ) : <span className="w-4" />}
                         <div>
-                          <div>{n.nameAr}</div>
-                          {n.nameEn && <div className="text-xs text-muted-foreground font-normal">{n.nameEn}</div>}
+                          <div>{localizedName(n)}</div>
                         </div>
                       </div>
                     </td>
-                    <td className="p-2 text-right">
+                    <td className="p-2 text-end">
                       {canEdit ? (
                         <Input type="number" min={0} max={100} step="0.01"
-                          className={cn("h-7 w-24 ml-auto text-right", isDirty && "border-amber-400 bg-amber-50 dark:bg-amber-950/30")}
+                          className={cn("h-7 w-24 ms-auto text-end", isDirty && "border-amber-400 bg-amber-50 dark:bg-amber-950/30")}
                           value={dirty.get(n.id) ?? String(n.weight)}
                           onChange={(e) => {
                             const v = e.target.value;
@@ -325,11 +326,11 @@ export function WbsEditor({ projectId, projectName, model }: { projectId: string
                     <td className="p-2 text-xs">
                       {link ? (
                         <span className="inline-flex items-center gap-1"><Link2 className="w-3 h-3 text-blue-600 shrink-0" /><span className="line-clamp-1">{link}</span>
-                          {n.levelName && <Badge variant="secondary" className="ml-1 font-normal">{n.levelName}</Badge>}</span>
-                      ) : leaf ? <span className="text-muted-foreground">يدوي (manual)</span> : null}
+                          {n.levelName && <Badge variant="secondary" className="ms-1 font-normal">{n.levelName}</Badge>}</span>
+                      ) : leaf ? <span className="text-muted-foreground">{t("wbs.table.manual")}</span> : null}
                     </td>
                     <td className="p-2 text-center text-xs whitespace-nowrap">
-                      {counts.total > 0 && <>{counts.total}{counts.locked > 0 && <span className="text-emerald-700 inline-flex items-center gap-0.5 ml-1"><Lock className="w-3 h-3" />{counts.locked}</span>}</>}
+                      {counts.total > 0 && <>{counts.total}{counts.locked > 0 && <span className="text-emerald-700 inline-flex items-center gap-0.5 ms-1"><Lock className="w-3 h-3" />{counts.locked}</span>}</>}
                     </td>
                     <td className="p-1">
                       {canEdit && (
@@ -338,17 +339,17 @@ export function WbsEditor({ projectId, projectName, model }: { projectId: string
                             <Button size="icon" variant="ghost" className="h-7 w-7"><MoreHorizontal className="w-4 h-4" /></Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => openEdit(n)}><Pencil className="w-4 h-4 mr-2" />تعديل (Edit)</DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => openCreate(n.id)}><Plus className="w-4 h-4 mr-2" />إضافة بند فرعي (Add sub-item)</DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => openCreate(n.parentId)}><Plus className="w-4 h-4 mr-2" />إضافة بند مجاور (Add sibling)</DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => openEdit(n)}><Pencil className="w-4 h-4 me-2" />{t("wbs.menu.edit")}</DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => openCreate(n.id)}><Plus className="w-4 h-4 me-2" />{t("wbs.menu.add_sub")}</DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => openCreate(n.parentId)}><Plus className="w-4 h-4 me-2" />{t("wbs.menu.add_sibling")}</DropdownMenuItem>
                             {leaf && n.workListActivityId && (
-                              <DropdownMenuItem onClick={() => openSplit(n)}><Scissors className="w-4 h-4 mr-2" />تقسيم حسب المستوى (Split by level)</DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => openSplit(n)}><Scissors className="w-4 h-4 me-2" />{t("wbs.menu.split_level")}</DropdownMenuItem>
                             )}
                             {!leaf && (
-                              <DropdownMenuItem onClick={() => equalize(n.id)}><Scale className="w-4 h-4 mr-2" />توزيع متساوٍ للأبناء (Equalize children)</DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => equalize(n.id)}><Scale className="w-4 h-4 me-2" />{t("wbs.menu.equalize_children")}</DropdownMenuItem>
                             )}
                             <DropdownMenuSeparator />
-                            <DropdownMenuItem className="text-red-600" onClick={() => setDeleteNode(n)}><Trash2 className="w-4 h-4 mr-2" />حذف (Delete)</DropdownMenuItem>
+                            <DropdownMenuItem className="text-red-600" onClick={() => setDeleteNode(n)}><Trash2 className="w-4 h-4 me-2" />{t("wbs.menu.delete")}</DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
                       )}
@@ -365,32 +366,32 @@ export function WbsEditor({ projectId, projectName, model }: { projectId: string
       <Dialog open={!!form} onOpenChange={(o) => { if (!o) setForm(null); }}>
         <DialogContent className="max-w-xl">
           <DialogHeader>
-            <DialogTitle>{form?.mode === "create" ? "إضافة بند (Add item)" : "تعديل بند (Edit item)"}</DialogTitle>
+            <DialogTitle>{form?.mode === "create" ? t("wbs.item_dialog.add_title") : t("wbs.item_dialog.edit_title")}</DialogTitle>
             <DialogDescription>
-              {form?.parentId ? `تحت (Under): ${tree.byId.get(form.parentId)?.code} — ${tree.byId.get(form.parentId)?.nameAr}` : "مرحلة رئيسية (Top-level phase)"}
+              {form?.parentId ? t("wbs.item_dialog.under", { code: tree.byId.get(form.parentId)?.code, name: localizedName(tree.byId.get(form.parentId)) }) : t("wbs.item_dialog.top_level")}
             </DialogDescription>
           </DialogHeader>
           {form && (
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
-                <Label>الكود (Code){form.mode === "create" ? " — اختياري (optional)" : ""}</Label>
+                <Label>{t("wbs.item_dialog.code_label")}{form.mode === "create" ? t("wbs.item_dialog.optional") : ""}</Label>
                 <Input value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value })} />
               </div>
               <div className="space-y-1">
-                <Label>الوزن % بين الإخوة (Weight among siblings)</Label>
+                <Label>{t("wbs.item_dialog.weight_label")}</Label>
                 <Input type="number" min={0} max={100} step="0.01" value={form.weight} placeholder={form.mode === "create" ? "auto" : ""}
                   onChange={(e) => setForm({ ...form, weight: e.target.value })} />
               </div>
               <div className="space-y-1 col-span-2">
-                <Label>الاسم بالعربي (Arabic name) *</Label>
+                <Label>{t("wbs.item_dialog.name_ar")}</Label>
                 <Input dir="rtl" value={form.nameAr} onChange={(e) => setForm({ ...form, nameAr: e.target.value })} />
               </div>
               <div className="space-y-1 col-span-2">
-                <Label>الاسم بالإنجليزي (English name)</Label>
+                <Label>{t("wbs.item_dialog.name_en")}</Label>
                 <Input value={form.nameEn} onChange={(e) => setForm({ ...form, nameEn: e.target.value })} />
               </div>
               <div className="space-y-1 col-span-2">
-                <Label>ربط النشاط (Linked activity — fills cells from approved WIRs)</Label>
+                <Label>{t("wbs.item_dialog.link_activity")}</Label>
                 <ActivityPicker
                   value={form.workListActivityId}
                   activities={activities} chapters={chapters} divisions={divisions}
@@ -403,20 +404,20 @@ export function WbsEditor({ projectId, projectName, model }: { projectId: string
                   }} />
               </div>
               <div className="space-y-1 col-span-2">
-                <Label>مستوى العمل (Work level — optional filter)</Label>
+                <Label>{t("wbs.item_dialog.work_level")}</Label>
                 <Select value={form.workLevelId ?? NONE} onValueChange={(v) => setForm({ ...form, workLevelId: v === NONE ? null : v })}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value={NONE}>كل المستويات (Any level)</SelectItem>
-                    {levels.map((l) => <SelectItem key={l.id} value={l.id}>{l.code} — {l.nameEnglish} ({l.nameArabic})</SelectItem>)}
+                    <SelectItem value={NONE}>{t("wbs.item_dialog.all_levels")}</SelectItem>
+                    {levels.map((l) => <SelectItem key={l.id} value={l.id}>{l.code} — {localizedName(l)}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
             </div>
           )}
           <DialogFooter>
-            <Button variant="outline" onClick={() => setForm(null)}>إلغاء (Cancel)</Button>
-            <Button onClick={submitForm} disabled={!form?.nameAr.trim()}>حفظ (Save)</Button>
+            <Button variant="outline" onClick={() => setForm(null)}>{t("wbs.item_dialog.cancel")}</Button>
+            <Button onClick={submitForm} disabled={!form?.nameAr.trim()}>{t("wbs.item_dialog.save")}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -425,10 +426,9 @@ export function WbsEditor({ projectId, projectName, model }: { projectId: string
       <Dialog open={!!splitNode} onOpenChange={(o) => { if (!o) setSplitNode(null); }}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle>تقسيم حسب مستوى العمل (Split by work level)</DialogTitle>
+            <DialogTitle>{t("wbs.split_dialog.title")}</DialogTitle>
             <DialogDescription>
-              {splitNode?.code} — {splitNode?.nameAr}. سيُنشأ بند فرعي لكل مستوى بأوزان متساوية، وكل منها مرتبط بنفس النشاط والمستوى.
-              (One sub-item per level, equal weights, each linked to the same activity and its level.)
+              {t("wbs.split_dialog.desc", { code: splitNode?.code, name: localizedName(splitNode) })}
             </DialogDescription>
           </DialogHeader>
           <div className="max-h-72 overflow-auto space-y-1 border rounded-lg p-2">
@@ -440,14 +440,14 @@ export function WbsEditor({ projectId, projectName, model }: { projectId: string
                   if (c) s.add(l.id); else s.delete(l.id);
                   setSplitLevels(s);
                 }} />
-                <span>{l.code} — {l.nameEn} ({l.nameAr})</span>
-                {l.used && <Badge variant="secondary" className="ml-auto text-[10px]">في سجل WIR (in WIR log)</Badge>}
+                <span>{l.code} — {localizedName(l)}</span>
+                {l.used && <Badge variant="secondary" className="ms-auto text-[10px]">{t("wbs.split_dialog.in_wir")}</Badge>}
               </label>
             ))}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setSplitNode(null)}>إلغاء (Cancel)</Button>
-            <Button onClick={submitSplit} disabled={effectiveSplit.size === 0}>تقسيم (Split) — {effectiveSplit.size}</Button>
+            <Button variant="outline" onClick={() => setSplitNode(null)}>{t("wbs.split_dialog.cancel")}</Button>
+            <Button onClick={submitSplit} disabled={effectiveSplit.size === 0}>{t("wbs.split_dialog.split", { count: effectiveSplit.size })}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -456,9 +456,9 @@ export function WbsEditor({ projectId, projectName, model }: { projectId: string
       <Dialog open={divisionsOpen} onOpenChange={setDivisionsOpen}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle>توليد من أقسام (Generate from divisions)</DialogTitle>
+            <DialogTitle>{t("wbs.divisions_dialog.title")}</DialogTitle>
             <DialogDescription>
-              يضيف كل أنشطة الأقسام المختارة غير المربوطة بعد. البنود الموجودة لا تتغير. (Adds every not-yet-linked activity of the chosen divisions. Existing items are not changed.)
+              {t("wbs.divisions_dialog.desc")}
             </DialogDescription>
           </DialogHeader>
           <div className="max-h-80 overflow-auto space-y-1 border rounded-lg p-2">
@@ -470,15 +470,15 @@ export function WbsEditor({ projectId, projectName, model }: { projectId: string
                   setPickedDivisions(s);
                 }} />
                 <span className="font-mono text-xs">{d.code}</span>
-                <span>{d.nameEnglish} ({d.nameArabic})</span>
+                <span>{localizedName(d)}</span>
               </label>
             ))}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDivisionsOpen(false)}>إلغاء (Cancel)</Button>
+            <Button variant="outline" onClick={() => setDivisionsOpen(false)}>{t("wbs.divisions_dialog.cancel")}</Button>
             <Button disabled={!pickedDivisions.size || !!busy}
               onClick={() => { setDivisionsOpen(false); generate({ source: "divisions", divisionIds: Array.from(pickedDivisions) }); }}>
-              توليد (Generate)
+              {t("wbs.divisions_dialog.generate")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -488,21 +488,20 @@ export function WbsEditor({ projectId, projectName, model }: { projectId: string
       <AlertDialog open={!!deleteNode} onOpenChange={(o) => { if (!o) setDeleteNode(null); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>حذف البند (Delete item) {deleteNode?.code}?</AlertDialogTitle>
+            <AlertDialogTitle>{t("wbs.delete_dialog.title", { code: deleteNode?.code })}</AlertDialogTitle>
             <AlertDialogDescription>
               {deleteNode && (() => {
                 const c = model.subtreeCellCounts(deleteNode.id);
-                return `سيُحذف البند و${descendantCount(deleteNode.id)} بنداً فرعياً و${c.total} خانة منها ${c.locked} مقفلة بفحوصات معتمدة. ` +
-                  `(The item, ${descendantCount(deleteNode.id)} sub-item(s) and ${c.total} cell(s) — ${c.locked} locked by approved WIRs — will be deleted.)`;
+                return t("wbs.delete_dialog.desc", { code: deleteNode.code, sub: descendantCount(deleteNode.id), cells: c.total, locked: c.locked });
               })()}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>إلغاء (Cancel)</AlertDialogCancel>
+            <AlertDialogCancel>{t("wbs.delete_dialog.cancel")}</AlertDialogCancel>
             <AlertDialogAction className="bg-red-600 hover:bg-red-700" onClick={() => {
               const n = deleteNode!;
               run("delete", () => api("DELETE", `/progress-matrix/nodes/${n.id}`), () => `${n.code} deleted`).catch(() => {});
-            }}>حذف (Delete)</AlertDialogAction>
+            }}>{t("wbs.delete_dialog.delete")}</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
@@ -511,15 +510,14 @@ export function WbsEditor({ projectId, projectName, model }: { projectId: string
       <AlertDialog open={!!confirm} onOpenChange={(o) => { if (!o) setConfirm(null); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>تأكيد حذف الخانات (Confirm removing cells)</AlertDialogTitle>
+            <AlertDialogTitle>{t("wbs.confirm_drop.title")}</AlertDialogTitle>
             <AlertDialogDescription>
-              {confirm && `البند الأب فيه ${confirm.total} خانة (منها ${confirm.locked} مقفلة) ستُحذف لأنه سيصبح بنداً له أبناء. ` +
-                `(${confirm.message}: ${confirm.total} cell(s), ${confirm.locked} locked.)`}
+              {confirm && t("wbs.confirm_drop.desc", { total: confirm.total, locked: confirm.locked })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>إلغاء (Cancel)</AlertDialogCancel>
-            <AlertDialogAction onClick={() => { const c = confirm; setConfirm(null); c?.retry(); }}>متابعة (Continue)</AlertDialogAction>
+            <AlertDialogCancel>{t("wbs.confirm_drop.cancel")}</AlertDialogCancel>
+            <AlertDialogAction onClick={() => { const c = confirm; setConfirm(null); c?.retry(); }}>{t("wbs.confirm_drop.continue")}</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
@@ -534,6 +532,7 @@ function ActivityPicker({ value, activities, chapters, divisions, onChange }: {
   divisions: WorkListDivision[];
   onChange: (id: string | null) => void;
 }) {
+  const { t } = useTranslation("progress");
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
   const chapterById = useMemo(() => new Map(chapters.map((c) => [c.id, c])), [chapters]);
@@ -549,27 +548,27 @@ function ActivityPicker({ value, activities, chapters, divisions, onChange }: {
   const path = (a: WorkListActivity) => {
     const c = chapterById.get(a.chapterId);
     const d = c ? divisionById.get(c.divisionId) : null;
-    return [d?.nameEnglish, c?.nameEnglish].filter(Boolean).join(" › ");
+    return [d && localizedName(d, ""), c && localizedName(c, "")].filter(Boolean).join(" › ");
   };
   return (
     <div className="flex gap-2">
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
           <Button variant="outline" className="flex-1 justify-start font-normal truncate">
-            {selected ? `${selected.code} — ${selected.nameEnglish}` : "بدون ربط — يدوي (No link — manual)"}
+            {selected ? `${selected.code} — ${localizedName(selected)}` : t("wbs.activity_picker.no_link")}
           </Button>
         </PopoverTrigger>
         <PopoverContent className="w-[520px] p-0" align="start">
           <Command shouldFilter={false}>
-            <CommandInput placeholder="ابحث بالكود أو الاسم (Search code or name)…" value={q} onValueChange={setQ} />
+            <CommandInput placeholder={t("wbs.activity_picker.search_placeholder")} value={q} onValueChange={setQ} />
             <CommandList>
-              <CommandEmpty>لا نتائج (No results)</CommandEmpty>
+              <CommandEmpty>{t("wbs.activity_picker.no_results")}</CommandEmpty>
               {matches.map((a) => (
                 <CommandItem key={a.id} value={a.id} onSelect={() => { onChange(a.id); setOpen(false); }}>
-                  <Check className={cn("w-4 h-4 mr-2 shrink-0", value === a.id ? "opacity-100" : "opacity-0")} />
+                  <Check className={cn("w-4 h-4 me-2 shrink-0", value === a.id ? "opacity-100" : "opacity-0")} />
                   <div className="min-w-0">
-                    <div className="truncate"><span className="font-mono text-xs mr-2">{a.code}</span>{a.nameEnglish}</div>
-                    <div className="text-xs text-muted-foreground truncate">{path(a)} · {a.nameArabic}</div>
+                    <div className="truncate"><span className="font-mono text-xs me-2">{a.code}</span>{localizedName(a)}</div>
+                    <div className="text-xs text-muted-foreground truncate">{path(a)}</div>
                   </div>
                 </CommandItem>
               ))}
@@ -577,7 +576,7 @@ function ActivityPicker({ value, activities, chapters, divisions, onChange }: {
           </Command>
         </PopoverContent>
       </Popover>
-      {value && <Button variant="ghost" onClick={() => onChange(null)}>إزالة (Clear)</Button>}
+      {value && <Button variant="ghost" onClick={() => onChange(null)}>{t("wbs.activity_picker.clear")}</Button>}
     </div>
   );
 }

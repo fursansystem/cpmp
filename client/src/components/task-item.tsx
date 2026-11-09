@@ -2,7 +2,7 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { Calendar, User, MoreVertical } from "lucide-react";
-import { format } from "date-fns";
+import { format } from "@/lib/date-format";
 import {
   DropdownMenu,
   DropdownMenuContent,

@@ -1,0 +1,7 @@
+{
+  "login_summary": {
+    "label": "Login Summary Dialog",
+    "description": "A dialog showing items requiring your attention and unread notifications immediately after signing in"
+  }
+}
+

@@ -134,7 +134,7 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen relative flex items-center justify-center p-4 overflow-hidden bg-[#fafafa]" dir="rtl">
+    <div className="min-h-screen relative flex items-center justify-center p-4 overflow-hidden bg-[#fafafa]">
       {/* Background Layer with Soft Gradient */}
       <div className="absolute inset-0 bg-gradient-to-br from-[#ffffff] via-[#f8f9fa] to-[#fcf3cf]/40 -z-10" />
 
@@ -183,7 +183,7 @@ export default function LoginPage() {
 
               <div className="space-y-5">
                 <div className="space-y-2">
-                  <Label htmlFor="username" className="text-[#333] font-bold text-sm mr-1 block text-center w-full">اسم المستخدم</Label>
+                  <Label htmlFor="username" className="text-[#333] font-bold text-sm me-1 block text-center w-full">اسم المستخدم</Label>
                   <Input
                     id="username"
                     type="text"
@@ -197,7 +197,7 @@ export default function LoginPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="password" title="password" className="text-[#333] font-bold text-sm mr-1 block text-center w-full">كلمة المرور</Label>
+                  <Label htmlFor="password" title="password" className="text-[#333] font-bold text-sm me-1 block text-center w-full">كلمة المرور</Label>
                   <div className="relative group">
                     <Input
                       id="password"
@@ -207,13 +207,13 @@ export default function LoginPage() {
                       placeholder="••••••••"
                       required
                       disabled={isLoading}
-                      className="pl-12 pr-12 bg-white/50 border-primary/20 focus:border-primary focus:ring-4 focus:ring-primary/5 h-12 rounded-[1.5rem] transition-all placeholder:text-muted-foreground/50 text-center"
+                      className="ps-12 pe-12 bg-white/50 border-primary/20 focus:border-primary focus:ring-4 focus:ring-primary/5 h-12 rounded-[1.5rem] transition-all placeholder:text-muted-foreground/50 text-center"
                     />
                     <Button
                       type="button"
                       variant="ghost"
                       size="icon"
-                      className="absolute left-1.5 top-1/2 -translate-y-1/2 h-9 w-9 text-muted-foreground/60 hover:text-primary transition-colors rounded-full overflow-hidden"
+                      className="absolute start-1.5 top-1/2 -translate-y-1/2 h-9 w-9 text-muted-foreground/60 hover:text-primary transition-colors rounded-full overflow-hidden"
                       onClick={() => setShowPassword(!showPassword)}
                       tabIndex={-1}
                     >

@@ -10,7 +10,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Building2, MapPin, Calendar, ArrowLeft, Paperclip, FileText, Image as ImageIcon, File, ClipboardList, Trash2, FileDown } from "lucide-react";
-import { format } from "date-fns";
+import { format } from "@/lib/date-format";
 import { cn } from "@/lib/utils";
 import { ActivityTable } from "@/components/activity-table";
 import { ActivityFormDialog } from "@/components/activity-form-dialog";
@@ -120,7 +120,7 @@ export default function ProjectRequests() {
             data-testid="button-back"
             className="h-9 w-9 md:h-10 md:w-10 shrink-0 rounded-[1.5rem]"
           >
-            <ArrowLeft className="w-5 h-5" />
+            <ArrowLeft className="w-5 h-5 rtl:rotate-180" />
           </Button>
           <div className="flex items-center gap-2 md:gap-3 min-w-0">
             <h1 className="text-lg md:text-2xl font-display font-bold tracking-tight truncate max-w-[150px] sm:max-w-[200px] md:max-w-md">{project?.name}</h1>
@@ -140,7 +140,7 @@ export default function ProjectRequests() {
           </Badge>
         </div>
 
-        <div className="flex items-center gap-2 md:gap-3 ml-auto">
+        <div className="flex items-center gap-2 md:gap-3 ms-auto">
           <Popover onOpenChange={setDocumentsOpen}>
             <PopoverTrigger asChild>
               <Button

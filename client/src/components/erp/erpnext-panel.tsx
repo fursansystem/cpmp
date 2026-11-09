@@ -34,7 +34,7 @@ function CopyButton({ text, label = "Copy" }: { text: string; label?: string }) 
       size="sm"
       onClick={() => void navigator.clipboard.writeText(text).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1500); })}
     >
-      {copied ? <Check className="w-4 h-4 mr-1.5" /> : <Copy className="w-4 h-4 mr-1.5" />}
+      {copied ? <Check className="w-4 h-4 me-1.5" /> : <Copy className="w-4 h-4 me-1.5" />}
       {copied ? "Copied" : label}
     </Button>
   );
@@ -67,7 +67,7 @@ function SetupGuide({ conn }: { conn: ErpConnectionSummary }) {
       <CardHeader className="cursor-pointer" onClick={() => setOpen((v) => !v)}>
         <CardTitle className="flex items-center gap-2 text-base">
           <ListChecks className="w-5 h-5" /> Set up ERPNext · خطوات الإعداد في ERPNext
-          {open ? <ChevronDown className="w-4 h-4 ml-auto" /> : <ChevronRight className="w-4 h-4 ml-auto" />}
+          {open ? <ChevronDown className="w-4 h-4 ms-auto" /> : <ChevronRight className="w-4 h-4 ms-auto rtl:rotate-180" />}
         </CardTitle>
         <CardDescription>Two webhooks in ERPNext send supplier and payment changes here</CardDescription>
       </CardHeader>
@@ -75,7 +75,7 @@ function SetupGuide({ conn }: { conn: ErpConnectionSummary }) {
         <CardContent className="space-y-4 text-sm">
           <CopyRow label="Request URL (for both webhooks)" value={conn.inboundUrl} />
           <CopyRow label="JSON Request Body (for both webhooks)" value={BODY_TEMPLATE} />
-          <ol className="list-decimal pl-5 space-y-2 text-muted-foreground">
+          <ol className="list-decimal ps-5 space-y-2 text-muted-foreground">
             <li>In ERPNext open <b>Integrations → Webhook → New</b>.</li>
             <li>
               Webhook 1: <b>DocType</b> = <code className="text-xs">Supplier</code>, <b>Doc Event</b> = <code className="text-xs">after_insert</code>.
@@ -156,9 +156,9 @@ function StatementDialog({ supplier, orgQuery, onClose }: { supplier: ErpSupplie
                   <TableRow>
                     <TableHead>Date</TableHead>
                     <TableHead>Voucher</TableHead>
-                    <TableHead className="text-right">Debit</TableHead>
-                    <TableHead className="text-right">Credit</TableHead>
-                    <TableHead className="text-right">Balance</TableHead>
+                    <TableHead className="text-end">Debit</TableHead>
+                    <TableHead className="text-end">Credit</TableHead>
+                    <TableHead className="text-end">Balance</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -171,9 +171,9 @@ function StatementDialog({ supplier, orgQuery, onClose }: { supplier: ErpSupplie
                         <p className="text-xs font-medium">{e.voucherNo}</p>
                         <p className="text-[11px] text-muted-foreground">{e.voucherType}{e.remarks ? ` · ${e.remarks}` : ""}</p>
                       </TableCell>
-                      <TableCell className="text-right tabular-nums text-xs">{e.debit ? money(e.debit) : ""}</TableCell>
-                      <TableCell className="text-right tabular-nums text-xs">{e.credit ? money(e.credit) : ""}</TableCell>
-                      <TableCell className="text-right tabular-nums text-xs">{money(e.balance)}</TableCell>
+                      <TableCell className="text-end tabular-nums text-xs">{e.debit ? money(e.debit) : ""}</TableCell>
+                      <TableCell className="text-end tabular-nums text-xs">{e.credit ? money(e.credit) : ""}</TableCell>
+                      <TableCell className="text-end tabular-nums text-xs">{money(e.balance)}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -306,12 +306,12 @@ export function ErpNextPanel({ orgId, orgQuery }: { orgId: string; orgQuery: str
               {conn && (
                 <>
                   <Button type="button" variant="outline" onClick={() => test.mutate()} disabled={test.isPending || !conn.hasApiKey}>
-                    <RefreshCw className={cn("w-4 h-4 mr-1.5", test.isPending && "animate-spin")} /> Test connection
+                    <RefreshCw className={cn("w-4 h-4 me-1.5", test.isPending && "animate-spin")} /> Test connection
                   </Button>
                   <Button type="button" variant="outline" onClick={() => rotate.mutate()} disabled={rotate.isPending}>
-                    <KeyRound className="w-4 h-4 mr-1.5" /> New webhook secret
+                    <KeyRound className="w-4 h-4 me-1.5" /> New webhook secret
                   </Button>
-                  <div className="flex items-center gap-2 ml-auto">
+                  <div className="flex items-center gap-2 ms-auto">
                     <Label className="text-sm">Active</Label>
                     <Switch checked={conn.active} onCheckedChange={(v) => save.mutate(v)} />
                     <Button type="button" variant="ghost" size="icon" aria-label="Disconnect" onClick={() => confirm("Disconnect ERPNext? Incoming requests will be refused.") && disconnect.mutate()}>
@@ -335,7 +335,7 @@ export function ErpNextPanel({ orgId, orgQuery }: { orgId: string; orgQuery: str
               <CardDescription>Project suppliers with the same tax number are linked and kept up to date</CardDescription>
             </div>
             <Button variant="outline" size="sm" onClick={() => sync.mutate()} disabled={sync.isPending || !conn.hasApiKey} data-testid="button-sync-suppliers">
-              <RefreshCw className={cn("w-4 h-4 mr-1.5", sync.isPending && "animate-spin")} /> Sync now
+              <RefreshCw className={cn("w-4 h-4 me-1.5", sync.isPending && "animate-spin")} /> Sync now
             </Button>
           </CardHeader>
           <CardContent>
@@ -349,21 +349,21 @@ export function ErpNextPanel({ orgId, orgQuery }: { orgId: string; orgQuery: str
                       <TableHead>Supplier</TableHead>
                       <TableHead className="hidden sm:table-cell">Tax number</TableHead>
                       <TableHead className="hidden md:table-cell">Linked</TableHead>
-                      <TableHead className="text-right">Statement</TableHead>
+                      <TableHead className="text-end">Statement</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {erpSuppliers.map((s) => (
                       <TableRow key={s.erpName}>
                         <TableCell>
-                          <p className="text-sm font-medium">{s.supplierName} {s.disabled && <Badge variant="secondary" className="text-[10px] ml-1">Disabled</Badge>}</p>
+                          <p className="text-sm font-medium">{s.supplierName} {s.disabled && <Badge variant="secondary" className="text-[10px] ms-1">Disabled</Badge>}</p>
                           <p className="text-[11px] text-muted-foreground font-mono">{s.erpName}</p>
                         </TableCell>
                         <TableCell className="hidden sm:table-cell text-xs font-mono">{s.taxId ?? "—"}</TableCell>
                         <TableCell className="hidden md:table-cell text-xs">{s.linkedProjectSuppliers ? `${s.linkedProjectSuppliers} project(s)` : "—"}</TableCell>
-                        <TableCell className="text-right">
+                        <TableCell className="text-end">
                           <Button variant="ghost" size="sm" onClick={() => setStatementFor(s)} disabled={!conn.hasApiKey || !conn.company}>
-                            <FileText className="w-4 h-4 mr-1.5" /> كشف حساب
+                            <FileText className="w-4 h-4 me-1.5" /> كشف حساب
                           </Button>
                         </TableCell>
                       </TableRow>
@@ -392,7 +392,7 @@ export function ErpNextPanel({ orgId, orgQuery }: { orgId: string; orgQuery: str
                     <TableRow>
                       <TableHead>Document</TableHead>
                       <TableHead>Result</TableHead>
-                      <TableHead className="text-right">When</TableHead>
+                      <TableHead className="text-end">When</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -406,7 +406,7 @@ export function ErpNextPanel({ orgId, orgQuery }: { orgId: string; orgQuery: str
                           <Badge variant="outline" className={cn("text-[11px]", STATUS_TONE[l.status])}>{l.status}</Badge>
                           <p className="text-[11px] text-muted-foreground mt-1">{l.message}</p>
                         </TableCell>
-                        <TableCell className="text-right text-xs text-muted-foreground whitespace-nowrap">{fmtDateTime(l.createdAt)}</TableCell>
+                        <TableCell className="text-end text-xs text-muted-foreground whitespace-nowrap">{fmtDateTime(l.createdAt)}</TableCell>
                       </TableRow>
                     ))}
                   </TableBody>

@@ -1,5 +1,6 @@
 import { useMemo, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -161,6 +162,7 @@ function applyCellEntries(payload: MatrixPayload, entries: CellEntry[], isAdmin:
 }
 
 export function useSaveCells(projectId: string, isAdmin: boolean) {
+  const { t } = useTranslation("progress");
   const qc = useQueryClient();
   const { toast } = useToast();
   const mutationKey = ["pm-save-cells", projectId];
@@ -178,15 +180,18 @@ export function useSaveCells(projectId: string, isAdmin: boolean) {
     },
     onSuccess: (result, entries) => {
       if (entries.length > 1) {
+        const lockedInfo = result.skippedLocked
+          ? t("save_cells.skipped_locked", { locked: result.skippedLocked })
+          : "";
         toast({
-          title: "تم الحفظ (Saved)",
-          description: `${result.saved} cell(s) saved${result.skippedLocked ? `, ${result.skippedLocked} locked cell(s) skipped` : ""}.`,
+          title: t("save_cells.saved"),
+          description: t("save_cells.saved_summary", { saved: result.saved, locked_info: lockedInfo }),
         });
       }
     },
     onError: (err, _entries, ctx) => {
       if (ctx?.prev) qc.setQueryData(matrixKey(projectId), ctx.prev);
-      toast({ title: "لم يتم الحفظ (Not saved)", description: parseApiError(err).message, variant: "destructive" });
+      toast({ title: t("save_cells.failed"), description: parseApiError(err).message, variant: "destructive" });
     },
     onSettled: () => {
       // refetch once the last queued save finishes

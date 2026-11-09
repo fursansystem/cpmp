@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Plus, Search, Paperclip, AlertTriangle, Send, CheckCircle2, XCircle, Ban, Banknote, Save, HardHat } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -11,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/lib/auth";
 import { apiRequest } from "@/lib/queryClient";
-import { OPEN_PAYMENT_ORDER, SUB_CERT_LABELS, computeSubCert } from "@shared/payments";
+import { OPEN_PAYMENT_ORDER, SUB_CERT_LABELS, computeSubCert, SUB_CERT_STATUSES } from "@shared/payments";
 import { ChargebacksPanel } from "./chargebacks";
 import { SubcontractorSelect, SubcontractorsPanel, type SubcontractorRow } from "./subcontractor-select";
 import {
@@ -29,6 +30,7 @@ import {
   useFocusFromUrl,
   type PaymentsContext,
 } from "./payments-common";
+import { enumOptions } from "@/lib/enums";
 
 interface Props {
   ctx: PaymentsContext;
@@ -46,6 +48,7 @@ const num = (v: unknown) => Number(v ?? 0) || 0;
 const DEFAULT_VAT = "15";
 
 export function SubcontractorCertificatesTab({ ctx, projectId, rows, chargebacks, fines, subcontractors, orders, onRequestOrder }: Props) {
+  const { t } = useTranslation("payments");
   const [status, setStatus] = useState("all");
   const [search, setSearch] = useState("");
   const [editing, setEditing] = useState<any | "new" | null>(null);
@@ -63,16 +66,16 @@ export function SubcontractorCertificatesTab({ ctx, projectId, rows, chargebacks
       <div className="flex flex-wrap items-center gap-2">
         <div className="relative flex-1 min-w-[200px] max-w-sm">
           <Search className="absolute start-3 top-2.5 w-4 h-4 text-muted-foreground" />
-          <Input className="ps-9" placeholder="بحث: رقم المستخلص، المقاول، المشروع…" value={search} onChange={(e) => setSearch(e.target.value)} />
+          <Input className="ps-9" placeholder={t("certificates.search_placeholder")} value={search} onChange={(e) => setSearch(e.target.value)} />
         </div>
         <Select value={status} onValueChange={setStatus}>
           <SelectTrigger className="w-[210px]"><SelectValue /></SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">كل الحالات</SelectItem>
-            {Object.entries(SUB_CERT_LABELS).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}
+            <SelectItem value="all">{t("common.all_statuses")}</SelectItem>
+            {enumOptions("sub_cert", SUB_CERT_STATUSES).map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
           </SelectContent>
         </Select>
-        <Button className="ms-auto" onClick={() => setEditing("new")}><Plus className="w-4 h-4 mr-1" /> مستخلص مقاول باطن</Button>
+        <Button className="ms-auto" onClick={() => setEditing("new")}><Plus className="w-4 h-4 me-1" /> {t("certificates.new_btn")}</Button>
       </div>
 
       <Card className="rounded-2xl">
@@ -80,18 +83,18 @@ export function SubcontractorCertificatesTab({ ctx, projectId, rows, chargebacks
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>الرقم</TableHead>
-                {projectId === "all" && <TableHead>المشروع</TableHead>}
-                <TableHead>مقاول الباطن</TableHead>
-                <TableHead>الفترة</TableHead>
-                <TableHead className="text-end">قيمة الأعمال</TableHead>
-                <TableHead className="text-end">الصافي المستحق</TableHead>
-                <TableHead>الحالة</TableHead>
+                <TableHead>{t("certificates.table.number")}</TableHead>
+                {projectId === "all" && <TableHead>{t("common.project")}</TableHead>}
+                <TableHead>{t("certificates.table.subcontractor")}</TableHead>
+                <TableHead>{t("certificates.table.period")}</TableHead>
+                <TableHead className="text-end">{t("certificates.table.work_value")}</TableHead>
+                <TableHead className="text-end">{t("certificates.table.net_payable")}</TableHead>
+                <TableHead>{t("common.status")}</TableHead>
                 <TableHead />
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filtered.length === 0 && <TableRow><TableCell colSpan={8} className="text-center text-muted-foreground py-10">لا توجد مستخلصات</TableCell></TableRow>}
+              {filtered.length === 0 && <TableRow><TableCell colSpan={8} className="text-center text-muted-foreground py-10">{t("certificates.no_items")}</TableCell></TableRow>}
               {filtered.map((r) => (
                 <TableRow key={r.id} className="cursor-pointer" onClick={() => setEditing(r)}>
                   <TableCell className="font-mono text-xs">{r.certNo}</TableCell>
@@ -100,8 +103,8 @@ export function SubcontractorCertificatesTab({ ctx, projectId, rows, chargebacks
                   <TableCell className="whitespace-nowrap text-sm">{fmtDate(r.periodFrom)} → {fmtDate(r.periodTo)}</TableCell>
                   <TableCell className="text-end tabular-nums">{money(r.grossAmount)}</TableCell>
                   <TableCell className="text-end tabular-nums font-semibold">{money(r.netPayable)}</TableCell>
-                  <TableCell><StatusBadge status={r.status} labels={SUB_CERT_LABELS} /></TableCell>
-                  <TableCell className="text-muted-foreground text-xs whitespace-nowrap"><Paperclip className="w-3.5 h-3.5 inline mr-1" />{r.attachments.length}</TableCell>
+                  <TableCell><StatusBadge status={r.status} group="sub_cert" /></TableCell>
+                  <TableCell className="text-muted-foreground text-xs whitespace-nowrap"><Paperclip className="w-3.5 h-3.5 inline me-1" />{r.attachments.length}</TableCell>
                 </TableRow>
               ))}
             </TableBody>
@@ -138,6 +141,7 @@ const emptyForm = (vat = DEFAULT_VAT) => ({
 function SubCertDialog({ ctx, defaultProjectId, row, chargebacks, fines, allRows, orders, onClose, onRequestOrder }: {
   ctx: PaymentsContext; defaultProjectId: string; row: any | null; chargebacks: any[]; fines: any[]; allRows: any[]; orders: any[]; onClose: () => void; onRequestOrder: (id: string) => void;
 }) {
+  const { t } = useTranslation("payments");
   const { toast } = useToast();
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -228,19 +232,19 @@ function SubCertDialog({ ctx, defaultProjectId, row, chargebacks, fines, allRows
       await syncChargebacks();
       return apiRequest("PATCH", `/api/payments/subcontractor-certificates/${row.id}`, body());
     },
-    onSuccess: () => { invalidatePayments(queryClient); toast({ title: row ? "تم الحفظ" : "تم إنشاء المستخلص كمسودة" }); onClose(); },
-    onError: (e) => toast({ title: "تعذّر الحفظ", description: errorMessage(e), variant: "destructive" }),
+    onSuccess: () => { invalidatePayments(queryClient); toast({ title: row ? t("toasts.saved") : t("toasts.cert_created") }); onClose(); },
+    onError: (e) => toast({ title: t("errors.save_failed"), description: errorMessage(e), variant: "destructive" }),
   });
 
   const act = useMutation({
     mutationFn: async (v: { action: string; note?: string }) => apiRequest("POST", `/api/payments/subcontractor-certificates/${row.id}/transition`, v),
     onSuccess: (_d, v) => {
       invalidatePayments(queryClient);
-      const msg: Record<string, string> = { submit: "أُرسل للاعتماد", approve: "تم اعتماد المستخلص", reject: "تم رفض المستخلص", cancel: "تم إلغاء المستخلص" };
+      const msg: Record<string, string> = { submit: t("toasts.cert_submitted"), approve: t("toasts.cert_approved"), reject: t("toasts.cert_rejected"), cancel: t("toasts.cert_cancelled") };
       toast({ title: msg[v.action] });
       onClose();
     },
-    onError: (e) => toast({ title: "تعذّر تنفيذ الإجراء", description: errorMessage(e), variant: "destructive" }),
+    onError: (e) => toast({ title: t("errors.action_failed"), description: errorMessage(e), variant: "destructive" }),
   });
 
   // Submitting sends what is on screen, so save it first
@@ -250,8 +254,8 @@ function SubCertDialog({ ctx, defaultProjectId, row, chargebacks, fines, allRows
       await apiRequest("PATCH", `/api/payments/subcontractor-certificates/${row.id}`, body());
       await apiRequest("POST", `/api/payments/subcontractor-certificates/${row.id}/transition`, { action: "submit" });
     },
-    onSuccess: () => { invalidatePayments(queryClient); toast({ title: "أُرسل للاعتماد" }); onClose(); },
-    onError: (e) => { invalidatePayments(queryClient); toast({ title: "تعذّر الإرسال", description: errorMessage(e), variant: "destructive" }); },
+    onSuccess: () => { invalidatePayments(queryClient); toast({ title: t("toasts.cert_submitted") }); onClose(); },
+    onError: (e) => { invalidatePayments(queryClient); toast({ title: t("errors.send_submit_failed"), description: errorMessage(e), variant: "destructive" }); },
   });
 
   const hasLiveOrder = row ? orders.some((o) => o.subcontractorCertificateId === row.id && ([...OPEN_PAYMENT_ORDER, "paid"] as string[]).includes(o.status)) : false;
@@ -262,18 +266,18 @@ function SubCertDialog({ ctx, defaultProjectId, row, chargebacks, fines, allRows
     <PaymentDialog
       onClose={onClose}
       icon={HardHat}
-      kind="مستخلص مقاول باطن"
-      title={row ? <span className="font-mono">{row.certNo}</span> : "مستخلص جديد"}
-      badge={row ? <StatusBadge status={row.status} labels={SUB_CERT_LABELS} /> : undefined}
-      description={row ? row.projectName : "يُعدّه فريق المشروع، يعتمده مدير المشروع، ثم تصرفه المحاسبة بأمر دفع"}
+      kind={t("certificates.kind")}
+      title={row ? <span className="font-mono">{row.certNo}</span> : t("certificates.new_title")}
+      badge={row ? <StatusBadge status={row.status} group="sub_cert" /> : undefined}
+      description={row ? row.projectName : t("certificates.new_description")}
       amount={<span className={figures.netPayable < 0 ? "text-destructive" : undefined}>{money(figures.netPayable)}</span>}
-      amountLabel="الصافي المستحق"
+      amountLabel={t("certificates.net_payable")}
       panel={rejecting && (
-        <Section title="سبب الرفض" icon={XCircle} tone="danger">
+        <Section title={t("certificates.reject_title")} icon={XCircle} tone="danger">
           <Textarea rows={2} value={note} onChange={(e) => setNote(e.target.value)} autoFocus />
           <div className="flex justify-end gap-2">
-            <Button variant="outline" size="sm" onClick={() => setRejecting(false)}>تراجع</Button>
-            <Button size="sm" variant="destructive" disabled={!note.trim() || act.isPending} onClick={() => act.mutate({ action: "reject", note })}>رفض المستخلص</Button>
+            <Button variant="outline" size="sm" onClick={() => setRejecting(false)}>{t("common.back_btn")}</Button>
+            <Button size="sm" variant="destructive" disabled={!note.trim() || act.isPending} onClick={() => act.mutate({ action: "reject", note })}>{t("certificates.reject_btn")}</Button>
           </div>
         </Section>
       )}
@@ -281,77 +285,77 @@ function SubCertDialog({ ctx, defaultProjectId, row, chargebacks, fines, allRows
         <>
           {/* The step this certificate is waiting for comes first */}
           {editable && (
-            <Button disabled={save.isPending || !projectId || !form.subcontractorId} onClick={() => save.mutate()}><Save className="w-4 h-4 mr-1" /> حفظ</Button>
+            <Button disabled={save.isPending || !projectId || !form.subcontractorId} onClick={() => save.mutate()}><Save className="w-4 h-4 me-1" /> {t("common.save")}</Button>
           )}
           {row && editable && (
-            <Button variant="outline" disabled={act.isPending || save.isPending || saveAndSubmit.isPending} onClick={() => saveAndSubmit.mutate()}><Send className="w-4 h-4 mr-1" /> إرسال للاعتماد</Button>
+            <Button variant="outline" disabled={act.isPending || save.isPending || saveAndSubmit.isPending} onClick={() => saveAndSubmit.mutate()}><Send className="w-4 h-4 me-1" /> {t("certificates.send_for_approval")}</Button>
           )}
           {row?.status === "submitted" && ctx.perms.canApprove && (
             <>
-              <Button disabled={act.isPending || ownCert} title={ownCert ? "لا يمكنك اعتماد مستخلص أعددته" : undefined} onClick={() => act.mutate({ action: "approve" })}><CheckCircle2 className="w-4 h-4 mr-1" /> اعتماد</Button>
-              <Button variant="outline" disabled={act.isPending} onClick={() => setRejecting(true)}><XCircle className="w-4 h-4 mr-1" /> رفض</Button>
+              <Button disabled={act.isPending || ownCert} title={ownCert ? t("certificates.cannot_approve_own") : undefined} onClick={() => act.mutate({ action: "approve" })}><CheckCircle2 className="w-4 h-4 me-1" /> {t("certificates.approve_cert")}</Button>
+              <Button variant="outline" disabled={act.isPending} onClick={() => setRejecting(true)}><XCircle className="w-4 h-4 me-1" /> {t("certificates.reject_cert")}</Button>
             </>
           )}
           {row?.status === "approved" && ctx.perms.isAccounting && !hasLiveOrder && (
-            <Button onClick={() => onRequestOrder(row.id)}><Banknote className="w-4 h-4 mr-1" /> إصدار أمر دفع</Button>
+            <Button onClick={() => onRequestOrder(row.id)}><Banknote className="w-4 h-4 me-1" /> {t("certificates.issue_order")}</Button>
           )}
           {row && isOwner && ["draft", "submitted", "rejected", "approved"].includes(row.status) && !hasLiveOrder && (
-            <Button variant="ghost" className="text-destructive" disabled={act.isPending} onClick={() => act.mutate({ action: "cancel" })}><Ban className="w-4 h-4 mr-1" /> إلغاء المستخلص</Button>
+            <Button variant="ghost" className="text-destructive" disabled={act.isPending} onClick={() => act.mutate({ action: "cancel" })}><Ban className="w-4 h-4 me-1" /> {t("certificates.cancel_cert")}</Button>
           )}
         </>
       }
     >
         {row?.rejectReason && row.status === "rejected" && (
-          <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm"><b>سبب الرفض: </b>{row.rejectReason}</div>
+          <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm"><b>{t("certificates.reject_reason_prefix")}</b>{row.rejectReason}</div>
         )}
 
         <div className="grid sm:grid-cols-2 gap-3">
-          {L("المشروع", (
+          {L(t("common.project"), (
             <Select value={projectId} onValueChange={setProjectId} disabled={!!row}>
-              <SelectTrigger><SelectValue placeholder="اختر المشروع" /></SelectTrigger>
+              <SelectTrigger><SelectValue placeholder={t("common.select_project")} /></SelectTrigger>
               <SelectContent>{ctx.projects.map((p) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent>
             </Select>
           ), "sm:col-span-2")}
-          {L("مقاول الباطن", (
+          {L(t("certificates.subcontractor"), (
             <>
               <SubcontractorSelect projectId={projectId} value={form.subcontractorId} disabled={!editable} onChange={onSubChange} />
             </>
           ))}
-          {L("نطاق العمل", <Input value={form.scope} disabled={!editable} onChange={(e) => set("scope")(e.target.value)} placeholder="مثال: أعمال الكهرباء، التشطيبات…" />)}
-          {L("قيمة عقد الباطن", <Input type="number" min="0" step="0.01" value={form.contractValue} disabled={!editable} onChange={(e) => set("contractValue")(e.target.value)} />)}
-          {L("قيمة الأعمال في هذا المستخلص", <Input type="number" min="0" step="0.01" value={form.grossAmount} disabled={!editable} onChange={(e) => set("grossAmount")(e.target.value)} />)}
-          {L("الفترة من", <Input type="date" value={form.periodFrom} disabled={!editable} onChange={(e) => set("periodFrom")(e.target.value)} />)}
-          {L("الفترة إلى", <Input type="date" value={form.periodTo} disabled={!editable} onChange={(e) => set("periodTo")(e.target.value)} />)}
-          {L("نسبة الاستقطاع (ضمان حسن التنفيذ) %", <Input type="number" min="0" max="100" step="0.01" value={form.retentionPercent} disabled={!editable} onChange={(e) => set("retentionPercent")(e.target.value)} />)}
-          {L("نسبة ضريبة القيمة المضافة %", <Input type="number" min="0" max="100" step="0.01" value={form.vatPercent} disabled={!editable} onChange={(e) => set("vatPercent")(e.target.value)} />)}
-          {L("استرداد الدفعة المقدمة", <Input type="number" min="0" step="0.01" value={form.advanceRecovery} disabled={!editable} onChange={(e) => set("advanceRecovery")(e.target.value)} />)}
-          {L("خصومات أخرى", <Input type="number" min="0" step="0.01" value={form.otherDeductions} disabled={!editable} onChange={(e) => set("otherDeductions")(e.target.value)} />)}
-          {L("بيان الخصومات", <Input value={form.deductionsNote} disabled={!editable} onChange={(e) => set("deductionsNote")(e.target.value)} placeholder="خصم تأخير، مواد مصروفة…" />, "sm:col-span-2")}
-          {L("ملاحظات", <Textarea rows={2} value={form.notes} disabled={!editable} onChange={(e) => set("notes")(e.target.value)} />, "sm:col-span-2")}
+          {L(t("certificates.scope"), <Input value={form.scope} disabled={!editable} onChange={(e) => set("scope")(e.target.value)} placeholder={t("certificates.scope_placeholder")} />)}
+          {L(t("certificates.contract_value"), <Input type="number" min="0" step="0.01" value={form.contractValue} disabled={!editable} onChange={(e) => set("contractValue")(e.target.value)} />)}
+          {L(t("certificates.work_value"), <Input type="number" min="0" step="0.01" value={form.grossAmount} disabled={!editable} onChange={(e) => set("grossAmount")(e.target.value)} />)}
+          {L(t("certificates.period_from"), <Input type="date" value={form.periodFrom} disabled={!editable} onChange={(e) => set("periodFrom")(e.target.value)} />)}
+          {L(t("certificates.period_to"), <Input type="date" value={form.periodTo} disabled={!editable} onChange={(e) => set("periodTo")(e.target.value)} />)}
+          {L(t("certificates.retention_pct"), <Input type="number" min="0" max="100" step="0.01" value={form.retentionPercent} disabled={!editable} onChange={(e) => set("retentionPercent")(e.target.value)} />)}
+          {L(t("certificates.vat_pct"), <Input type="number" min="0" max="100" step="0.01" value={form.vatPercent} disabled={!editable} onChange={(e) => set("vatPercent")(e.target.value)} />)}
+          {L(t("certificates.advance_recovery"), <Input type="number" min="0" step="0.01" value={form.advanceRecovery} disabled={!editable} onChange={(e) => set("advanceRecovery")(e.target.value)} />)}
+          {L(t("certificates.other_deductions"), <Input type="number" min="0" step="0.01" value={form.otherDeductions} disabled={!editable} onChange={(e) => set("otherDeductions")(e.target.value)} />)}
+          {L(t("certificates.deductions_note"), <Input value={form.deductionsNote} disabled={!editable} onChange={(e) => set("deductionsNote")(e.target.value)} placeholder={t("certificates.deductions_note_placeholder")} />, "sm:col-span-2")}
+          {L(t("common.notes"), <Textarea rows={2} value={form.notes} disabled={!editable} onChange={(e) => set("notes")(e.target.value)} />, "sm:col-span-2")}
         </div>
 
-        <Section title="الحساب">
+        <Section title={t("certificates.calculation")}>
           <TileRow>
-            <Tile label="قيمة الأعمال"><span className="tabular-nums">{money(num(form.grossAmount))}</span></Tile>
-            <Tile label="الاستقطاع"><span className="tabular-nums">− {money(figures.retentionAmount)}</span></Tile>
-            <Tile label="الدفعة المقدمة والخصومات"><span className="tabular-nums">− {money(num(form.advanceRecovery) + num(form.otherDeductions) + chargebackTotal)}</span></Tile>
-            <Tile label="ضريبة القيمة المضافة"><span className="tabular-nums">+ {money(figures.vatAmount)}</span></Tile>
+            <Tile label={t("certificates.tile_work_value")}><span className="tabular-nums">{money(num(form.grossAmount))}</span></Tile>
+            <Tile label={t("certificates.tile_retention")}><span className="tabular-nums">− {money(figures.retentionAmount)}</span></Tile>
+            <Tile label={t("certificates.tile_advance_deductions")}><span className="tabular-nums">− {money(num(form.advanceRecovery) + num(form.otherDeductions) + chargebackTotal)}</span></Tile>
+            <Tile label={t("certificates.tile_vat")}><span className="tabular-nums">+ {money(figures.vatAmount)}</span></Tile>
           </TileRow>
           {form.subcontractorId && (
             <div className={`text-xs flex items-center gap-1 ${overContract ? "text-destructive font-semibold" : "text-muted-foreground"}`}>
               {overContract && <AlertTriangle className="w-3.5 h-3.5" />}
-              المعتمد سابقاً {money(previousGross)} + هذا المستخلص = {money(cumulative)}
-              {num(form.contractValue) > 0 && ` من قيمة العقد ${money(num(form.contractValue))}`}
-              {overContract && " — يتجاوز قيمة العقد"}
+              {t("certificates.cumulative_note", { previous: money(previousGross), cumulative: money(cumulative) })}
+              {num(form.contractValue) > 0 && ` ${t("certificates.contract_note", { value: money(num(form.contractValue)) })}`}
+              {overContract && ` ${t("certificates.over_contract")}`}
             </div>
           )}
         </Section>
 
         {!row && (
-          <p className="text-xs text-muted-foreground">لخصم فواتير محمَّلة على المقاول، احفظ المستخلص كمسودة ثم افتحه واختر الخصومات.</p>
+          <p className="text-xs text-muted-foreground">{t("certificates.hint_save_first")}</p>
         )}
         {row && (available.length > 0 || availableFines.length > 0 || chargebackTotal > 0) && (
-          <Section title="خصومات على المقاول (فواتير محمَّلة وخصومات مسجَّلة)">
+          <Section title={t("certificates.charges_title")}>
             <div className="rounded-md border border-muted/50 bg-muted/30 p-3 space-y-2">
             {editable ? (
               <ul className="space-y-1.5">
@@ -359,7 +363,7 @@ function SubCertDialog({ ctx, defaultProjectId, row, chargebacks, fines, allRows
                   <li key={c.id} className="flex items-center gap-3 text-sm">
                     <input type="checkbox" className="h-4 w-4" checked={picked.has(c.id)} onChange={(e) => setPicked((s) => { const next = new Set(s); if (e.target.checked) next.add(c.id); else next.delete(c.id); return next; })} />
                     <span className="font-mono text-xs">{c.chargeNo}</span>
-                    <span>فاتورة <span className="font-mono">{c.invoiceNo}</span> <span className="text-xs text-muted-foreground">({c.payeeName})</span></span>
+                    <span>{t("certificates.invoice")} <span className="font-mono">{c.invoiceNo}</span> <span className="text-xs text-muted-foreground">({c.payeeName})</span></span>
                     <span className="ms-auto tabular-nums font-semibold">{money(c.amount)}</span>
                   </li>
                 ))}
@@ -369,7 +373,7 @@ function SubCertDialog({ ctx, defaultProjectId, row, chargebacks, fines, allRows
                 {chargebacks.filter((c) => c.certificateId === row.id && c.status === "applied").map((c) => (
                   <li key={c.id} className="flex items-center gap-3 text-sm">
                     <span className="font-mono text-xs">{c.chargeNo}</span>
-                    <span>فاتورة <span className="font-mono">{c.invoiceNo}</span></span>
+                    <span>{t("certificates.invoice")} <span className="font-mono">{c.invoiceNo}</span></span>
                     <span className="ms-auto tabular-nums font-semibold">{money(c.amount)}</span>
                   </li>
                 ))}
@@ -380,7 +384,7 @@ function SubCertDialog({ ctx, defaultProjectId, row, chargebacks, fines, allRows
                 {availableFines.map((f) => (
                   <li key={f.id} className="flex items-center gap-3 text-sm">
                     <input type="checkbox" className="h-4 w-4" checked={pickedFines.has(f.id)} onChange={(e) => setPickedFines((s) => { const next = new Set(s); if (e.target.checked) next.add(f.id); else next.delete(f.id); return next; })} />
-                    <span className="text-xs text-muted-foreground">خصم</span>
+                    <span className="text-xs text-muted-foreground">{t("certificates.fine")}</span>
                     <span>{f.title}</span>
                     <span className="ms-auto tabular-nums font-semibold">{money(fineAmount(f))}</span>
                   </li>
@@ -390,18 +394,18 @@ function SubCertDialog({ ctx, defaultProjectId, row, chargebacks, fines, allRows
             {!editable && fines.filter((f) => f.deductedCertificateId === row.id).length > 0 && (
               <ul className="space-y-1.5">
                 {fines.filter((f) => f.deductedCertificateId === row.id).map((f) => (
-                  <li key={f.id} className="flex items-center gap-3 text-sm"><span className="text-xs text-muted-foreground">خصم</span><span>{f.title}</span><span className="ms-auto tabular-nums font-semibold">{money(fineAmount(f))}</span></li>
+                  <li key={f.id} className="flex items-center gap-3 text-sm"><span className="text-xs text-muted-foreground">{t("certificates.fine")}</span><span>{f.title}</span><span className="ms-auto tabular-nums font-semibold">{money(fineAmount(f))}</span></li>
                 ))}
               </ul>
             )}
-            <div className="flex justify-between text-sm border-t border-muted/60 pt-2"><span>المجموع المخصوم</span><span className="tabular-nums font-bold">{money(chargebackTotal)}</span></div>
+            <div className="flex justify-between text-sm border-t border-muted/60 pt-2"><span>{t("certificates.charges_total")}</span><span className="tabular-nums font-bold">{money(chargebackTotal)}</span></div>
             </div>
           </Section>
         )}
 
         {row && (
           <>
-            <LatestActivity entityType="subcontractor_certificate" entityId={row.id} labels={SUB_CERT_LABELS} />
+            <LatestActivity entityType="subcontractor_certificate" entityId={row.id} group="sub_cert" />
             <div className="rounded-md border border-dashed border-primary/20 bg-primary/5 p-3">
               <AttachmentsPanel
                 entityType="subcontractor_certificate"
@@ -409,7 +413,7 @@ function SubCertDialog({ ctx, defaultProjectId, row, chargebacks, fines, allRows
                 projectId={row.projectId}
                 files={row.attachments}
                 editable={!["paid", "cancelled"].includes(row.status)}
-                hint="أرفق المستخلص الموقّع وجداول الكميات وأي مستندات داعمة."
+                hint={t("certificates.hint_attachments")}
                 canRemove={(f) => f.uploadedBy === user?.id || ctx.perms.isAccounting}
               />
             </div>

@@ -5,6 +5,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ReportsLibraryTab, isReportId, type ReportId } from "@/components/payments/reports-library-tab";
 import { getJson, paymentsQuery, type PaymentsContext, type PaymentsOverview } from "@/components/payments/payments-common";
+import { useTranslation } from "react-i18next";
 
 const param = (key: string) => {
   try {
@@ -16,8 +17,10 @@ const param = (key: string) => {
 
 // The reports page (the «Reports» item in the header). The Payments tabs link here with ?report=<id>.
 export default function Reports() {
+  const { t } = useTranslation("payments");
   const [projectId, setProjectId] = useState(param("project") || "all");
-  const initialReport: ReportId = isReportId(param("report")) ? (param("report") as ReportId) : "aging";
+  // No ?report means the library itself: the reports are a browsable shelf, not a dropdown
+  const initialReport: ReportId | null = isReportId(param("report")) ? (param("report") as ReportId) : null;
 
   const { data: ctx } = useQuery<PaymentsContext>({
     queryKey: ["payments", "context"],
@@ -31,21 +34,21 @@ export default function Reports() {
     meta: paymentsQuery,
   });
 
-  const projectName = projectId === "all" ? "كل المشاريع" : ctx?.projects.find((p) => p.id === projectId)?.name ?? "";
+  const projectName = projectId === "all" ? t("common.all_projects") : ctx?.projects.find((p) => p.id === projectId)?.name ?? "";
 
   return (
     <div className="p-6 lg:p-8 space-y-6" data-testid="page-reports">
-      <BackButton label="Back to Payments" to={projectId === "all" ? "/payments" : `/payments?project=${projectId}`} />
+      <BackButton label={t("reports_page.back")} to={projectId === "all" ? "/payments" : `/payments?project=${projectId}`} />
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div>
-          <h1 className="text-3xl font-bold font-display mb-2">التقارير</h1>
-          <p className="text-muted-foreground">تقارير المدفوعات: الالتزامات، التدفق النقدي، مقاولو الباطن، أوامر الشراء، الرخص، الخصومات والموافقات</p>
+          <h1 className="text-3xl font-bold font-display mb-2">{t("reports_page.title")}</h1>
+          <p className="text-muted-foreground">{t("reports_page.description")}</p>
         </div>
         <div className="flex items-center gap-2">
           <Select value={projectId} onValueChange={setProjectId}>
             <SelectTrigger className="w-[260px]" data-testid="select-reports-project"><SelectValue /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">كل المشاريع</SelectItem>
+              <SelectItem value="all">{t("common.all_projects")}</SelectItem>
               {ctx?.projects.map((p) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
             </SelectContent>
           </Select>

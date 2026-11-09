@@ -8,15 +8,46 @@ import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { useState } from "react";
 import { Settings, Globe, Bell, Shield, Palette, Monitor, BellOff, ClipboardCheck } from "lucide-react";
+import { useTranslation } from "react-i18next";
+import { isLanguage } from "@shared/i18n";
 import { useAuth } from "@/lib/auth";
+import { useLanguage } from "@/lib/language-provider";
+import { apiRequest } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
 import { ProfileForm } from "@/components/profile-form";
 import { useDesktopNotifications } from "@/hooks/use-desktop-notifications";
 import { isLoginSummaryEnabled, setLoginSummaryEnabled } from "@/components/login-summary";
 
 export default function SettingsPage() {
-  const { user } = useAuth();
+  const { user, refetchUser } = useAuth();
   const { settings: desktopSettings, permissionState, toggleEnabled, updateSetting } = useDesktopNotifications();
   const [summaryOn, setSummaryOn] = useState(() => (user?.id ? isLoginSummaryEnabled(user.id) : true));
+  const { t } = useTranslation(["common", "settings"]);
+  const { language, setLanguage } = useLanguage();
+  const { toast } = useToast();
+  const [savingLanguage, setSavingLanguage] = useState(false);
+
+  // The direction follows from the language, so there is no separate RTL switch: picking العربية turns
+  // the whole app right-to-left at once. The choice is saved on the user so it follows them to any
+  // other device; if that save fails, the UI stays in the new language for this browser only.
+  const onLanguageChange = async (value: string) => {
+    if (!isLanguage(value) || value === language) return;
+    setLanguage(value);
+    if (!user?.id) return;
+    setSavingLanguage(true);
+    try {
+      await apiRequest("PATCH", `/api/users/${user.id}`, { language: value });
+      await refetchUser();
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: t("language.label"),
+        description: error instanceof Error ? error.message : String(error),
+      });
+    } finally {
+      setSavingLanguage(false);
+    }
+  };
 
   return (
     <div className="p-6 space-y-6">
@@ -41,26 +72,18 @@ export default function SettingsPage() {
           <CardContent className="space-y-4">
             <div className="flex items-center justify-between">
               <div>
-                <Label>Language</Label>
-                <p className="text-sm text-muted-foreground">Select your preferred language</p>
+                <Label>{t("language.label")}</Label>
+                <p className="text-sm text-muted-foreground">{t("language.description")}</p>
               </div>
-              <Select defaultValue="en">
+              <Select value={language} onValueChange={onLanguageChange} disabled={savingLanguage}>
                 <SelectTrigger className="w-[180px]" data-testid="select-language">
-                  <SelectValue placeholder="Select language" />
+                  <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="en">English</SelectItem>
-                  <SelectItem value="ar">العربية</SelectItem>
+                  <SelectItem value="ar">{t("language.ar")}</SelectItem>
+                  <SelectItem value="en">{t("language.en")}</SelectItem>
                 </SelectContent>
               </Select>
-            </div>
-            <Separator />
-            <div className="flex items-center justify-between">
-              <div>
-                <Label>RTL Support</Label>
-                <p className="text-sm text-muted-foreground">Enable right-to-left text direction</p>
-              </div>
-              <Switch data-testid="switch-rtl" />
             </div>
             <Separator />
             <div className="flex items-center justify-between">
@@ -102,8 +125,8 @@ export default function SettingsPage() {
               <div className="flex items-center gap-2">
                 <ClipboardCheck className="w-4 h-4 text-muted-foreground" />
                 <div>
-                  <Label>ملخص ما ينتظرك عند تسجيل الدخول</Label>
-                  <p className="text-sm text-muted-foreground">نافذة تعرض ما يحتاج متابعتك وتنبيهاتك غير المقروءة بعد كل تسجيل دخول</p>
+                  <Label>{t("settings:login_summary.label")}</Label>
+                  <p className="text-sm text-muted-foreground">{t("settings:login_summary.description")}</p>
                 </div>
               </div>
               <Switch
@@ -153,7 +176,7 @@ export default function SettingsPage() {
             {desktopSettings.enabled && (
               <>
                 <Separator />
-                <div className="pl-6 space-y-4">
+                <div className="ps-6 space-y-4">
                   <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Notify me about</p>
                   <div className="flex items-center justify-between">
                     <div>
@@ -241,9 +264,9 @@ export default function SettingsPage() {
           <CardContent className="space-y-4">
             <div className="space-y-2">
               <Label>Session Timeout (minutes)</Label>
-              <Input 
-                type="number" 
-                defaultValue="30" 
+              <Input
+                type="number"
+                defaultValue="30"
                 className="w-[180px]"
                 data-testid="input-session-timeout"
               />

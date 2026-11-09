@@ -1,5 +1,6 @@
 // مقاولو الباطن: the project's register of subcontractors and the picker that every form uses instead of a typed name.
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { HardHat, Pencil, Plus, Save, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -33,9 +34,11 @@ export function useSubcontractors(projectId: string) {
 const NEW = "__new__";
 
 // Choose a subcontractor of the project, or add one without leaving the form
-export function SubcontractorSelect({ projectId, value, onChange, disabled, placeholder = "اختر مقاول الباطن" }: {
+export function SubcontractorSelect({ projectId, value, onChange, disabled, placeholder }: {
   projectId: string; value: string; onChange: (id: string, sub?: SubcontractorRow) => void; disabled?: boolean; placeholder?: string;
 }) {
+  const { t } = useTranslation("payments");
+  const resolvedPlaceholder = placeholder ?? t("subcontractors.select_placeholder");
   const { data: subs = [] } = useSubcontractors(projectId);
   const [adding, setAdding] = useState(false);
   return (
@@ -45,10 +48,10 @@ export function SubcontractorSelect({ projectId, value, onChange, disabled, plac
         disabled={disabled || !projectId}
         onValueChange={(v) => (v === NEW ? setAdding(true) : onChange(v, subs.find((s) => s.id === v)))}
       >
-        <SelectTrigger><SelectValue placeholder={projectId ? placeholder : "اختر المشروع أولاً"} /></SelectTrigger>
+        <SelectTrigger><SelectValue placeholder={projectId ? resolvedPlaceholder : t("common.select_project_first")} /></SelectTrigger>
         <SelectContent>
           {subs.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}{s.scope ? ` — ${s.scope}` : ""}</SelectItem>)}
-          <SelectItem value={NEW}><span className="flex items-center gap-1 font-semibold text-primary"><Plus className="w-3.5 h-3.5" /> مقاول باطن جديد</span></SelectItem>
+          <SelectItem value={NEW}><span className="flex items-center gap-1 font-semibold text-primary"><Plus className="w-3.5 h-3.5" /> {t("subcontractors.new_inline")}</span></SelectItem>
         </SelectContent>
       </Select>
       {adding && <SubcontractorDialog projectId={projectId} onClose={() => setAdding(false)} onSaved={(s) => { setAdding(false); onChange(s.id, s); }} />}
@@ -59,6 +62,7 @@ export function SubcontractorSelect({ projectId, value, onChange, disabled, plac
 export function SubcontractorDialog({ projectId, row, onClose, onSaved }: {
   projectId: string; row?: SubcontractorRow | null; onClose: () => void; onSaved?: (s: SubcontractorRow) => void;
 }) {
+  const { t } = useTranslation("payments");
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [form, setForm] = useState({ name: row?.name ?? "", taxNumber: row?.taxNumber ?? "", contactPerson: row?.contactPerson ?? "", phone: row?.phone ?? "", scope: row?.scope ?? "" });
@@ -73,10 +77,10 @@ export function SubcontractorDialog({ projectId, row, onClose, onSaved }: {
     },
     onSuccess: async (saved) => {
       await queryClient.invalidateQueries({ queryKey: ["payments"] });
-      toast({ title: row ? "تم الحفظ" : "تمت إضافة مقاول الباطن" });
+      toast({ title: row ? t("toasts.sub_saved") : t("toasts.sub_added") });
       if (onSaved) onSaved(saved); else onClose();
     },
-    onError: (e) => toast({ title: "تعذّر الحفظ", description: errorMessage(e), variant: "destructive" }),
+    onError: (e) => toast({ title: t("errors.save_failed"), description: errorMessage(e), variant: "destructive" }),
   });
 
   return (
@@ -84,24 +88,24 @@ export function SubcontractorDialog({ projectId, row, onClose, onSaved }: {
       onClose={onClose}
       size="sm"
       icon={HardHat}
-      kind="مقاول باطن"
-      title={row ? "تعديل مقاول الباطن" : "مقاول باطن جديد"}
-      description="يُسجَّل مرة واحدة في المشروع، ثم يُختار من القائمة في المستخلصات والخصومات"
+      kind={t("subcontractors.kind")}
+      title={row ? t("subcontractors.edit_title") : t("subcontractors.new_title")}
+      description={t("subcontractors.new_description")}
       footer={
         <>
-          <Button disabled={save.isPending || !form.name.trim()} onClick={() => save.mutate()}><Save className="w-4 h-4 mr-1" /> حفظ</Button>
-          <Button variant="outline" onClick={onClose}>إلغاء</Button>
+          <Button disabled={save.isPending || !form.name.trim()} onClick={() => save.mutate()}><Save className="w-4 h-4 me-1" /> {t("common.save")}</Button>
+          <Button variant="outline" onClick={onClose}>{t("common.cancel")}</Button>
         </>
       }
     >
         <div className="grid gap-3">
-          <div className="space-y-1.5"><Label>الاسم</Label><Input value={form.name} onChange={(e) => set("name")(e.target.value)} /></div>
-          <div className="space-y-1.5"><Label>نطاق العمل</Label><Input value={form.scope} onChange={(e) => set("scope")(e.target.value)} placeholder="كهرباء، تشطيبات…" /></div>
+          <div className="space-y-1.5"><Label>{t("subcontractors.name")}</Label><Input value={form.name} onChange={(e) => set("name")(e.target.value)} /></div>
+          <div className="space-y-1.5"><Label>{t("subcontractors.scope")}</Label><Input value={form.scope} onChange={(e) => set("scope")(e.target.value)} placeholder={t("subcontractors.scope_placeholder")} /></div>
           <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5"><Label>الرقم الضريبي</Label><Input value={form.taxNumber} onChange={(e) => set("taxNumber")(e.target.value)} /></div>
-            <div className="space-y-1.5"><Label>الهاتف</Label><Input value={form.phone} onChange={(e) => set("phone")(e.target.value)} /></div>
+            <div className="space-y-1.5"><Label>{t("subcontractors.tax_number")}</Label><Input value={form.taxNumber} onChange={(e) => set("taxNumber")(e.target.value)} /></div>
+            <div className="space-y-1.5"><Label>{t("subcontractors.phone")}</Label><Input value={form.phone} onChange={(e) => set("phone")(e.target.value)} /></div>
           </div>
-          <div className="space-y-1.5"><Label>شخص التواصل</Label><Input value={form.contactPerson} onChange={(e) => set("contactPerson")(e.target.value)} /></div>
+          <div className="space-y-1.5"><Label>{t("subcontractors.contact_person")}</Label><Input value={form.contactPerson} onChange={(e) => set("contactPerson")(e.target.value)} /></div>
         </div>
     </PaymentDialog>
   );
@@ -109,6 +113,7 @@ export function SubcontractorDialog({ projectId, row, onClose, onSaved }: {
 
 // The register itself, shown above the certificates
 export function SubcontractorsPanel({ ctx, projectId, rows, certificates }: { ctx: PaymentsContext; projectId: string; rows: SubcontractorRow[]; certificates: any[] }) {
+  const { t } = useTranslation("payments");
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [editing, setEditing] = useState<SubcontractorRow | "new" | null>(null);
@@ -117,7 +122,7 @@ export function SubcontractorsPanel({ ctx, projectId, rows, certificates }: { ct
   const remove = useMutation({
     mutationFn: async (id: string) => apiRequest("DELETE", `/api/payments/subcontractors/${id}`),
     onSuccess: () => invalidatePayments(queryClient),
-    onError: (e) => toast({ title: "تعذّر الحذف", description: errorMessage(e), variant: "destructive" }),
+    onError: (e) => toast({ title: t("errors.delete_failed"), description: errorMessage(e), variant: "destructive" }),
   });
   const canManage = ctx.perms.isAccounting || ctx.perms.canApprove;
 
@@ -125,12 +130,12 @@ export function SubcontractorsPanel({ ctx, projectId, rows, certificates }: { ct
     <Card className="rounded-2xl">
       <CardContent className="p-4 space-y-3">
         <div className="flex items-center gap-2">
-          <span className="font-bold text-sm">مقاولو الباطن</span>
+          <span className="font-bold text-sm">{t("subcontractors.title")}</span>
           <span className="text-xs text-muted-foreground">({rows.length})</span>
-          {projectId !== "all" && <Button size="sm" variant="outline" className="ms-auto" onClick={() => setEditing("new")}><Plus className="w-4 h-4 mr-1" /> مقاول باطن</Button>}
+          {projectId !== "all" && <Button size="sm" variant="outline" className="ms-auto" onClick={() => setEditing("new")}><Plus className="w-4 h-4 me-1" /> {t("subcontractors.new_btn")}</Button>}
         </div>
         {rows.length === 0 ? (
-          <p className="text-sm text-muted-foreground">لم يُسجَّل مقاولو باطن بعد. أضفهم من هنا أو من قائمة الاختيار في المستخلص.</p>
+          <p className="text-sm text-muted-foreground">{t("subcontractors.none")}</p>
         ) : (
           <ul className="grid sm:grid-cols-2 xl:grid-cols-3 gap-2">
             {rows.map((s) => {
@@ -140,7 +145,7 @@ export function SubcontractorsPanel({ ctx, projectId, rows, certificates }: { ct
                   <div className="min-w-0">
                     <div className="font-semibold truncate">{s.name}</div>
                     <div className="text-xs text-muted-foreground truncate">{[projectId === "all" ? projectName(s.projectId) : null, s.scope, s.taxNumber, s.phone].filter(Boolean).join(" · ") || "—"}</div>
-                    <div className="text-xs text-muted-foreground">{count} مستخلص</div>
+                    <div className="text-xs text-muted-foreground">{t("subcontractors.cert_count", { count })}</div>
                   </div>
                   <div className="ms-auto flex shrink-0">
                     <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setEditing(s)}><Pencil className="w-3.5 h-3.5" /></Button>

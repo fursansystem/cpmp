@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeftRight, Trash2, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -34,6 +35,7 @@ const num = (v: unknown) =>
 const today = () => new Date().toISOString().split("T")[0];
 
 export function StockTransferDialog({ open, onOpenChange, projectId, warehouses }: StockTransferDialogProps) {
+  const { t } = useTranslation("warehouse");
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -87,10 +89,10 @@ export function StockTransferDialog({ open, onOpenChange, projectId, warehouses 
 
   const mutation = useMutation({
     mutationFn: async () => {
-      if (!fromWarehouseId || !toWarehouseId) throw new Error("اختر المستودع المصدر والمستقبل");
-      if (fromWarehouseId === toWarehouseId) throw new Error("لا يمكن التحويل إلى نفس المستودع");
+      if (!fromWarehouseId || !toWarehouseId) throw new Error(t("transfer_dialog.errors.choose_both"));
+      if (fromWarehouseId === toWarehouseId) throw new Error(t("transfer_dialog.errors.cannot_same"));
       const payload = lines.filter((l) => Number(l.quantity) > 0);
-      if (payload.length === 0) throw new Error("أدخل كمية لمادة واحدة على الأقل");
+      if (payload.length === 0) throw new Error(t("transfer_dialog.errors.enter_at_least_one"));
 
       const res = await apiRequest("POST", `/api/projects/${projectId}/stock-transfers`, {
         fromWarehouseId,
@@ -111,13 +113,13 @@ export function StockTransferDialog({ open, onOpenChange, projectId, warehouses 
         queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, k] })
       );
       toast({
-        title: `تم التحويل — ${data.transferNumber}`,
-        description: `${data.fromWarehouseName} ← ${data.toWarehouseName}. إجمالي المشروع لم يتغيّر.`,
+        title: t("transfer_dialog.toasts.title", { number: data.transferNumber }),
+        description: t("transfer_dialog.toasts.description", { from: data.fromWarehouseName, to: data.toWarehouseName }),
       });
       onOpenChange(false);
     },
     onError: (e: any) =>
-      toast({ title: "تعذّر التحويل", description: e?.message || "حدث خطأ", variant: "destructive" }),
+      toast({ title: t("transfer_dialog.errors.failed"), description: e?.message || t("transfer_dialog.errors.failed"), variant: "destructive" }),
   });
 
   const unpicked = balances.filter((b) => b.balance > 0 && !lines.some((l) => l.materialId === b.materialId));
@@ -125,14 +127,14 @@ export function StockTransferDialog({ open, onOpenChange, projectId, warehouses 
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent dir="rtl" className="max-w-3xl max-h-[92vh] overflow-y-auto rounded-2xl">
-        <DialogHeader className="text-right">
+      <DialogContent className="max-w-3xl max-h-[92vh] overflow-y-auto rounded-2xl">
+        <DialogHeader className="text-end">
           <DialogTitle className="flex items-center gap-2 text-lg font-black">
             <ArrowLeftRight className="w-5 h-5 text-primary" />
-            تحويل بين المستودعات
+            {t("transfer_dialog.title")}
           </DialogTitle>
           <DialogDescription className="text-xs">
-            ينقل الرصيد بين مستودعين — إجمالي المشروع يبقى كما هو
+            {t("transfer_dialog.description")}
           </DialogDescription>
         </DialogHeader>
 
@@ -140,11 +142,11 @@ export function StockTransferDialog({ open, onOpenChange, projectId, warehouses 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <div className="space-y-1.5">
               <Label className="text-xs font-bold">
-                من مستودع <span className="text-destructive">*</span>
+                {t("transfer_dialog.from_warehouse")} <span className="text-destructive">*</span>
               </Label>
               <Select value={fromWarehouseId} onValueChange={setFromWarehouseId}>
                 <SelectTrigger className="h-10 rounded-xl">
-                  <SelectValue placeholder="اختر" />
+                  <SelectValue placeholder={t("transfer_dialog.select_placeholder")} />
                 </SelectTrigger>
                 <SelectContent>
                   {warehouses.map((w) => (
@@ -156,11 +158,11 @@ export function StockTransferDialog({ open, onOpenChange, projectId, warehouses 
 
             <div className="space-y-1.5">
               <Label className="text-xs font-bold">
-                إلى مستودع <span className="text-destructive">*</span>
+                {t("transfer_dialog.to_warehouse")} <span className="text-destructive">*</span>
               </Label>
               <Select value={toWarehouseId} onValueChange={setToWarehouseId}>
                 <SelectTrigger className={cn("h-10 rounded-xl", sameWarehouse && "border-destructive")}>
-                  <SelectValue placeholder="اختر" />
+                  <SelectValue placeholder={t("transfer_dialog.select_placeholder")} />
                 </SelectTrigger>
                 <SelectContent>
                   {warehouses.map((w) => (
@@ -174,21 +176,21 @@ export function StockTransferDialog({ open, onOpenChange, projectId, warehouses 
 
             <div className="space-y-1.5">
               <Label className="text-xs font-bold">
-                التاريخ <span className="text-destructive">*</span>
+                {t("transfer_dialog.date")} <span className="text-destructive">*</span>
               </Label>
               <Input type="date" value={transferDate} onChange={(e) => setTransferDate(e.target.value)} className="h-10 rounded-xl" />
             </div>
           </div>
 
           <div className="space-y-1.5">
-            <Label className="text-xs font-black">إضافة مادة</Label>
+            <Label className="text-xs font-black">{t("transfer_dialog.add_material")}</Label>
             <Select value={picking} onValueChange={addLine} disabled={!fromWarehouseId}>
               <SelectTrigger className="h-10 rounded-xl">
-                <SelectValue placeholder={fromWarehouseId ? "اختر مادة من رصيد المصدر" : "اختر المستودع المصدر أولًا"} />
+                <SelectValue placeholder={fromWarehouseId ? t("transfer_dialog.select_from_source") : t("transfer_dialog.select_source_first")} />
               </SelectTrigger>
               <SelectContent>
                 {unpicked.length === 0 ? (
-                  <div className="p-3 text-xs text-muted-foreground text-center">لا توجد مواد برصيد متاح</div>
+                  <div className="p-3 text-xs text-muted-foreground text-center">{t("transfer_dialog.no_available_materials")}</div>
                 ) : (
                   unpicked.map((b) => (
                     <SelectItem key={b.materialId} value={b.materialId}>
@@ -208,9 +210,9 @@ export function StockTransferDialog({ open, onOpenChange, projectId, warehouses 
               <Table>
                 <TableHeader>
                   <TableRow className="bg-muted/30 hover:bg-muted/30">
-                    <TableHead className="text-right text-[11px] font-black">المادة</TableHead>
-                    <TableHead className="text-right text-[11px] font-black">المتاح</TableHead>
-                    <TableHead className="text-right text-[11px] font-black w-[130px]">الكمية</TableHead>
+                    <TableHead className="text-end text-[11px] font-black">{t("transfer_dialog.table.material")}</TableHead>
+                    <TableHead className="text-end text-[11px] font-black">{t("transfer_dialog.table.available")}</TableHead>
+                    <TableHead className="text-end text-[11px] font-black w-[130px]">{t("transfer_dialog.table.quantity")}</TableHead>
                     <TableHead className="w-10" />
                   </TableRow>
                 </TableHeader>
@@ -236,7 +238,7 @@ export function StockTransferDialog({ open, onOpenChange, projectId, warehouses 
                             className={cn("h-9 rounded-lg text-xs", exceeds && "border-destructive focus-visible:ring-destructive")}
                             placeholder="0.00"
                           />
-                          {exceeds && <span className="text-[10px] font-bold text-destructive mt-1 block">يتجاوز المتاح</span>}
+                          {exceeds && <span className="text-[10px] font-bold text-destructive mt-1 block">{t("transfer_dialog.table.exceeds_available")}</span>}
                         </TableCell>
                         <TableCell>
                           <Button
@@ -257,14 +259,14 @@ export function StockTransferDialog({ open, onOpenChange, projectId, warehouses 
           )}
 
           <div className="space-y-1.5">
-            <Label className="text-xs font-bold">ملاحظات</Label>
-            <Input value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="اختياري" className="h-10 rounded-xl" />
+            <Label className="text-xs font-bold">{t("transfer_dialog.notes")}</Label>
+            <Input value={notes} onChange={(e) => setNotes(e.target.value)} placeholder={t("transfer_dialog.optional")} className="h-10 rounded-xl" />
           </div>
 
           {sameWarehouse && (
             <div className="rounded-xl border border-destructive/40 bg-destructive/5 p-3 flex items-start gap-2">
               <AlertTriangle className="w-4 h-4 text-destructive shrink-0 mt-0.5" />
-              <p className="text-xs text-destructive">المستودع المصدر والمستقبل متطابقان.</p>
+              <p className="text-xs text-destructive">{t("transfer_dialog.same_warehouse_error")}</p>
             </div>
           )}
         </div>
@@ -276,10 +278,10 @@ export function StockTransferDialog({ open, onOpenChange, projectId, warehouses 
             className="rounded-xl font-bold gap-2"
           >
             <ArrowLeftRight className="w-4 h-4" />
-            {mutation.isPending ? "جارٍ التحويل..." : "تنفيذ التحويل"}
+            {mutation.isPending ? t("transfer_dialog.submitting") : t("transfer_dialog.submit")}
           </Button>
           <Button variant="outline" onClick={() => onOpenChange(false)} className="rounded-xl font-bold">
-            إلغاء
+            {t("transfer_dialog.cancel")}
           </Button>
         </DialogFooter>
       </DialogContent>

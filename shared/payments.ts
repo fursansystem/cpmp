@@ -1,6 +1,8 @@
 // المدفوعات (Payments) — shared constants, labels and report types.
 // Used by both the server routes and the Payments page so the two never disagree on a status name.
 
+import { enumMap } from "./i18n";
+
 export const BILL_REQUEST_STATUSES = ["requested", "submitted", "received", "returned", "cancelled"] as const;
 export type BillRequestStatus = (typeof BILL_REQUEST_STATUSES)[number];
 
@@ -25,27 +27,14 @@ export type PaymentEntityType = (typeof PAYMENT_ENTITY_TYPES)[number];
 export const SUB_CERT_STATUSES = ["draft", "submitted", "approved", "rejected", "paid", "cancelled"] as const;
 export type SubCertStatus = (typeof SUB_CERT_STATUSES)[number];
 
-export const SUB_CERT_LABELS: Record<SubCertStatus, string> = {
-  draft: "مسودة (Draft)",
-  submitted: "بانتظار الاعتماد (Submitted)",
-  approved: "معتمد (Approved)",
-  rejected: "مرفوض (Rejected)",
-  paid: "مدفوع (Paid)",
-  cancelled: "ملغي (Cancelled)",
-};
+export const SUB_CERT_LABELS: Record<SubCertStatus, string> = enumMap("sub_cert", SUB_CERT_STATUSES);
 
 // تحميل فاتورة على مقاول باطن: part or all of a paid supplier invoice charged to a subcontractor. The invoice's own
 // history is never touched; the charge is a separate record that ends up as a deduction on a certificate (or a deduction record).
 export const CHARGEBACK_STATUSES = ["proposed", "approved", "applied", "converted", "cancelled"] as const;
 export type ChargebackStatus = (typeof CHARGEBACK_STATUSES)[number];
 
-export const CHARGEBACK_LABELS: Record<ChargebackStatus, string> = {
-  proposed: "بانتظار مدير المشروع (Proposed)",
-  approved: "معتمد، لم يُطبَّق (Approved)",
-  applied: "مطبَّق في مستخلص (Applied)",
-  converted: "حُوّل إلى خصم (Converted)",
-  cancelled: "ملغي (Cancelled)",
-};
+export const CHARGEBACK_LABELS: Record<ChargebackStatus, string> = enumMap("chargeback", CHARGEBACK_STATUSES);
 
 // The amount actually payable on a subcontractor certificate. One definition, used by the
 // server when it saves and by the form's live preview, so the two can never disagree:
@@ -70,50 +59,15 @@ export function computeSubCert(input: {
 export const SOURCE_TYPES = ["purchase_order", "delivery", "snag", "ncr", "project", "invoice"] as const;
 export type SourceType = (typeof SOURCE_TYPES)[number];
 
-export const BILL_REQUEST_LABELS: Record<BillRequestStatus, string> = {
-  requested: "مطلوب (Requested)",
-  submitted: "تم الإرسال (Submitted)",
-  received: "تم الاستلام (Received)",
-  returned: "معاد للتصحيح (Returned)",
-  cancelled: "ملغي (Cancelled)",
-};
+export const BILL_REQUEST_LABELS: Record<BillRequestStatus, string> = enumMap("bill_request", BILL_REQUEST_STATUSES);
 
-export const PAYMENT_ORDER_LABELS: Record<PaymentOrderStatus, string> = {
-  requested: "طلب بانتظار مدير المشروع (Requested)",
-  request_approved: "طلب بانتظار المحاسبة (Request approved)",
-  draft: "مسودة (Draft)",
-  pending_approval: "بانتظار الاعتماد (Pending approval)",
-  approved: "معتمد (Approved)",
-  paid: "مدفوع (Paid)",
-  rejected: "مرفوض (Rejected)",
-  cancelled: "ملغي (Cancelled)",
-};
+export const PAYMENT_ORDER_LABELS: Record<PaymentOrderStatus, string> = enumMap("payment_order", PAYMENT_ORDER_STATUSES);
 
-export const FINE_LABELS: Record<FineStatus, string> = {
-  open: "مفتوح (Open)",
-  under_appeal: "قيد الاعتراض (Under appeal)",
-  payment_requested: "تم طلب السداد (Payment requested)",
-  paid: "مسدد (Paid)",
-  waiver_requested: "طلب إعفاء (Waiver requested)",
-  waived: "معفى (Waived)",
-  recovered: "مُسترَد (Recovered)",
-  cancelled: "ملغى (Cancelled)",
-};
+export const FINE_LABELS: Record<FineStatus, string> = enumMap("fine", FINE_STATUSES);
 
-export const LIABLE_PARTY_LABELS: Record<LiableParty, string> = {
-  contractor: "المقاول الرئيسي (Main contractor)",
-  subcontractor: "مقاول الباطن (Subcontractor)",
-  owner: "المالك (Owner)",
-  consultant: "الاستشاري (Consultant)",
-  supplier: "المورد (Supplier)",
-  other: "أخرى (Other)",
-};
+export const LIABLE_PARTY_LABELS: Record<LiableParty, string> = enumMap("liable_party", LIABLE_PARTIES);
 
-export const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
-  bank_transfer: "تحويل بنكي (Bank transfer)",
-  cheque: "شيك (Cheque)",
-  cash: "نقداً (Cash)",
-};
+export const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = enumMap("payment_method", PAYMENT_METHODS);
 
 // What a person with the Payments section open is allowed to do. Computed once on the server
 // (it needs the user's job position, which lives in the database) and sent to the page.

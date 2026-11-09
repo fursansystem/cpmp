@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
-import { format } from "date-fns";
+import { format } from "@/lib/date-format";
 import { LogsIcon, FileUp, CheckCircle2, AlertCircle } from "lucide-react";
 import type { Activity } from "@shared/schema";
 

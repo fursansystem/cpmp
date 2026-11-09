@@ -1,0 +1,292 @@
+{
+  "save_cells": {
+    "saved": "Saved",
+    "saved_summary": "{{saved}} cell(s) saved{{locked_info}}.",
+    "skipped_locked": ", {{locked}} locked cell(s) skipped",
+    "failed": "Not saved"
+  },
+  "cell_dialog": {
+    "unit_title": "Unit {{label}}",
+    "building": "Building {{building}}",
+    "percent": "Percent",
+    "source": "Source",
+    "wir_request": "WIR Request",
+    "history": "History",
+    "table": {
+      "date": "Date",
+      "old_to_new": "Old → New",
+      "source": "Source",
+      "by": "By",
+      "reason": "Reason"
+    },
+    "loading": "Loading…",
+    "no_history": "No history",
+    "system": "System",
+    "edit_admin_title": "System admin override",
+    "edit_title": "Edit percent",
+    "percent_label": "Percent % (empty = clear)",
+    "reason_label": "Reason",
+    "locked_note": "Locked by an approved WIR — only a system admin can change it.",
+    "close": "Close",
+    "save": "Save",
+    "sources": {
+      "manual": "Manual",
+      "wir": "Approved WIR",
+      "override": "Admin override",
+      "relink": "Relink",
+      "restructure": "Restructure",
+      "delete": "Delete"
+    }
+  },
+  "matrix": {
+    "no_items_title": "No items yet",
+    "no_items_desc": "Start in the WBS tab: generate items from the WIR log.",
+    "building": "Building",
+    "floor": "Floor",
+    "type": "Type",
+    "search_unit": "Search unit",
+    "search_placeholder": "Unit No…",
+    "per_page": "Per page",
+    "all": "All",
+    "expand": "Expand",
+    "phases": "Phases",
+    "import": "Import",
+    "legend": {
+      "locked": "Locked by approved WIR",
+      "leaf": "Leaf entry",
+      "computed": "Computed",
+      "shortcuts": "Enter/number to edit · Enter save & down · Tab navigate · Esc cancel · Shift+click = history"
+    },
+    "headers": {
+      "code": "Code",
+      "item": "Item",
+      "local_weight": "Local %",
+      "global_weight": "Global %",
+      "progress": "Progress"
+    },
+    "unit_weight_tooltip": "Unit weight",
+    "unit_progress_tooltip": "Unit progress",
+    "apply_all_units": "Apply % to all displayed units",
+    "invalid_value_title": "Invalid value",
+    "invalid_value_desc": "Enter a percent between 0 and 100.",
+    "locked_skipped_title": "Locked skipped",
+    "locked_skipped_desc": "{{count}} locked cell(s) were not changed.",
+    "no_changes_title": "No changes",
+    "importing_title": "Importing",
+    "read_file_error": "Could not read file",
+    "fill_dialog": {
+      "title": "Apply % to displayed units",
+      "desc": "{{code}} — {{name}}. {{count}} unit(s) shown. Locked cells are skipped.",
+      "percent": "Percent %",
+      "cancel": "Cancel",
+      "apply": "Apply"
+    }
+  },
+  "units": {
+    "weight_mode": "Unit weighting",
+    "modes": {
+      "equal": "Equal",
+      "area": "By area (m²)",
+      "value": "By value",
+      "manual": "Manual"
+    },
+    "default_value": "Default unit value",
+    "drive_project_progress": "Drive project %",
+    "drive_project_progress_hint": "When enabled, the project's overall progress follows the matrix ({{progress}}).",
+    "save_settings": "Save settings",
+    "drive_enabled_msg": "Project % now follows the matrix",
+    "search": "Search",
+    "search_placeholder": "Unit No…",
+    "set_value_filtered": "Set value for filtered",
+    "cost_and_ratio": "Cost and ratio",
+    "import_values": "Import values",
+    "no_values_title": "No values found",
+    "read_file_error": "Could not read file",
+    "table": {
+      "unit": "Villa No",
+      "building": "Bldg",
+      "flat": "Flat",
+      "floor": "Floor",
+      "type": "Type",
+      "area": "Area (m²)",
+      "value": "Value",
+      "weight": "Weight %",
+      "included": "Incl.",
+      "progress": "Earned %",
+      "earned": "Earned",
+      "pending": "Pending",
+      "paid": "Paid",
+      "remaining": "Remaining",
+      "filtered_total": "Filtered total — {{count}}"
+    },
+    "bulk_dialog": {
+      "title": "Set value for filtered units",
+      "desc": "{{count}} units. Leave empty to use the default value.",
+      "value": "Value",
+      "cancel": "Cancel",
+      "apply": "Apply"
+    }
+  },
+  "certificates": {
+    "status": {
+      "draft": "Draft",
+      "submitted": "Submitted",
+      "approved": "Approved",
+      "paid": "Paid",
+      "rejected": "Rejected"
+    },
+    "claimable_now": "Claimable now",
+    "claimable_units": "{{count}} unit(s) · Earned − (Pending + Paid)",
+    "new_certificate": "New certificate",
+    "loading": "Loading…",
+    "no_certificates": "No certificates yet",
+    "units_count": "{{count}} units",
+    "select_or_create": "Select or create a certificate",
+    "certificate_no": "Certificate No. #{{number}}",
+    "reject_reason": "Rejection reason: {{reason}}",
+    "total": "Certificate total",
+    "dates": {
+      "created": "Created:",
+      "submitted": "Submitted:",
+      "approved": "Approved:",
+      "paid": "Paid:",
+      "rejected": "Rejected:"
+    },
+    "actions": {
+      "refresh": "Refresh from matrix",
+      "submit": "Submit",
+      "delete": "Delete",
+      "withdraw": "Withdraw",
+      "approve": "Approve",
+      "reject": "Reject",
+      "mark_paid": "Mark paid",
+      "excel": "Excel"
+    },
+    "table": {
+      "unit": "Villa No",
+      "unit_value": "Unit value",
+      "previous": "Previous %",
+      "cumulative": "Cumulative %",
+      "current": "Current %",
+      "amount": "Amount",
+      "no_lines": "No lines — nothing new to claim",
+      "total_lines": "Total — {{count}}"
+    },
+    "toasts": {
+      "done": "Done",
+      "failed": "Failed",
+      "draft_created": "Draft created",
+      "refreshed": "Refreshed",
+      "deleted": "Deleted"
+    },
+    "create_dialog": {
+      "title": "New payment certificate",
+      "desc": "Created as a draft from current progress: current = cumulative − already certified.",
+      "title_label": "Title",
+      "from": "From",
+      "to": "To",
+      "notes": "Notes",
+      "cancel": "Cancel",
+      "create_draft": "Create draft"
+    },
+    "reject_dialog": {
+      "title": "Reject certificate #{{number}}",
+      "desc": "Percentages become claimable again in a future certificate.",
+      "reason": "Reason *",
+      "cancel": "Cancel",
+      "reject": "Reject"
+    },
+    "delete_dialog": {
+      "title": "Delete draft #{{number}}?",
+      "desc": "This cannot be undone.",
+      "cancel": "Cancel",
+      "delete": "Delete"
+    }
+  },
+  "wbs": {
+    "actions": {
+      "generate_wir": "Generate from WIR log",
+      "from_divisions": "From divisions…",
+      "sync_wir": "Sync approved WIRs",
+      "add_phase": "Add phase",
+      "save_weights": "Save weights",
+      "discard": "Discard"
+    },
+    "unsaved_weights": "{{count}} unsaved weight change(s)",
+    "no_items": "No items. Use 'Generate from WIR log' to build phases and items from inspection requests.",
+    "table": {
+      "code": "Code",
+      "item": "Item",
+      "weight": "Weight %",
+      "children_sum": "Σ Children",
+      "link": "Link",
+      "cells": "Cells",
+      "phases_total": "Phases total",
+      "equalize_phases": "Equalize phases",
+      "manual": "Manual"
+    },
+    "menu": {
+      "edit": "Edit",
+      "add_sub": "Add sub-item",
+      "add_sibling": "Add sibling",
+      "split_level": "Split by level",
+      "equalize_children": "Equalize children",
+      "delete": "Delete"
+    },
+    "item_dialog": {
+      "add_title": "Add item",
+      "edit_title": "Edit item",
+      "under": "Under: {{code}} — {{name}}",
+      "top_level": "Top-level phase",
+      "code_label": "Code",
+      "optional": " — optional",
+      "weight_label": "Weight % among siblings",
+      "name_ar": "Arabic name *",
+      "name_en": "English name",
+      "link_activity": "Linked activity (fills cells from approved WIRs)",
+      "work_level": "Work level (optional filter)",
+      "all_levels": "Any level",
+      "cancel": "Cancel",
+      "save": "Save"
+    },
+    "activity_picker": {
+      "no_link": "No link — manual",
+      "search_placeholder": "Search code or name…",
+      "no_results": "No results",
+      "clear": "Clear"
+    },
+    "split_dialog": {
+      "title": "Split by work level",
+      "desc": "{{code}} — {{name}}. One sub-item per level with equal weights, each linked to the same activity and level.",
+      "in_wir": "in WIR log",
+      "cancel": "Cancel",
+      "split": "Split — {{count}}"
+    },
+    "divisions_dialog": {
+      "title": "Generate from divisions",
+      "desc": "Adds every not-yet-linked activity of the chosen divisions. Existing items are not changed.",
+      "cancel": "Cancel",
+      "generate": "Generate"
+    },
+    "delete_dialog": {
+      "title": "Delete item {{code}}?",
+      "desc": "The item, {{sub}} sub-item(s) and {{cells}} cell(s) ({{locked}} locked by approved WIRs) will be deleted.",
+      "cancel": "Cancel",
+      "delete": "Delete"
+    },
+    "confirm_drop": {
+      "title": "Confirm removing cells",
+      "desc": "The parent item has {{total}} cell(s) (including {{locked}} locked) that will be removed because it will become a parent with sub-items.",
+      "cancel": "Cancel",
+      "continue": "Continue"
+    },
+    "toasts": {
+      "done": "Done",
+      "failed": "Failed",
+      "saved": "Saved",
+      "split_done": "Split done",
+      "empty_file": "Empty file",
+      "read_file_error": "Could not read file"
+    }
+  }
+}

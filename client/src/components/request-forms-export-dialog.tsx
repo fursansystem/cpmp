@@ -374,7 +374,7 @@ export function RequestFormsExportDialog({
         )}
 
     <Dialog open={open} onOpenChange={(o) => (running ? null : onOpenChange(o))}>
-      <DialogContent dir="rtl" className="max-w-xl rounded-2xl">
+      <DialogContent className="max-w-xl rounded-2xl">
         <DialogHeader className="text-right">
           <DialogTitle className="flex items-center gap-2 text-lg font-black">
             <FileDown className="w-5 h-5 text-primary" />

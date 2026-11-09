@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useParams, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
@@ -25,6 +26,7 @@ interface PoItemInput {
 }
 
 export default function ProjectCreatePo() {
+  const { t } = useTranslation(["procurement", "common"]);
   const params = useParams<{ projectId: string }>();
   const projectId = params?.projectId || "";
   const [, setLocation] = useLocation();
@@ -43,7 +45,7 @@ export default function ProjectCreatePo() {
   const [orderDate, setOrderDate] = useState(new Date().toISOString().split("T")[0]);
   const [expectedDeliveryDate, setExpectedDeliveryDate] = useState("");
   const [deliveryAddress, setDeliveryAddress] = useState("");
-  const [paymentTerms, setPaymentTerms] = useState("30 يوماً من الاستلام");
+  const [paymentTerms, setPaymentTerms] = useState(t("create_po.default_payment_terms"));
   const [termsAndConditions, setTermsAndConditions] = useState("");
   const [taxRate, setTaxRate] = useState("15");
   const [discountAmount, setDiscountAmount] = useState("0");
@@ -150,19 +152,19 @@ export default function ProjectCreatePo() {
 
   const createPoMutation = useMutation({
     mutationFn: async () => {
-      if (!title.trim()) throw new Error("عنوان أمر الشراء مطلوب");
-      if (!supplierId) throw new Error("يرجى تحديد المورد");
+      if (!title.trim()) throw new Error(t("create_po.errors.title_required"));
+      if (!supplierId) throw new Error(t("create_po.errors.supplier_required"));
       // A line without a catalog material cannot be received into stock later, which would
       // leave an order that is only half receivable. Reject it here rather than at submit.
       const filledRows = items.filter((i) => i.materialId || i.itemDescription.trim() || Number(i.quantity) > 0);
       const unlinkedRows = filledRows.filter((i) => !i.materialId);
       if (unlinkedRows.length > 0) {
         throw new Error(
-          `يجب اختيار المادة من الكتالوج لكل بند (${unlinkedRows.length} بند بدون مادة). المواد غير المرتبطة لا يمكن استلامها في المخزون.`
+          t("create_po.errors.unlinked_materials", { count: unlinkedRows.length })
         );
       }
       const validItems = filledRows.filter((i) => Number(i.quantity) > 0);
-      if (validItems.length === 0) throw new Error("يرجى إضافة بند واحد على الأقل");
+      if (validItems.length === 0) throw new Error(t("create_po.errors.items_required"));
 
       const payload = {
         title,
@@ -196,15 +198,15 @@ export default function ProjectCreatePo() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "purchase-orders"] });
       toast({
-        title: "تم إنشاء أمر الشراء بنجاح",
-        description: "تم حفظ أمر الشراء وإدراجه في قائمة الأوامر",
+        title: t("create_po.toasts.success_title"),
+        description: t("create_po.toasts.success_desc"),
       });
       setLocation(`/projects/${projectId}/purchase-orders?tab=purchase_orders`);
     },
     onError: (err: any) => {
       toast({
-        title: "خطأ",
-        description: err.message || "فشل إنشاء أمر الشراء",
+        title: t("create_po.toasts.error_title"),
+        description: err.message || t("create_po.errors.generic_failed"),
         variant: "destructive",
       });
     },
@@ -221,13 +223,13 @@ export default function ProjectCreatePo() {
               onClick={backToList}
               className="rounded-xl h-9 gap-1.5 font-bold hover:bg-muted"
             >
-              <ArrowRight className="w-4 h-4" />
-              العودة
+              <ArrowRight className="w-4 h-4 ltr:rotate-180" />
+              {t("create_po.back")}
             </Button>
             <div>
               <h1 className="text-lg sm:text-xl font-bold text-foreground flex items-center gap-2">
                 <ShoppingCart className="w-5 h-5 text-primary" />
-                إنشاء أمر شراء جديد (New Purchase Order)
+                {t("create_po.page_title")}
               </h1>
               {project && (
                 <p className="text-xs text-muted-foreground flex items-center gap-1.5">
@@ -239,7 +241,7 @@ export default function ProjectCreatePo() {
           </div>
           <div className="flex items-center gap-2">
             <Button type="button" variant="outline" onClick={backToList} className="rounded-xl font-bold">
-              إلغاء
+              {t("create_po.cancel")}
             </Button>
             <Button
               type="button"
@@ -247,7 +249,7 @@ export default function ProjectCreatePo() {
               disabled={createPoMutation.isPending}
               className="rounded-xl font-bold gap-2 bg-primary text-primary-foreground"
             >
-              {createPoMutation.isPending ? "جاري الإنشاء..." : "حفظ وإصدار أمر الشراء"}
+              {createPoMutation.isPending ? t("create_po.saving") : t("create_po.save_btn")}
             </Button>
           </div>
         </div>
@@ -258,10 +260,10 @@ export default function ProjectCreatePo() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="space-y-2 md:col-span-2">
             <Label className="font-bold text-sm">
-              موضوع / عنوان أمر الشراء <span className="text-destructive">*</span>
+              {t("create_po.title_label")} <span className="text-destructive">*</span>
             </Label>
             <Input
-              placeholder="مثال: أمر شراء حديد تسليح للموقع"
+              placeholder={t("create_po.title_placeholder")}
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               className="h-11 rounded-xl"
@@ -270,11 +272,11 @@ export default function ProjectCreatePo() {
 
           <div className="space-y-2">
             <Label className="font-bold text-sm">
-              المورد <span className="text-destructive">*</span>
+              {t("create_po.supplier_label")} <span className="text-destructive">*</span>
             </Label>
             <Select value={supplierId} onValueChange={setSupplierId}>
               <SelectTrigger className="h-11 rounded-xl">
-                <SelectValue placeholder="اختر المورد..." />
+                <SelectValue placeholder={t("create_po.supplier_placeholder")} />
               </SelectTrigger>
               <SelectContent>
                 {suppliers.map((s) => (
@@ -292,9 +294,9 @@ export default function ProjectCreatePo() {
           </div>
 
           <div className="space-y-2">
-            <Label className="font-bold text-sm">رقم أمر الشراء (اختياري - يولد تلقائياً)</Label>
+            <Label className="font-bold text-sm">{t("create_po.po_number_label")}</Label>
             <Input
-              placeholder="مثال: PO-2026-001"
+              placeholder={t("create_po.po_number_placeholder")}
               value={poNumber}
               onChange={(e) => setPoNumber(e.target.value)}
               className="h-11 rounded-xl"
@@ -304,7 +306,7 @@ export default function ProjectCreatePo() {
           <div className="space-y-2">
             <Label className="font-bold text-sm flex items-center gap-1.5">
               <Calendar className="w-4 h-4 text-muted-foreground" />
-              تاريخ أمر الشراء
+              {t("create_po.order_date_label")}
             </Label>
             <Input
               type="date"
@@ -317,7 +319,7 @@ export default function ProjectCreatePo() {
           <div className="space-y-2">
             <Label className="font-bold text-sm flex items-center gap-1.5">
               <Calendar className="w-4 h-4 text-muted-foreground" />
-              تاريخ التوريد المتوقع
+              {t("create_po.delivery_date_label")}
             </Label>
             <Input
               type="date"
@@ -330,10 +332,10 @@ export default function ProjectCreatePo() {
           <div className="space-y-2 md:col-span-2">
             <Label className="font-bold text-sm flex items-center gap-1.5">
               <MapPin className="w-4 h-4 text-muted-foreground" />
-              موقع وعنوان التسليم
+              {t("create_po.delivery_address_label")}
             </Label>
             <Input
-              placeholder="موقع المشروع - البوابة الرئيسية أو المستودع المركزي"
+              placeholder={t("create_po.delivery_address_placeholder")}
               value={deliveryAddress}
               onChange={(e) => setDeliveryAddress(e.target.value)}
               className="h-11 rounded-xl"
@@ -346,9 +348,9 @@ export default function ProjectCreatePo() {
           <div className="flex items-center justify-between px-5 py-4 border-b bg-muted/20">
             <Label className="font-bold text-base flex items-center gap-2">
               <DollarSign className="w-4 h-4 text-primary" />
-              بنود وتفاصيل أمر الشراء
+              {t("create_po.items_section_title")}
               <span className="text-xs font-normal px-2.5 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
-                {items.length} {items.length === 1 ? "بند" : "بنود"}
+                {items.length === 1 ? t("create_po.items_count_one") : t("create_po.items_count", { count: items.length })}
               </span>
             </Label>
             <Button
@@ -359,7 +361,7 @@ export default function ProjectCreatePo() {
               className="rounded-xl h-9 text-xs font-bold gap-1.5 border-primary/40 text-primary hover:bg-primary/5 shadow-xs"
             >
               <Plus className="w-4 h-4" />
-              إضافة مادة جديدة
+              {t("create_po.add_material_btn")}
             </Button>
           </div>
 
@@ -369,26 +371,26 @@ export default function ProjectCreatePo() {
                 <tr className="border-b border-border/60 bg-muted/30 text-[11px] font-bold text-muted-foreground tracking-wider uppercase">
                   <th className="py-3 px-3 w-12 text-center">#</th>
                   <th className="py-3 px-3 w-[260px] text-center">
-                    المادة <span className="text-[10px] font-normal">(Material)</span>
+                    {t("create_po.table.material")}
                   </th>
                   <th className="py-3 px-3 min-w-[200px] text-center">
-                    المواصفات / الوصف <span className="text-[10px] font-normal">(Specs / Description)</span>{" "}
+                    {t("create_po.table.specs")}{" "}
                     <span className="text-destructive">*</span>
                   </th>
                   <th className="py-3 px-3 w-24 text-center">
-                    الكمية <span className="text-[10px] font-normal">(Qty)</span>{" "}
+                    {t("create_po.table.qty")}{" "}
                     <span className="text-destructive">*</span>
                   </th>
                   <th className="py-3 px-3 w-24 text-center">
-                    الوحدة <span className="text-[10px] font-normal">(Unit)</span>
+                    {t("create_po.table.unit")}
                   </th>
                   <th className="py-3 px-3 w-32 text-center">
-                    سعر الوحدة <span className="text-[10px] font-normal">(SAR)</span>
+                    {t("create_po.table.unit_price")}
                   </th>
                   <th className="py-3 px-3 w-32 text-center">
-                    الإجمالي <span className="text-[10px] font-normal">(SAR)</span>
+                    {t("create_po.table.total")}
                   </th>
-                  <th className="py-3 px-3 w-12 text-center">حذف</th>
+                  <th className="py-3 px-3 w-12 text-center">{t("create_po.table.delete")}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border/40">
@@ -407,7 +409,7 @@ export default function ProjectCreatePo() {
 
                     <td className="py-2.5 px-3">
                       <Input
-                        placeholder="المواصفات، اللون، المقاس..."
+                        placeholder={t("create_po.table.specs_placeholder")}
                         value={item.itemDescription}
                         onChange={(e) => handleItemChange(index, "itemDescription", e.target.value)}
                         className="h-9 rounded-lg text-xs bg-background"
@@ -456,7 +458,7 @@ export default function ProjectCreatePo() {
                         disabled={items.length <= 1}
                         onClick={() => handleRemoveItem(index)}
                         className="h-8 w-8 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 disabled:opacity-30"
-                        title="حذف هذا البند"
+                        title={t("create_po.table.delete_row_title")}
                       >
                         <Trash2 className="w-4 h-4" />
                       </Button>
@@ -476,10 +478,10 @@ export default function ProjectCreatePo() {
               className="h-8 text-xs font-bold text-primary hover:bg-primary/10 rounded-lg gap-1.5"
             >
               <Plus className="w-3.5 h-3.5" />
-              إضافة صف جديد (Add Row)
+              {t("create_po.add_row_btn")}
             </Button>
             <span className="text-[11px] text-muted-foreground">
-              إجمالي البنود: <strong className="text-foreground">{items.length}</strong>
+              {t("create_po.total_items_label")} <strong className="text-foreground">{items.length}</strong>
             </span>
           </div>
         </div>
@@ -488,7 +490,7 @@ export default function ProjectCreatePo() {
         <div className="bg-slate-50 dark:bg-slate-900/40 p-4 rounded-xl border space-y-3">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
             <div>
-              <Label className="text-xs mb-1 block">قيمة الخصم (SAR)</Label>
+              <Label className="text-xs mb-1 block">{t("create_po.discount_label")}</Label>
               <Input
                 type="number"
                 min="0"
@@ -500,7 +502,7 @@ export default function ProjectCreatePo() {
             </div>
 
             <div>
-              <Label className="text-xs mb-1 block">ضريبة القيمة المضافة (%)</Label>
+              <Label className="text-xs mb-1 block">{t("create_po.tax_label")}</Label>
               <Input
                 type="number"
                 min="0"
@@ -513,21 +515,21 @@ export default function ProjectCreatePo() {
 
             <div className="flex flex-col justify-end space-y-1 text-left rtl:text-right">
               <div className="flex justify-between text-muted-foreground">
-                <span>المجموع الفرعي:</span>
+                <span>{t("create_po.subtotal")}</span>
                 <span className="font-semibold">{subtotal.toFixed(2)} SAR</span>
               </div>
               {discount > 0 && (
                 <div className="flex justify-between text-amber-600">
-                  <span>الخصم:</span>
+                  <span>{t("create_po.discount")}</span>
                   <span className="font-semibold">-{discount.toFixed(2)} SAR</span>
                 </div>
               )}
               <div className="flex justify-between text-muted-foreground">
-                <span>الضريبة ({taxRate}%):</span>
+                <span>{t("create_po.tax", { rate: taxRate })}</span>
                 <span className="font-semibold">+{tax.toFixed(2)} SAR</span>
               </div>
               <div className="flex justify-between font-bold text-base text-primary border-t pt-1">
-                <span>الإجمالي الكلي:</span>
+                <span>{t("create_po.grand_total")}</span>
                 <span>{grandTotal.toFixed(2)} SAR</span>
               </div>
             </div>

@@ -1,0 +1,125 @@
+{
+  "sound": {
+    "mute": "Mute notification sound",
+    "unmute": "Unmute notification sound"
+  },
+  "summary": {
+    "title": "Summary of What Awaits You",
+    "description": "Key items requiring your attention and updates since your last visit.",
+    "required_from_you": "Action Required",
+    "unread_count": "Unread Notifications ({{count}})",
+    "do_not_show": "Do not show this summary on login",
+    "mark_all_read": "Mark all as read",
+    "close": "Close",
+    "inbox": {
+      "orders_approve": "Payment orders awaiting your approval",
+      "requests_approve": "Transfer requests awaiting your approval",
+      "certs_approve": "Subcontractor certificates awaiting your approval",
+      "chargebacks_approve": "Invoice chargebacks awaiting your approval",
+      "waivers_approve": "Waiver requests awaiting your approval",
+      "requests_accept": "Approved transfer requests awaiting your acceptance",
+      "bills_receive": "Original invoices awaiting receipt confirmation",
+      "orders_pay": "Approved payment orders awaiting disbursement",
+      "certs_order": "Approved certificates awaiting payment order",
+      "returned_orders": "Payment orders returned to you for correction",
+      "returned_certs": "Certificates returned to you for correction",
+      "returned_bills": "Original invoices returned to you for correction"
+    },
+    "groups": {
+      "bills": "Original Invoices",
+      "orders": "Payment Orders",
+      "subcontractors": "Subcontractor Certificates",
+      "fines": "Deductions",
+      "payments": "Payments",
+      "permits": "Permits & Transactions",
+      "messages": "Messages & Mentions",
+      "other": "Other Alerts"
+    }
+  },
+  "permits": {
+    "assigned_transaction": "A transaction was assigned to you",
+    "assigned_step": "A transaction step was assigned to you",
+    "fees_paid": "Transaction fees paid",
+    "expired": "Permit expired",
+    "expires_today": "expires today",
+    "expires_in_days": "expires in {{count}} days",
+    "licence_expiring": "Permit {{when}}",
+    "step_overdue": "Overdue step in transaction",
+    "step_completed": "Step completed in transaction",
+    "step_turn": "Your turn in transaction",
+    "fee_step_title": "Fee Payment",
+    "renewal_prefix": "Renewal: {{title}}",
+    "copy_suffix": " (Copy)"
+  },
+  "invitation": {
+    "title": "Project Participation Invitation",
+    "message": "{{invitingOrganizationName}} invited you to participate in project {{projectName}} as {{roleLabel}}",
+    "accepted_title": "Project Invitation Accepted",
+    "declined_title": "Project Invitation Declined",
+    "accepted_message": "{{organizationName}} joined project {{projectName}}",
+    "declined_message": "{{organizationName}} declined to participate in project {{projectName}}. The role remains vacant",
+    "ended_title": "Project Participation Terminated",
+    "ended_message": "Your organization is no longer {{roleLabel}} of project {{projectName}}",
+    "withdrawn_title": "Project Invitation Withdrawn",
+    "withdrawn_message": "The invitation to participate in project {{projectName}} was withdrawn"
+  },
+  "requests": {
+    "awaiting_action_title": "Request Awaiting Your Action",
+    "awaiting_action_message": "Request {{requestNumber}} is awaiting your action at step: {{stepLabel}}"
+  },
+  "warehouse": {
+    "low_stock_single": "Low Stock",
+    "low_stock_multiple": "Low Stock in {{count}} items",
+    "min_stock_label": "Min level",
+    "low_stock_message": "Balance fell below minimum level — {{summary}}"
+  },
+  "payments": {
+    "bills_review": "Original invoices received for review",
+    "bills_received": "Accounting received original invoices",
+    "bills_returned": "Invoice documents request returned for correction",
+    "originals_required": "Original invoice required after disbursement",
+    "request_pm_approved": "Transfer request approved by project manager",
+    "request_approved_for_creator": "Project manager approved your request",
+    "request_rejected": "Transfer request rejected",
+    "order_awaiting_approval": "Payment order awaiting approval",
+    "order_approved": "Payment order approved",
+    "order_paid": "Payment disbursed",
+    "order_paid_erp": "Payment disbursed (from ERP)",
+    "order_rejected": "Payment order rejected",
+    "bill_request_desc": "Original invoice and supporting documents for payment order {{orderNo}}{{reason}}",
+    "sub_cert_awaiting_approval": "Subcontractor certificate awaiting approval",
+    "cert_approved": "Certificate approved",
+    "cert_rejected": "Certificate rejected",
+    "cb_approved": "Subcontractor chargeback approved",
+    "cb_rejected": "Subcontractor chargeback rejected",
+    "fine_waiver_requested": "Deduction waiver request awaiting your approval",
+    "fine_waiver_approved": "Waiver request approved",
+    "fine_waiver_rejected": "Waiver request rejected",
+    "cb_fine_title": "Chargeback invoice {{invoiceNo}} on {{subcontractorName}}"
+  },
+  "email": {
+    "invitation": {
+      "subject": "Invitation to participate in project {{projectName}} - Project Management System",
+      "title": "Invitation to participate in project",
+      "greeting": "Hello,",
+      "body": "{{inviterName}} invited you to participate in project {{projectName}} as {{roleLabel}}.",
+      "instructions": "Register your organization details via the link below, then you will find the invitation awaiting your response upon first login:",
+      "cta": "Register Organization",
+      "copy_link": "Or copy the following link:",
+      "privacy_note": "Your organization details are entered by you and remain under your sole management, and you may accept or decline the project.",
+      "expiry_note": "This link is valid for 7 days and can be used only once."
+    },
+    "password_reset": {
+      "subject": "Password Reset - Project Management System",
+      "title": "Password Reset",
+      "greeting": "Hello {{userName}},",
+      "body": "We received a request to reset the password for your account.",
+      "cta_instruction": "Click the button below to reset your password:",
+      "cta": "Reset Password",
+      "copy_link": "Or copy the following link:",
+      "expiry_note": "This link is valid for 1 hour only.",
+      "ignore_note": "If you did not request a password reset, you can ignore this email.",
+      "default_user": "User"
+    }
+  }
+}

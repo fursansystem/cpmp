@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { useParams, useLocation } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -73,6 +74,7 @@ function MaterialCombobox({
   onSelectMaterial: (mat: Material) => void;
   onAddCustomMaterial: (name: string) => void;
 }) {
+  const { t } = useTranslation(["procurement", "common"]);
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
 
@@ -92,12 +94,12 @@ function MaterialCombobox({
           )}
         >
           <span className="truncate flex items-center gap-1.5">
-            {displayName || "اختر أو اكتب مادة..."}
+            {displayName || t("create_rfq.choose_or_type_material")}
             {selectedMat && (selectedMat as any).isApproved && (
               <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 fill-emerald-500/10 shrink-0" />
             )}
           </span>
-          <ChevronsUpDown className="mr-1 h-3.5 w-3.5 shrink-0 opacity-40" />
+          <ChevronsUpDown className="me-1 h-3.5 w-3.5 shrink-0 opacity-40" />
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-[320px] sm:w-[380px] p-0 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden" align="start">
@@ -115,14 +117,14 @@ function MaterialCombobox({
                   type="button"
                   variant="ghost"
                   size="sm"
-                  className="w-full justify-start text-xs font-bold text-primary py-2.5 px-3 h-auto hover:bg-primary/10 rounded-xl text-left"
+                  className="w-full justify-start text-xs font-bold text-primary py-2.5 px-3 h-auto hover:bg-primary/10 rounded-xl text-start"
                   onClick={() => {
                     onAddCustomMaterial(search.trim());
                     setOpen(false);
                     setSearch("");
                   }}
                 >
-                  <Plus className="w-4 h-4 mr-2 shrink-0" />
+                  <Plus className="w-4 h-4 me-2 shrink-0" />
                   Add "{search.trim()}" as New Material
                 </Button>
               ) : (
@@ -140,7 +142,7 @@ function MaterialCombobox({
                   }}
                   className="text-xs py-2.5 px-3 font-bold text-primary cursor-pointer hover:bg-primary/5 flex items-center rounded-lg"
                 >
-                  <Plus className="w-4 h-4 mr-2 shrink-0" />
+                  <Plus className="w-4 h-4 me-2 shrink-0" />
                   Add "{search.trim()}" as New Material
                 </CommandItem>
               )}
@@ -168,7 +170,7 @@ function MaterialCombobox({
                   </div>
                   <Check
                     className={cn(
-                      "h-3.5 w-3.5 text-primary shrink-0 ml-2",
+                      "h-3.5 w-3.5 text-primary shrink-0 ms-2",
                       m.id === selectedMaterialId ? "opacity-100" : "opacity-0"
                     )}
                   />
@@ -183,6 +185,7 @@ function MaterialCombobox({
 }
 
 export default function ProjectCreateRfq() {
+  const { t } = useTranslation(["procurement", "common"]);
   const params = useParams<{ projectId: string }>();
   const projectId = params?.projectId || "";
   const [, setLocation] = useLocation();
@@ -330,12 +333,12 @@ export default function ProjectCreateRfq() {
 
   const createRfqMutation = useMutation({
     mutationFn: async () => {
-      if (!title.trim()) throw new Error("عنوان طلب عرض السعر مطلوب");
+      if (!title.trim()) throw new Error(t("create_rfq.errors.title_required"));
       const validItems = items.filter(
         (i) => (i.materialName?.trim() || i.itemDescription.trim()) && Number(i.quantity) > 0
       );
       if (validItems.length === 0) {
-        throw new Error("يرجى إضافة بند واحد على الأقل مع تحديد الكمية واسم المادة");
+        throw new Error(t("create_rfq.errors.items_required"));
       }
 
       const payload = {
@@ -361,15 +364,15 @@ export default function ProjectCreateRfq() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "rfqs"] });
       toast({
-        title: "تم الإنشاء بنجاح",
-        description: "تم إنشاء طلب عرض السعر ودعوة الموردين بنجاح",
+        title: t("create_rfq.toasts.success_title"),
+        description: t("create_rfq.toasts.success_desc"),
       });
       setLocation(`/projects/${projectId}/purchase-orders?tab=rfqs`);
     },
     onError: (err: any) => {
       toast({
-        title: "خطأ",
-        description: err.message || "فشل إنشاء طلب عرض السعر",
+        title: t("create_rfq.toasts.error_title"),
+        description: err.message || t("create_rfq.errors.generic_failed"),
         variant: "destructive",
       });
     },
@@ -387,13 +390,13 @@ export default function ProjectCreateRfq() {
               onClick={() => setLocation(`/projects/${projectId}/purchase-orders?tab=rfqs`)}
               className="rounded-xl h-9 gap-1.5 font-bold hover:bg-muted"
             >
-              <ArrowRight className="w-4 h-4" />
-              العودة
+              <ArrowRight className="w-4 h-4 rtl:rotate-180" />
+              {t("create_rfq.back")}
             </Button>
             <div>
               <h1 className="text-lg sm:text-xl font-bold text-foreground flex items-center gap-2">
                 <FileText className="w-5 h-5 text-primary" />
-                إنشاء طلب عرض سعر جديد (New RFQ)
+                {t("create_rfq.page_title")}
               </h1>
               {project && (
                 <p className="text-xs text-muted-foreground flex items-center gap-1.5">
@@ -411,7 +414,7 @@ export default function ProjectCreateRfq() {
               onClick={() => setLocation(`/projects/${projectId}/purchase-orders`)}
               className="rounded-xl h-10 px-4 font-bold"
             >
-              إلغاء
+              {t("create_rfq.cancel")}
             </Button>
             <Button
               type="button"
@@ -420,7 +423,7 @@ export default function ProjectCreateRfq() {
               className="rounded-xl h-10 px-5 font-bold gap-2 bg-primary hover:bg-primary/90 text-primary-foreground shadow-md shadow-primary/20"
             >
               <Save className="w-4 h-4" />
-              {createRfqMutation.isPending ? "جاري الحفظ..." : "حفظ وإنشاء الطلب"}
+              {createRfqMutation.isPending ? t("create_rfq.saving") : t("create_rfq.save_btn")}
             </Button>
           </div>
         </div>
@@ -435,17 +438,17 @@ export default function ProjectCreateRfq() {
             <CardHeader className="h-16 px-5 border-b bg-muted/20 flex flex-row items-center justify-between">
               <CardTitle className="text-sm sm:text-base font-bold flex items-center gap-2 text-foreground">
                 <FileText className="w-4 h-4 text-primary" />
-                1. المعلومات الأساسية للطلب (General Information)
+                {t("create_rfq.section1_title")}
               </CardTitle>
             </CardHeader>
             <CardContent className="p-5 flex-1 flex flex-col justify-between space-y-4">
               <div className="flex flex-col sm:flex-row gap-4 items-start">
                 <div className="space-y-1.5 flex-1 w-full">
                   <Label className="font-semibold text-xs text-foreground/90 flex items-center gap-1">
-                    عنوان طلب عرض السعر / الموضوع <span className="text-destructive font-bold">*</span>
+                    {t("create_rfq.title_label")} <span className="text-destructive font-bold">*</span>
                   </Label>
                   <Input
-                    placeholder="مثال: توريد حديد تسليح للمبنى الرئيسي - المرحلة 2"
+                    placeholder={t("create_rfq.title_placeholder")}
                     value={title}
                     onChange={(e) => setTitle(e.target.value)}
                     className="h-10 rounded-xl text-xs sm:text-sm border-input bg-background w-full"
@@ -455,7 +458,7 @@ export default function ProjectCreateRfq() {
                 <div className="space-y-1.5 w-full sm:w-[138px] shrink-0">
                   <Label className="font-semibold text-xs text-foreground/90 flex items-center gap-1.5">
                     <Calendar className="w-3.5 h-3.5 text-primary/70" />
-                    الموعد النهائي
+                    {t("create_rfq.deadline_label")}
                   </Label>
                   <Input
                     type="date"
@@ -468,10 +471,10 @@ export default function ProjectCreateRfq() {
 
               <div className="space-y-1.5 flex-1 flex flex-col">
                 <Label className="font-semibold text-xs text-foreground/90">
-                  ملاحظات وشروط عامة للطلب (General Notes & Terms)
+                  {t("create_rfq.notes_label")}
                 </Label>
                 <Textarea
-                  placeholder="أي اشتراطات خاصة بالتسليم أو الدفع أو فحص العينات أو الضمانات..."
+                  placeholder={t("create_rfq.notes_placeholder")}
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   rows={3}
@@ -487,9 +490,9 @@ export default function ProjectCreateRfq() {
               <div className="space-y-1">
                 <CardTitle className="text-sm sm:text-base font-bold flex items-center gap-2 text-foreground">
                   <Users className="w-4 h-4 text-primary" />
-                  2. الموردين المدعوين (Invited Suppliers)
+                  {t("create_rfq.section2_title")}
                   <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
-                    {selectedSupplierIds.length} {selectedSupplierIds.length === 1 ? "مورد" : "موردين"}
+                    {selectedSupplierIds.length === 1 ? t("create_rfq.suppliers_count_one") : t("create_rfq.suppliers_count", { count: selectedSupplierIds.length })}
                   </span>
                 </CardTitle>
               </div>
@@ -503,7 +506,7 @@ export default function ProjectCreateRfq() {
                   className="rounded-xl h-9 text-xs font-semibold gap-1.5 border-primary/40 text-primary hover:bg-primary/5 shadow-xs px-3"
                 >
                   <UserPlus className="w-3.5 h-3.5" />
-                  اختيار موردين
+                  {t("create_rfq.choose_suppliers_btn")}
                 </Button>
                 <Button
                   type="button"
@@ -513,7 +516,7 @@ export default function ProjectCreateRfq() {
                   className="rounded-xl h-9 text-xs font-semibold gap-1.5 border-dashed hover:bg-muted px-3"
                 >
                   <Plus className="w-3.5 h-3.5" />
-                  مورد جديد
+                  {t("create_rfq.new_supplier_btn")}
                 </Button>
               </div>
             </CardHeader>
@@ -525,9 +528,9 @@ export default function ProjectCreateRfq() {
                     <Users className="w-5 h-5" />
                   </div>
                   <div className="space-y-1">
-                    <p className="text-xs sm:text-sm font-bold text-foreground">لم يتم تحديد أي موردين لهذا الطلب بعد</p>
+                    <p className="text-xs sm:text-sm font-bold text-foreground">{t("create_rfq.no_suppliers_selected")}</p>
                     <p className="text-xs text-muted-foreground">
-                      انقر على "اختيار موردين" لتحديد الموردين المستهدفين ({suppliers.length} متاح بالدليل)
+                      {t("create_rfq.no_suppliers_hint", { count: suppliers.length })}
                     </p>
                   </div>
                   <Button
@@ -538,7 +541,7 @@ export default function ProjectCreateRfq() {
                     className="rounded-xl text-xs font-semibold gap-1.5 border-primary/40 text-primary hover:bg-primary/10 h-8.5 px-4"
                   >
                     <UserPlus className="w-3.5 h-3.5" />
-                    اختيار موردين من الدليل
+                    {t("create_rfq.choose_from_directory")}
                   </Button>
                 </div>
               ) : (
@@ -572,7 +575,7 @@ export default function ProjectCreateRfq() {
                           size="icon"
                           onClick={() => handleRemoveSupplier(supplier.id)}
                           className="h-6 w-6 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-md shrink-0"
-                          title="إلغاء اختيار هذا المورد"
+                          title={t("create_rfq.remove_supplier_title")}
                         >
                           <X className="w-3.5 h-3.5" />
                         </Button>
@@ -589,7 +592,7 @@ export default function ProjectCreateRfq() {
                       className="rounded-lg text-xs font-semibold gap-1 border-dashed h-8 px-2.5"
                     >
                       <Plus className="w-3 h-3" />
-                      تعديل / إضافة موردين
+                      {t("create_rfq.edit_suppliers_btn")}
                     </Button>
                     <Button
                       type="button"
@@ -598,7 +601,7 @@ export default function ProjectCreateRfq() {
                       onClick={() => setSelectedSupplierIds([])}
                       className="text-xs text-muted-foreground hover:text-destructive font-medium h-8 px-2"
                     >
-                      إلغاء التحديد
+                      {t("create_rfq.clear_selection")}
                     </Button>
                   </div>
                 </div>
@@ -613,9 +616,9 @@ export default function ProjectCreateRfq() {
             <div>
               <CardTitle className="text-base font-bold flex items-center gap-2 text-foreground">
                 <Package className="w-4 h-4 text-primary" />
-                3. قائمة المواد والكميات المطلوبة (Required Materials & Quantities)
+                {t("create_rfq.section3_title")}
                 <span className="text-xs font-normal px-2.5 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
-                  {items.length} {items.length === 1 ? "بند" : "بنود"}
+                  {items.length === 1 ? t("create_rfq.items_count_one") : t("create_rfq.items_count", { count: items.length })}
                 </span>
               </CardTitle>
             </div>
@@ -627,32 +630,32 @@ export default function ProjectCreateRfq() {
               className="rounded-xl h-9 text-xs font-bold gap-1.5 border-primary/40 text-primary hover:bg-primary/5 shadow-xs"
             >
               <Plus className="w-4 h-4" />
-              إضافة مادة جديدة
+              {t("create_rfq.add_material_btn")}
             </Button>
           </CardHeader>
 
           <CardContent className="p-0">
             <div className="overflow-x-auto">
-              <table className="w-full text-right border-collapse min-w-[850px]">
+              <table className="w-full text-end border-collapse min-w-[850px]">
                 <thead>
                   <tr className="border-b border-border/60 bg-muted/30 text-[11px] font-bold text-muted-foreground tracking-wider uppercase">
                     <th className="py-3 px-3 w-12 text-center">#</th>
                     <th className="py-3 px-3 w-[260px] text-center">
-                      اسم المادة <span className="text-[10px] text-muted-foreground font-normal">(Material Name)</span> <span className="text-destructive">*</span>
+                      {t("create_rfq.table.material")} <span className="text-destructive">*</span>
                     </th>
                     <th className="py-3 px-3 min-w-[200px] text-center">
-                      المواصفات / الوصف <span className="text-[10px] text-muted-foreground font-normal">(Specs / Description)</span>
+                      {t("create_rfq.table.specs")}
                     </th>
                     <th className="py-3 px-3 w-20 text-center">
-                      الكمية <span className="text-[10px] text-muted-foreground font-normal">(Qty)</span> <span className="text-destructive">*</span>
+                      {t("create_rfq.table.qty")} <span className="text-destructive">*</span>
                     </th>
                     <th className="py-3 px-3 w-20 text-center">
-                      الوحدة <span className="text-[10px] text-muted-foreground font-normal">(Unit)</span>
+                      {t("create_rfq.table.unit")}
                     </th>
                     <th className="py-3 px-3 min-w-[180px] text-center">
-                      ملاحظات خاصة <span className="text-[10px] text-muted-foreground font-normal">(Notes)</span>
+                      {t("create_rfq.table.notes")}
                     </th>
-                    <th className="py-3 px-3 w-12 text-center">حذف</th>
+                    <th className="py-3 px-3 w-12 text-center">{t("create_rfq.table.delete")}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border/40">
@@ -680,7 +683,7 @@ export default function ProjectCreateRfq() {
                       {/* Specification / Description */}
                       <td className="py-2.5 px-3">
                         <Input
-                          placeholder="المواصفات، اللون، المقاس..."
+                          placeholder={t("create_rfq.table.specs_placeholder")}
                           value={item.itemDescription}
                           onChange={(e) => handleItemChange(index, "itemDescription", e.target.value)}
                           className="h-9 rounded-lg text-xs bg-background"
@@ -718,7 +721,7 @@ export default function ProjectCreateRfq() {
                       {/* Item Notes */}
                       <td className="py-2.5 px-3">
                         <Input
-                          placeholder="ملاحظة أو شرط للمورد..."
+                          placeholder={t("create_rfq.table.notes_placeholder")}
                           value={item.notes || ""}
                           onChange={(e) => handleItemChange(index, "notes", e.target.value)}
                           className="h-9 rounded-lg text-xs bg-background"
@@ -737,7 +740,7 @@ export default function ProjectCreateRfq() {
                             "h-8 w-8 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors",
                             items.length <= 1 && "opacity-30 cursor-not-allowed"
                           )}
-                          title="حذف هذا البند"
+                          title={t("create_rfq.table.delete_row_title")}
                         >
                           <Trash2 className="w-4 h-4" />
                         </Button>
@@ -758,10 +761,10 @@ export default function ProjectCreateRfq() {
                 className="h-8 text-xs font-bold text-primary hover:bg-primary/10 rounded-lg gap-1.5"
               >
                 <Plus className="w-3.5 h-3.5" />
-                إضافة صف جديد (Add Row)
+                {t("create_rfq.add_row_btn")}
               </Button>
               <span className="text-[11px] text-muted-foreground">
-                إجمالي البنود: <strong className="text-foreground">{items.length}</strong>
+                {t("create_rfq.total_items_label")} <strong className="text-foreground">{items.length}</strong>
               </span>
             </div>
           </CardContent>
@@ -775,7 +778,7 @@ export default function ProjectCreateRfq() {
             onClick={() => setLocation(`/projects/${projectId}/purchase-orders?tab=rfqs`)}
             className="rounded-xl h-11 px-6 font-bold"
           >
-            إلغاء
+            {t("create_rfq.cancel")}
           </Button>
           <Button
             type="button"
@@ -784,7 +787,7 @@ export default function ProjectCreateRfq() {
             className="rounded-xl h-11 px-8 font-bold gap-2 bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg shadow-primary/20"
           >
             <Save className="w-4 h-4" />
-            {createRfqMutation.isPending ? "جاري الحفظ..." : "حفظ وإنشاء طلب عرض السعر"}
+            {createRfqMutation.isPending ? t("create_rfq.saving") : t("create_rfq.save_btn_long")}
           </Button>
         </div>
       </div>
@@ -795,22 +798,22 @@ export default function ProjectCreateRfq() {
           <DialogHeader className="p-5 pb-3 border-b bg-muted/15">
             <DialogTitle className="text-base font-bold flex items-center gap-2">
               <Users className="w-4 h-4 text-primary" />
-              اختيار الموردين المدعوين لطلب عرض السعر
+              {t("create_rfq.supplier_dialog.title")}
             </DialogTitle>
             <DialogDescription className="text-xs text-muted-foreground">
-              ابحث وحدد الموردين الذين ترغب في إرسال طلب عرض السعر لهم ({selectedSupplierIds.length} محدد حالياً)
+              {t("create_rfq.supplier_dialog.description", { count: selectedSupplierIds.length })}
             </DialogDescription>
           </DialogHeader>
 
           {/* Search & Bulk Select bar */}
           <div className="p-4 border-b space-y-3 bg-background">
             <div className="relative">
-              <Search className="absolute right-3 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Search className="absolute end-3 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="ابحث باسم المورد، الشخص المسؤول، رقم الهاتف، أو التخصص..."
+                placeholder={t("create_rfq.supplier_dialog.search_placeholder")}
                 value={supplierSearchQuery}
                 onChange={(e) => setSupplierSearchQuery(e.target.value)}
-                className="pr-9 h-10 rounded-xl text-xs"
+                className="pe-9 h-10 rounded-xl text-xs"
               />
               {supplierSearchQuery && (
                 <Button
@@ -818,7 +821,7 @@ export default function ProjectCreateRfq() {
                   variant="ghost"
                   size="icon"
                   onClick={() => setSupplierSearchQuery("")}
-                  className="absolute left-2 top-2 h-6 w-6 text-muted-foreground"
+                  className="absolute start-2 top-2 h-6 w-6 text-muted-foreground"
                 >
                   <X className="w-3.5 h-3.5" />
                 </Button>
@@ -827,8 +830,7 @@ export default function ProjectCreateRfq() {
 
             <div className="flex items-center justify-between text-xs">
               <span className="text-muted-foreground">
-                المعروض: <strong className="text-foreground">{filteredSuppliers.length}</strong> من أصل{" "}
-                <strong>{suppliers.length}</strong> مورد
+                {t("create_rfq.supplier_dialog.showing_count", { shown: filteredSuppliers.length, total: suppliers.length })}
               </span>
               <div className="flex items-center gap-2">
                 <Button
@@ -847,8 +849,8 @@ export default function ProjectCreateRfq() {
                   className="h-7 text-xs text-primary font-bold px-2 hover:bg-primary/10"
                 >
                   {filteredSuppliers.length > 0 && filteredSuppliers.every((s) => selectedSupplierIds.includes(s.id))
-                    ? "إلغاء تحديد نتائج البحث"
-                    : "تحديد نتائج البحث"}
+                    ? t("create_rfq.supplier_dialog.unselect_filtered")
+                    : t("create_rfq.supplier_dialog.select_filtered")}
                 </Button>
               </div>
             </div>
@@ -858,7 +860,7 @@ export default function ProjectCreateRfq() {
           <div className="flex-1 overflow-y-auto p-4 max-h-[380px] custom-scrollbar space-y-2">
             {filteredSuppliers.length === 0 ? (
               <div className="text-center py-8 text-muted-foreground text-xs space-y-2">
-                <p>لا يوجد موردين يطابقون بحثك "{supplierSearchQuery}"</p>
+                <p>{t("create_rfq.supplier_dialog.no_matching_suppliers", { query: supplierSearchQuery })}</p>
                 <Button
                   type="button"
                   variant="outline"
@@ -870,7 +872,7 @@ export default function ProjectCreateRfq() {
                   className="rounded-xl text-xs font-bold gap-1.5"
                 >
                   <Plus className="w-3.5 h-3.5" />
-                  إضافة هذا المورد كجديد
+                  {t("create_rfq.supplier_dialog.add_supplier_as_new")}
                 </Button>
               </div>
             ) : (
@@ -919,7 +921,7 @@ export default function ProjectCreateRfq() {
           {/* Footer */}
           <DialogFooter className="p-4 border-t bg-muted/15 flex items-center justify-between sm:justify-between">
             <div className="text-xs font-bold text-foreground">
-              تم تحديد: <span className="text-primary">{selectedSupplierIds.length}</span> مورد
+              {t("create_rfq.supplier_dialog.selected_summary", { count: selectedSupplierIds.length })}
             </div>
             <div className="flex items-center gap-2">
               <Button
@@ -933,7 +935,7 @@ export default function ProjectCreateRfq() {
                 className="rounded-xl text-xs font-bold gap-1"
               >
                 <Plus className="w-3.5 h-3.5" />
-                مورد جديد
+                {t("create_rfq.supplier_dialog.new_supplier")}
               </Button>
               <Button
                 type="button"
@@ -941,7 +943,7 @@ export default function ProjectCreateRfq() {
                 onClick={() => setSupplierSelectDialogOpen(false)}
                 className="rounded-xl text-xs font-bold px-4 bg-primary text-primary-foreground"
               >
-                تأكيد الاختيار ({selectedSupplierIds.length})
+                {t("create_rfq.supplier_dialog.confirm_selection", { count: selectedSupplierIds.length })}
               </Button>
             </div>
           </DialogFooter>

@@ -182,7 +182,7 @@ export default function Organizations() {
           <InviteOrganizationDialog
             trigger={
               <Button variant={canCreateOrg ? "outline" : "default"} data-testid="button-invite-organization">
-                <Mail className="w-4 h-4 mr-2" />
+                <Mail className="w-4 h-4 me-2" />
                 Invite Organization
               </Button>
             }
@@ -199,7 +199,7 @@ export default function Organizations() {
             }}
             data-testid="button-new-organization"
           >
-            <Plus className="w-4 h-4 mr-2" />
+            <Plus className="w-4 h-4 me-2" />
             New Organization
           </Button>
         )}
@@ -207,12 +207,12 @@ export default function Organizations() {
       </div>
 
       <div className="relative max-w-md">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+        <Search className="absolute start-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
         <Input
           placeholder="Search organizations..."
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          className="pl-10"
+          className="ps-10"
           data-testid="input-search"
         />
       </div>

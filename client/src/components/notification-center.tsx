@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Bell, Check, CheckCheck, Trash2, Info, AlertCircle, CheckCircle, AlertTriangle, FileText, UserPlus, RefreshCw, MessageSquare, Volume2, VolumeX, Hourglass } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -15,6 +16,7 @@ import { useAuth } from "@/lib/auth";
 import { isSoundMuted, setSoundMuted } from "@/lib/notification-sound";
 import { Link } from "wouter";
 import type { Notification } from "@shared/schema";
+import { timeAgo } from "@/lib/i18n-format";
 
 const notificationTypeConfig: Record<string, { icon: typeof Bell; className: string }> = {
   info: { icon: Info, className: "text-blue-500" },
@@ -39,26 +41,12 @@ function NotificationIcon({ type, link, title }: { type: string; link?: string |
   // A payments item waiting for you (sent as an assignment) shows the same hourglass as the other items awaiting a decision
   const inPayments = (link ?? "").startsWith("/payments?");
   // Sent back, rejected or cancelled: a warning, even though it was sent as an assignment
-  const sentBack = !isBills && type === "assignment" && inPayments && /مرفوض|رُفض|معاد|أُعيد|أُلغي/.test(title ?? "");
+  const sentBack = !isBills && type === "assignment" && inPayments && /مرفوض|رُفض|معاد|أُعيد|أُلغي|rejected|returned|cancelled/i.test(title ?? "");
   const waiting = !isBills && !sentBack && type === "assignment" && inPayments;
   const Icon = isBills ? FileText : sentBack ? AlertTriangle : waiting ? Hourglass : config.icon;
   return <Icon className={`h-4 w-4 ${sentBack ? "text-yellow-500" : waiting ? "text-amber-600" : config.className}`} />;
 }
 
-function formatTimeAgo(dateString: string): string {
-  const date = new Date(dateString);
-  const now = new Date();
-  const diffMs = now.getTime() - date.getTime();
-  const diffMins = Math.floor(diffMs / 60000);
-  const diffHours = Math.floor(diffMs / 3600000);
-  const diffDays = Math.floor(diffMs / 86400000);
-
-  if (diffMins < 1) return "Just now";
-  if (diffMins < 60) return `${diffMins} mins ago`;
-  if (diffHours < 24) return `${diffHours} hours ago`;
-  if (diffDays < 7) return `${diffDays} days ago`;
-  return date.toLocaleDateString("en-US");
-}
 
 function NotificationItem({
   notification,
@@ -89,7 +77,7 @@ function NotificationItem({
           )}
         </div>
         <p dir="auto" className="text-xs text-muted-foreground line-clamp-2 mt-0.5">{notification.message}</p>
-        <p className="text-xs text-muted-foreground mt-1">{formatTimeAgo(notification.createdAt)}</p>
+        <p className="text-xs text-muted-foreground mt-1">{timeAgo(notification.createdAt)}</p>
       </div>
       <div className="flex gap-1 shrink-0">
         {!notification.isRead && (
@@ -191,6 +179,7 @@ function NotificationList({
 }
 
 export function NotificationCenter() {
+  const { t } = useTranslation();
   const { user } = useAuth();
   const [muted, setMuted] = useState(() => (user?.id ? isSoundMuted(user.id) : false));
   const [activeTab, setActiveTab] = useState<"notifications" | "messages">("notifications");
@@ -235,7 +224,7 @@ export function NotificationCenter() {
           {unreadCount > 0 && (
             <Badge
               variant="destructive"
-              className="absolute -top-1.5 -right-1.5 h-5 min-w-5 px-1 flex items-center justify-center text-xs animate-pulse"
+              className="absolute -top-1.5 -end-1.5 h-5 min-w-5 px-1 flex items-center justify-center text-xs animate-pulse"
             >
               {unreadCount > 99 ? "99+" : unreadCount}
             </Badge>
@@ -249,7 +238,7 @@ export function NotificationCenter() {
               <TabsTrigger value="notifications" className="text-xs px-3 relative" data-testid="tab-notifications">
                 Notifications
                 {unreadGeneralCount > 0 && (
-                  <Badge variant="secondary" className="h-4 w-4 p-0 text-[10px] ml-1 flex items-center justify-center">
+                  <Badge variant="secondary" className="h-4 w-4 p-0 text-[10px] ms-1 flex items-center justify-center">
                     {unreadGeneralCount > 9 ? "9+" : unreadGeneralCount}
                   </Badge>
                 )}
@@ -257,7 +246,7 @@ export function NotificationCenter() {
               <TabsTrigger value="messages" className="text-xs px-3 relative" data-testid="tab-messages">
                 Messages
                 {unreadMessagesCount > 0 && (
-                  <Badge variant="secondary" className="h-4 w-4 p-0 text-[10px] ml-1 flex items-center justify-center">
+                  <Badge variant="secondary" className="h-4 w-4 p-0 text-[10px] ms-1 flex items-center justify-center">
                     {unreadMessagesCount > 9 ? "9+" : unreadMessagesCount}
                   </Badge>
                 )}
@@ -267,7 +256,7 @@ export function NotificationCenter() {
               variant="ghost"
               size="icon"
               className="h-7 w-7"
-              title={muted ? "تشغيل صوت التنبيهات" : "كتم صوت التنبيهات"}
+              title={muted ? t("notifications:sound.unmute") : t("notifications:sound.mute")}
               onClick={() => { const next = !muted; setMuted(next); if (user?.id) setSoundMuted(user.id, next); }}
               data-testid="button-toggle-notification-sound"
             >
@@ -282,7 +271,7 @@ export function NotificationCenter() {
                 disabled={isMarkingAllAsRead}
                 data-testid="button-mark-all-read"
               >
-                <CheckCheck className="h-3 w-3 mr-1" />
+                <CheckCheck className="h-3 w-3 me-1" />
                 Mark all
               </Button>
             )}
@@ -329,7 +318,7 @@ export function NotificationCenter() {
                 onClick={() => deleteAllNotifications()}
                 data-testid="button-delete-all-notifications"
               >
-                <Trash2 className="h-3 w-3 mr-1" />
+                <Trash2 className="h-3 w-3 me-1" />
                 Clear all
               </Button>
             </div>

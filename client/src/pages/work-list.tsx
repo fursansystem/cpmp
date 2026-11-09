@@ -554,7 +554,7 @@ export default function WorkListPage() {
                 <p className="text-muted-foreground text-sm">Manage request types for work requests and approvals</p>
               </div>
               <Button onClick={() => { setEditingRequestType(null); requestTypeForm.reset({ id_number: undefined, code: "", name_english: "", name_arabic: "", description: "", is_active: true, sort_order: 0 }); setIsRequestTypeDialogOpen(true); }} data-testid="button-add-request-type">
-                <Plus className="h-4 w-4 mr-2" />
+                <Plus className="h-4 w-4 me-2" />
                 Add Type
               </Button>
             </div>
@@ -650,7 +650,7 @@ export default function WorkListPage() {
                     <TableHead className="w-48">Division</TableHead>
                     <TableHead className="w-48">Chapter</TableHead>
                     <TableHead>Activity</TableHead>
-                    <TableHead className="w-24 text-right">Actions</TableHead>
+                    <TableHead className="w-24 text-end">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -675,7 +675,7 @@ export default function WorkListPage() {
                                 expandedNodes.has(node.id) ? (
                                   <ChevronDown className="h-4 w-4" />
                                 ) : (
-                                  <ChevronRight className="h-4 w-4" />
+                                  <ChevronRight className="h-4 w-4 rtl:rotate-180" />
                                 )
                               ) : (
                                 <span className="w-4" />
@@ -688,7 +688,7 @@ export default function WorkListPage() {
                       </TableCell>
                       <TableCell>
                         {node.type === "chapter" && (
-                          <div className="flex items-center gap-2 pl-4">
+                          <div className="flex items-center gap-2 ps-4">
                             <Button
                               variant="ghost"
                               size="icon"
@@ -700,7 +700,7 @@ export default function WorkListPage() {
                                 expandedNodes.has(node.id) ? (
                                   <ChevronDown className="h-4 w-4" />
                                 ) : (
-                                  <ChevronRight className="h-4 w-4" />
+                                  <ChevronRight className="h-4 w-4 rtl:rotate-180" />
                                 )
                               ) : (
                                 <span className="w-4" />
@@ -713,7 +713,7 @@ export default function WorkListPage() {
                       </TableCell>
                       <TableCell>
                         {node.type === "activity" && (
-                          <div className="flex items-center gap-2 pl-8">
+                          <div className="flex items-center gap-2 ps-8">
                             <span className="font-mono text-sm">{node.code}</span>
                             <span>{node.nameEnglish}</span>
                           </div>
@@ -975,7 +975,7 @@ export default function WorkListPage() {
                   Cancel
                 </Button>
                 <Button type="submit" disabled={createRequestTypeMutation.isPending || updateRequestTypeMutation.isPending} data-testid="button-submit-request-type">
-                  {(createRequestTypeMutation.isPending || updateRequestTypeMutation.isPending) && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                  {(createRequestTypeMutation.isPending || updateRequestTypeMutation.isPending) && <Loader2 className="h-4 w-4 me-2 animate-spin" />}
                   {editingRequestType ? "Update" : "Create"}
                 </Button>
               </DialogFooter>
@@ -998,7 +998,7 @@ export default function WorkListPage() {
               onClick={() => deleteRequestTypeId && deleteRequestTypeMutation.mutate(deleteRequestTypeId)}
               data-testid="button-confirm-delete-request-type"
             >
-              {deleteRequestTypeMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              {deleteRequestTypeMutation.isPending && <Loader2 className="h-4 w-4 me-2 animate-spin" />}
               Delete
             </AlertDialogAction>
           </AlertDialogFooter>
@@ -1080,7 +1080,7 @@ export default function WorkListPage() {
                   Cancel
                 </Button>
                 <Button type="submit" disabled={isChapterPending} data-testid="button-submit-chapter">
-                  {isChapterPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                  {isChapterPending && <Loader2 className="h-4 w-4 me-2 animate-spin" />}
                   {editingChapter ? "Update" : "Create"}
                 </Button>
               </DialogFooter>
@@ -1164,7 +1164,7 @@ export default function WorkListPage() {
                   Cancel
                 </Button>
                 <Button type="submit" disabled={isActivityPending} data-testid="button-submit-activity">
-                  {isActivityPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                  {isActivityPending && <Loader2 className="h-4 w-4 me-2 animate-spin" />}
                   {editingActivity ? "Update" : "Create"}
                 </Button>
               </DialogFooter>
@@ -1187,7 +1187,7 @@ export default function WorkListPage() {
               onClick={() => deleteChapterId && deleteChapterMutation.mutate(deleteChapterId)}
               data-testid="button-confirm-delete-chapter"
             >
-              {deleteChapterMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              {deleteChapterMutation.isPending && <Loader2 className="h-4 w-4 me-2 animate-spin" />}
               Delete
             </AlertDialogAction>
           </AlertDialogFooter>
@@ -1208,7 +1208,7 @@ export default function WorkListPage() {
               onClick={() => deleteActivityId && deleteActivityMutation.mutate(deleteActivityId)}
               data-testid="button-confirm-delete-activity"
             >
-              {deleteActivityMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              {deleteActivityMutation.isPending && <Loader2 className="h-4 w-4 me-2 animate-spin" />}
               Delete
             </AlertDialogAction>
           </AlertDialogFooter>

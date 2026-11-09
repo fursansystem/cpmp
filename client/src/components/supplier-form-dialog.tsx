@@ -223,7 +223,7 @@ export function SupplierFormDialog({
       <DialogContent className="max-w-2xl p-0 overflow-hidden border-none shadow-2xl rounded-[2.5rem] bg-[#f8f9fa] dark:bg-background h-[90vh] flex flex-col">
         {/* Modern Header with Gradient */}
         <div className="relative bg-gradient-to-r from-primary to-primary/80 p-8 text-primary-foreground shrink-0 overflow-hidden">
-          <div className="absolute top-0 right-0 p-16 bg-white/10 blur-3xl rounded-full -mr-16 -mt-16 animate-pulse" />
+          <div className="absolute top-0 right-0 p-16 bg-white/10 blur-3xl rounded-full -me-16 -mt-16 animate-pulse" />
           <div className="relative flex items-center gap-6">
             <div className="w-16 h-16 rounded-2xl bg-white/20 backdrop-blur-xl flex items-center justify-center border border-white/30 shadow-2xl transition-transform duration-500 hover:scale-105">
                <Users className="w-8 h-8 text-white" />
@@ -277,7 +277,7 @@ export function SupplierFormDialog({
                       </div>
                     )}
                   </div>
-                  <div className="absolute -bottom-2 -right-2">
+                  <div className="absolute -bottom-2 -end-2">
                     <div 
                       className="bg-primary text-primary-foreground p-3 rounded-2xl shadow-xl border-4 border-[#f8f9fa] dark:border-background transition-all duration-300 hover:scale-110 active:scale-95 cursor-pointer shadow-primary/20" 
                       onClick={() => {
@@ -325,14 +325,14 @@ export function SupplierFormDialog({
                     name="supplierName"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-2">Company Name</FormLabel>
+                        <FormLabel className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ms-2">Company Name</FormLabel>
                         <FormControl>
                           <div className="relative group/input">
-                            <Users className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground/40 transition-colors group-focus-within/input:text-primary" />
+                            <Users className="absolute start-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground/40 transition-colors group-focus-within/input:text-primary" />
                             <Input 
                               placeholder="Legal Entity Name (e.g. Alyusr Elevator Solutions)" 
                               {...field} 
-                              className="pl-12 h-12 bg-white border-none shadow-sm rounded-2xl focus-visible:ring-primary/20 transition-all focus:shadow-xl focus:-translate-y-0.5 text-sm font-bold"
+                              className="ps-12 h-12 bg-white border-none shadow-sm rounded-2xl focus-visible:ring-primary/20 transition-all focus:shadow-xl focus:-translate-y-0.5 text-sm font-bold"
                             />
                           </div>
                         </FormControl>
@@ -346,10 +346,10 @@ export function SupplierFormDialog({
                       name="experienceYears"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-2">Experience Years</FormLabel>
+                          <FormLabel className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ms-2">Experience Years</FormLabel>
                           <FormControl>
                             <div className="relative group/input">
-                              <Briefcase className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground/40 transition-colors group-focus-within/input:text-primary" />
+                              <Briefcase className="absolute start-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground/40 transition-colors group-focus-within/input:text-primary" />
                               <Input 
                                 type="number"
                                 min="0"
@@ -357,7 +357,7 @@ export function SupplierFormDialog({
                                 {...field}
                                 value={field.value ?? ""}
                                 onChange={e => field.onChange(e.target.value === "" ? null : Number(e.target.value))}
-                                className="pl-12 h-12 bg-white border-none shadow-sm rounded-2xl focus-visible:ring-primary/20 transition-all focus:shadow-xl focus:-translate-y-0.5 text-sm font-bold"
+                                className="ps-12 h-12 bg-white border-none shadow-sm rounded-2xl focus-visible:ring-primary/20 transition-all focus:shadow-xl focus:-translate-y-0.5 text-sm font-bold"
                               />
                             </div>
                           </FormControl>
@@ -370,15 +370,15 @@ export function SupplierFormDialog({
                       name="category"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-2">Category (الفئة)</FormLabel>
+                          <FormLabel className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ms-2">Category (الفئة)</FormLabel>
                           <FormControl>
                             <div className="relative group/input">
-                              <Briefcase className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground/40 transition-colors group-focus-within/input:text-primary" />
+                              <Briefcase className="absolute start-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground/40 transition-colors group-focus-within/input:text-primary" />
                               <Input 
                                 placeholder="e.g. Civil, Mechanical..." 
                                 {...field}
                                 value={field.value ?? ""}
-                                className="pl-12 h-12 bg-white border-none shadow-sm rounded-2xl focus-visible:ring-primary/20 transition-all focus:shadow-xl focus:-translate-y-0.5 text-sm font-bold"
+                                className="ps-12 h-12 bg-white border-none shadow-sm rounded-2xl focus-visible:ring-primary/20 transition-all focus:shadow-xl focus:-translate-y-0.5 text-sm font-bold"
                               />
                             </div>
                           </FormControl>
@@ -405,7 +405,7 @@ export function SupplierFormDialog({
                     name="contactPerson"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-2">Contact Person</FormLabel>
+                        <FormLabel className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ms-2">Contact Person</FormLabel>
                         <FormControl>
                           <Input placeholder="Full Name" {...field} value={field.value ?? ""} className="h-12 bg-white border-none shadow-sm rounded-2xl focus-visible:ring-primary/20 text-sm font-bold" />
                         </FormControl>
@@ -418,7 +418,7 @@ export function SupplierFormDialog({
                     name="phone"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-2">Phone Number</FormLabel>
+                        <FormLabel className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ms-2">Phone Number</FormLabel>
                         <FormControl>
                           <Input placeholder="+966 5..." {...field} value={field.value ?? ""} className="h-12 bg-white border-none shadow-sm rounded-2xl focus-visible:ring-primary/20 text-sm font-bold" />
                         </FormControl>
@@ -432,7 +432,7 @@ export function SupplierFormDialog({
                       name="email"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-2">Official Email Address</FormLabel>
+                          <FormLabel className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ms-2">Official Email Address</FormLabel>
                           <FormControl>
                             <Input placeholder="procurement@company.sa" {...field} value={field.value ?? ""} className="h-12 bg-white border-none shadow-sm rounded-2xl focus-visible:ring-primary/20 text-sm font-bold" />
                           </FormControl>
@@ -447,7 +447,7 @@ export function SupplierFormDialog({
                       name="address"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-2">Headquarters Address</FormLabel>
+                          <FormLabel className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ms-2">Headquarters Address</FormLabel>
                           <FormControl>
                             <Input placeholder="Street, District, City..." {...field} value={field.value ?? ""} className="h-12 bg-white border-none shadow-sm rounded-2xl focus-visible:ring-primary/20 text-sm font-bold" />
                           </FormControl>
@@ -473,7 +473,7 @@ export function SupplierFormDialog({
                   name="taxNumber"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-2">Tax Number (VAT)</FormLabel>
+                      <FormLabel className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ms-2">Tax Number (VAT)</FormLabel>
                       <FormControl>
                         <Input placeholder="300... (15 digits)" {...field} value={field.value ?? ""} maxLength={15} className="h-12 bg-white border-none shadow-sm rounded-2xl focus-visible:ring-primary/20 font-mono tracking-[0.3em] text-sm font-black" />
                       </FormControl>
@@ -485,7 +485,7 @@ export function SupplierFormDialog({
                 {/* Attachments Section */}
                 <div className="mt-8">
                   <div className="flex items-center justify-between mb-5">
-                    <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-2">Attachments & Certificates</Label>
+                    <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ms-2">Attachments & Certificates</Label>
                     <Button 
                       type="button" 
                       variant="outline" 
@@ -496,7 +496,7 @@ export function SupplierFormDialog({
                         }}
                         className="rounded-2xl h-9 px-5 text-[10px] font-black uppercase tracking-widest border-primary/30 text-primary hover:bg-primary hover:text-primary-foreground transition-all shadow-sm"
                       >
-                        <Plus className="w-4 h-4 mr-2" /> Add Document
+                        <Plus className="w-4 h-4 me-2" /> Add Document
                       </Button>
                     </div>
 
@@ -542,7 +542,7 @@ export function SupplierFormDialog({
                                 </div>
                               </div>
                             </div>
-                            <div className="flex items-center gap-2 ml-6">
+                            <div className="flex items-center gap-2 ms-6">
                               <Button
                                 type="button"
                                 variant="ghost"

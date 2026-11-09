@@ -38,7 +38,7 @@ export function DeliveryOverviewDialog({
         {/* Manual Close Button - Premium Style */}
         <button
           onClick={() => onOpenChange(false)}
-          className="absolute top-5 right-5 z-[100] w-10 h-10 flex items-center justify-center rounded-full bg-muted/50 hover:bg-muted transition-all duration-300 text-muted-foreground hover:text-foreground group active:scale-90"
+          className="absolute top-5 end-5 z-[100] w-10 h-10 flex items-center justify-center rounded-full bg-muted/50 hover:bg-muted transition-all duration-300 text-muted-foreground hover:text-foreground group active:scale-90"
         >
           <X className="w-5 h-5 group-hover:rotate-90 transition-transform duration-300" />
         </button>
@@ -52,7 +52,7 @@ export function DeliveryOverviewDialog({
             <div className="w-16 h-16 bg-primary rounded-2xl flex items-center justify-center text-primary-foreground shadow-xl shadow-primary/30 rotate-3 group-hover:rotate-0 transition-transform duration-500">
               <Truck className="w-8 h-8" />
             </div>
-            <div className="flex-grow text-left">
+            <div className="flex-grow text-start">
               <div className="flex items-center gap-2 mb-1">
                 <div className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
                 <span className="text-[10px] font-black uppercase tracking-[0.2em] text-primary">Delivery Overview</span>
@@ -88,7 +88,7 @@ export function DeliveryOverviewDialog({
             </div>
           </div>
 
-          <div className="flex items-center gap-2 mb-4 ml-1">
+          <div className="flex items-center gap-2 mb-4 ms-1">
             <div className="w-2 h-2 rounded-full bg-primary/40" />
             <h3 className="text-[11px] font-black uppercase tracking-[0.25em] text-foreground/70">
               Composition List
@@ -101,7 +101,7 @@ export function DeliveryOverviewDialog({
               <Table>
                 <TableHeader className="bg-muted/50 sticky top-0 z-20 backdrop-blur-md">
                   <TableRow className="border-none hover:bg-transparent">
-                    <TableHead className="py-4 pl-6 font-black uppercase text-[10px] tracking-[0.15em] text-muted-foreground">
+                    <TableHead className="py-4 ps-6 font-black uppercase text-[10px] tracking-[0.15em] text-muted-foreground">
                       Material
                     </TableHead>
                     <TableHead className="py-4 w-[120px] font-black uppercase text-[10px] tracking-[0.15em] text-center text-muted-foreground">
@@ -118,7 +118,7 @@ export function DeliveryOverviewDialog({
                       key={item.id}
                       className="border-muted/20 hover:bg-primary/5 transition-colors group/row"
                     >
-                      <TableCell className="py-2.5 pl-6">
+                      <TableCell className="py-2.5 ps-6">
                         <div className="flex flex-col">
                           <span className="font-black text-sm text-foreground group-hover/row:text-primary transition-colors uppercase tracking-tight">
                             {item.materialName}
@@ -167,9 +167,9 @@ export function DeliveryOverviewDialog({
                     </span>
                   </div>
                 </div>
-                <div className="flex items-center gap-2 text-primary font-black text-[9px] uppercase tracking-widest mr-1">
+                <div className="flex items-center gap-2 text-primary font-black text-[9px] uppercase tracking-widest me-1">
                   Preview
-                  <ChevronRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
+                  <ChevronRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform rtl:rotate-180" />
                 </div>
               </div>
             </div>

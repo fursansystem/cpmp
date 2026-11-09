@@ -2,7 +2,7 @@
 import ExcelJS from "exceljs";
 // @ts-ignore
 import { saveAs } from "file-saver";
-import { format } from "date-fns";
+import { format } from "@/lib/date-format";
 import { CELL_LOCKED, phaseContributions, round, type MatrixPayloadNode } from "@shared/progress-matrix";
 import type { MatrixModel, CellEntry } from "./use-progress-matrix";
 

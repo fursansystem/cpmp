@@ -1,6 +1,8 @@
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from "react";
 import { useLocation } from "wouter";
 import type { User } from "@shared/schema";
+import { isLanguage } from "@shared/i18n";
+import { useLanguage } from "./language-provider";
 import { queryClient } from "./queryClient";
 
 type SafeUser = Omit<User, "password"> & { organizationId?: string | null; organizationSectorType?: string | null; positions?: string[] };
@@ -19,6 +21,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<SafeUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [, setLocation] = useLocation();
+  const { adoptStoredPreference } = useLanguage();
 
   const fetchUser = useCallback(async () => {
     try {
@@ -28,6 +31,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (res.ok) {
         const data = await res.json();
         setUser(data.user);
+        // their saved language follows them here from any other device
+        if (isLanguage(data.user?.language)) adoptStoredPreference(data.user.language);
       } else {
         setUser(null);
       }

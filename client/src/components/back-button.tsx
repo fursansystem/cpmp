@@ -9,7 +9,7 @@ export function BackButton({ label, to }: { label: string; to?: string }) {
     <Button
       variant="ghost"
       size="sm"
-      className="-ml-2 h-8 w-8 p-0 md:h-auto md:w-auto md:px-3 md:py-2 text-muted-foreground hover:text-foreground shrink-0 shadow-sm"
+      className="-ms-2 h-8 w-8 p-0 md:h-auto md:w-auto md:px-3 md:py-2 text-muted-foreground hover:text-foreground shrink-0 shadow-sm"
       onClick={() => {
         if (to) navigate(to);
         else if (window.history.length > 1) window.history.back();
@@ -17,7 +17,8 @@ export function BackButton({ label, to }: { label: string; to?: string }) {
       }}
       data-testid="button-back"
     >
-      <ArrowLeft className="w-5 h-5 md:mr-2" />
+      {/* "back" points the other way once the page is right-to-left */}
+      <ArrowLeft className="w-5 h-5 md:me-2 rtl:rotate-180" />
       <span className="hidden md:inline font-semibold">{label}</span>
     </Button>
   );

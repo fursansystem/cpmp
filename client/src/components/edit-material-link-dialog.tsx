@@ -117,7 +117,7 @@ export function EditMaterialLinkDialog({
                               placeholder="0.00" 
                               className="rounded-2xl h-12 bg-muted/30 border-none font-bold focus:ring-2 focus:ring-primary/20" 
                            />
-                           <div className="absolute right-4 top-1/2 -translate-y-1/2 font-black text-xs text-muted-foreground uppercase">
+                           <div className="absolute end-4 top-1/2 -translate-y-1/2 font-black text-xs text-muted-foreground uppercase">
                               USD
                            </div>
                         </div>
@@ -163,7 +163,7 @@ export function EditMaterialLinkDialog({
                 disabled={mutation.isPending} 
                 className="rounded-2xl font-black text-[10px] uppercase tracking-widest px-8 shadow-xl shadow-primary/20 h-11"
               >
-                {mutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                {mutation.isPending && <Loader2 className="me-2 h-4 w-4 animate-spin" />}
                 Update Details
               </Button>
             </div>

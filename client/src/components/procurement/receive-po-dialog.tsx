@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Warehouse,
@@ -41,6 +42,7 @@ const num = (v: unknown) =>
 const today = () => new Date().toISOString().split("T")[0];
 
 export function ReceivePoDialog({ open, onOpenChange, projectId, po }: ReceivePoDialogProps) {
+  const { t } = useTranslation("procurement");
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -89,7 +91,7 @@ export function ReceivePoDialog({ open, onOpenChange, projectId, po }: ReceivePo
         headers: { "Content-Type": file.type || "application/octet-stream" },
         body: file,
       });
-      if (!put.ok) throw new Error("فشل رفع الملف");
+      if (!put.ok) throw new Error(t("receive_po.errors.upload_failed"));
 
       const sizeLabel =
         file.size > 1024 * 1024
@@ -110,11 +112,11 @@ export function ReceivePoDialog({ open, onOpenChange, projectId, po }: ReceivePo
       const doc = await docRes.json();
 
       setDeliveryNote({ id: doc.id, name: doc.fileName || doc.name });
-      toast({ title: "تم رفع مذكرة التسليم", description: `حُفظت في مجلد "${folder.name}"` });
+      toast({ title: t("receive_po.toasts.upload_success_title"), description: t("receive_po.toasts.upload_success_desc", { folder: folder.name }) });
     } catch (e: any) {
       toast({
-        title: "تعذّر رفع مذكرة التسليم",
-        description: e?.message || "حدث خطأ",
+        title: t("receive_po.errors.upload_title"),
+        description: e?.message || t("receive_po.errors.generic"),
         variant: "destructive",
       });
     } finally {
@@ -138,8 +140,8 @@ export function ReceivePoDialog({ open, onOpenChange, projectId, po }: ReceivePo
         .map((i) => ({ poItemId: i.id, quantity: (quantities[i.id] || "").trim() }))
         .filter((l) => l.quantity !== "" && Number(l.quantity) > 0);
 
-      if (lines.length === 0) throw new Error("أدخل كمية مستلمة لبند واحد على الأقل");
-      if (!warehouseId) throw new Error("اختر المستودع المستلم");
+      if (lines.length === 0) throw new Error(t("receive_po.errors.enter_at_least_one"));
+      if (!warehouseId) throw new Error(t("receive_po.errors.choose_warehouse"));
 
       const res = await apiRequest("POST", `/api/purchase-orders/${po.id}/receipts`, {
         warehouseId,
@@ -157,16 +159,16 @@ export function ReceivePoDialog({ open, onOpenChange, projectId, po }: ReceivePo
       queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "stock-movements"] });
 
       toast({
-        title: `تم تسجيل الاستلام — ${data.shipmentNumber}`,
+        title: t("receive_po.toasts.received_title", { shipmentNumber: data.shipmentNumber }),
         description:
           data.overReceived?.length > 0
-            ? `تنبيه: كميات تجاوزت المطلوب — ${data.overReceived.join("، ")}`
-            : "تم تحديث المخزون وكميات أمر الشراء.",
+            ? t("receive_po.toasts.over_received_alert", { items: data.overReceived.join(", ") })
+            : t("receive_po.toasts.stock_updated"),
       });
       onOpenChange(false);
     },
     onError: (e: any) =>
-      toast({ title: "تعذّر تسجيل الاستلام", description: e?.message || "حدث خطأ", variant: "destructive" }),
+      toast({ title: t("receive_po.errors.receive_title"), description: e?.message || t("receive_po.errors.generic"), variant: "destructive" }),
   });
 
   const fillRemaining = () => {
@@ -190,11 +192,11 @@ export function ReceivePoDialog({ open, onOpenChange, projectId, po }: ReceivePo
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent dir="rtl" className="max-w-5xl max-h-[92vh] overflow-y-auto rounded-2xl">
-          <DialogHeader className="text-right">
+        <DialogContent className="max-w-5xl max-h-[92vh] overflow-y-auto rounded-2xl">
+          <DialogHeader className="text-end">
             <DialogTitle className="flex items-center gap-2 text-lg font-black">
               <PackageCheck className="w-5 h-5 text-primary" />
-              تسجيل استلام شحنة
+              {t("receive_po.title")}
             </DialogTitle>
             <DialogDescription className="text-xs">
               {po?.poNumber} · {po?.supplierName}
@@ -204,9 +206,9 @@ export function ReceivePoDialog({ open, onOpenChange, projectId, po }: ReceivePo
           {!po?.isReceivable ? (
             <div className="py-10 flex flex-col items-center gap-3 text-center">
               <AlertTriangle className="w-10 h-10 text-amber-500" />
-              <p className="font-black">لا يمكن تسجيل استلام على هذا الأمر</p>
+              <p className="font-black">{t("receive_po.cannot_receive")}</p>
               <p className="text-sm text-muted-foreground">
-                حالة أمر الشراء <span className="font-bold">{po?.status}</span>. يجب اعتماد الأمر أولًا.
+                {t("receive_po.status_requires_approval", { status: po?.status })}
               </p>
             </div>
           ) : (
@@ -216,17 +218,17 @@ export function ReceivePoDialog({ open, onOpenChange, projectId, po }: ReceivePo
                 <div className="space-y-1.5">
                   <Label className="text-xs font-bold flex items-center gap-1.5">
                     <Warehouse className="w-3.5 h-3.5" />
-                    المستودع المستلم <span className="text-destructive">*</span>
+                    {t("receive_po.receiving_warehouse")} <span className="text-destructive">*</span>
                   </Label>
                   <Select value={warehouseId} onValueChange={setWarehouseId}>
                     <SelectTrigger className="h-10 rounded-xl">
-                      <SelectValue placeholder="اختر المستودع" />
+                      <SelectValue placeholder={t("receive_po.choose_warehouse")} />
                     </SelectTrigger>
                     <SelectContent>
                       {warehouses.map((w) => (
                         <SelectItem key={w.id} value={w.id}>
                           {w.name}
-                          {w.isDefault ? " (الافتراضي)" : ""}
+                          {w.isDefault ? t("receive_po.default_suffix") : ""}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -235,7 +237,7 @@ export function ReceivePoDialog({ open, onOpenChange, projectId, po }: ReceivePo
 
                 <div className="space-y-1.5">
                   <Label className="text-xs font-bold">
-                    تاريخ الوصول <span className="text-destructive">*</span>
+                    {t("receive_po.arrival_date")} <span className="text-destructive">*</span>
                   </Label>
                   <Input
                     type="date"
@@ -246,11 +248,11 @@ export function ReceivePoDialog({ open, onOpenChange, projectId, po }: ReceivePo
                 </div>
 
                 <div className="space-y-1.5">
-                  <Label className="text-xs font-bold">رقم فاتورة المورد</Label>
+                  <Label className="text-xs font-bold">{t("receive_po.supplier_invoice_number")}</Label>
                   <Input
                     value={invoiceNumber}
                     onChange={(e) => setInvoiceNumber(e.target.value)}
-                    placeholder="اختياري"
+                    placeholder={t("receive_po.optional")}
                     className="h-10 rounded-xl"
                   />
                 </div>
@@ -260,7 +262,7 @@ export function ReceivePoDialog({ open, onOpenChange, projectId, po }: ReceivePo
               <div className="space-y-1.5">
                 <Label className="text-xs font-bold flex items-center gap-1.5">
                   <Paperclip className="w-3.5 h-3.5" />
-                  مذكرة التسليم من المورد
+                  {t("receive_po.delivery_note")}
                 </Label>
                 {deliveryNote ? (
                   <div className="flex items-center justify-between gap-3 border rounded-xl p-3 bg-muted/30">
@@ -300,17 +302,17 @@ export function ReceivePoDialog({ open, onOpenChange, projectId, po }: ReceivePo
                       {uploading ? (
                         <>
                           <Loader2 className="w-4 h-4 animate-spin" />
-                          جارٍ الرفع...
+                          {t("receive_po.uploading")}
                         </>
                       ) : (
                         <>
                           <Upload className="w-4 h-4" />
-                          رفع مذكرة التسليم من الجهاز
+                          {t("receive_po.upload_from_device")}
                         </>
                       )}
                     </Button>
                     <p className="text-[10px] text-muted-foreground">
-                      تُحفظ تلقائيًا في مجلد «Delivery Note» بمخزن المشروع · PDF أو صورة
+                      {t("receive_po.saved_in_folder_hint")}
                     </p>
                   </>
                 )}
@@ -318,7 +320,7 @@ export function ReceivePoDialog({ open, onOpenChange, projectId, po }: ReceivePo
 
               {/* Lines */}
               <div className="flex items-center justify-between">
-                <Label className="text-xs font-black">البنود — أدخل الكمية الواصلة فعليًا</Label>
+                <Label className="text-xs font-black">{t("receive_po.items_enter_actual")}</Label>
                 <Button
                   type="button"
                   variant="outline"
@@ -326,7 +328,7 @@ export function ReceivePoDialog({ open, onOpenChange, projectId, po }: ReceivePo
                   onClick={fillRemaining}
                   className="rounded-xl font-bold text-[11px] h-8"
                 >
-                  تعبئة كامل المتبقي
+                  {t("receive_po.fill_all_remaining")}
                 </Button>
               </div>
 
@@ -334,12 +336,12 @@ export function ReceivePoDialog({ open, onOpenChange, projectId, po }: ReceivePo
                 <Table>
                   <TableHeader>
                     <TableRow className="bg-muted/30 hover:bg-muted/30">
-                      <TableHead className="text-right text-[11px] font-black">المادة</TableHead>
-                      <TableHead className="text-right text-[11px] font-black">الوحدة</TableHead>
-                      <TableHead className="text-right text-[11px] font-black">المطلوب</TableHead>
-                      <TableHead className="text-right text-[11px] font-black">المستلم سابقًا</TableHead>
-                      <TableHead className="text-right text-[11px] font-black">المتبقي</TableHead>
-                      <TableHead className="text-right text-[11px] font-black w-[140px]">الواصل الآن</TableHead>
+                      <TableHead className="text-end text-[11px] font-black">{t("receive_po.table.item")}</TableHead>
+                      <TableHead className="text-end text-[11px] font-black">{t("receive_po.table.unit")}</TableHead>
+                      <TableHead className="text-end text-[11px] font-black">{t("receive_po.table.ordered")}</TableHead>
+                      <TableHead className="text-end text-[11px] font-black">{t("receive_po.table.previously_received")}</TableHead>
+                      <TableHead className="text-end text-[11px] font-black">{t("receive_po.table.remaining")}</TableHead>
+                      <TableHead className="text-end text-[11px] font-black w-[140px]">{t("receive_po.table.arrived_now")}</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -385,7 +387,7 @@ export function ReceivePoDialog({ open, onOpenChange, projectId, po }: ReceivePo
                             />
                             {exceeds && (
                               <span className="text-[10px] font-bold text-amber-600 mt-1 block">
-                                يتجاوز المتبقي
+                                {t("receive_po.table.exceeds_remaining")}
                               </span>
                             )}
                           </TableCell>
@@ -400,8 +402,7 @@ export function ReceivePoDialog({ open, onOpenChange, projectId, po }: ReceivePo
                 <div className="rounded-xl border border-amber-500/40 bg-amber-50 dark:bg-amber-900/10 p-3 flex items-start gap-2">
                   <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
                   <p className="text-xs text-amber-800 dark:text-amber-300">
-                    بعض الكميات تتجاوز المطلوب في أمر الشراء. سيُسجَّل الاستلام كما هو ليطابق المخزون
-                    الواقع، وستظهر الزيادة على بنود الأمر.
+                    {t("receive_po.over_receipt_warning")}
                   </p>
                 </div>
               )}
@@ -417,14 +418,14 @@ export function ReceivePoDialog({ open, onOpenChange, projectId, po }: ReceivePo
               className="rounded-xl font-bold gap-2"
             >
               <PackageCheck className="w-4 h-4" />
-              {receiveMutation.isPending ? "جارٍ التسجيل..." : "تسجيل الاستلام وإصدار DN"}
+              {receiveMutation.isPending ? t("receive_po.submitting") : t("receive_po.submit_action")}
             </Button>
             <Button variant="outline" onClick={() => onOpenChange(false)} className="rounded-xl font-bold">
-              إلغاء
+              {t("receive_po.cancel")}
             </Button>
             {totalEntered > 0 && (
-              <Badge variant="secondary" className="rounded-full font-bold text-[11px] self-center mr-auto">
-                إجمالي المُدخل: {num(totalEntered)}
+              <Badge variant="secondary" className="rounded-full font-bold text-[11px] self-center me-auto">
+                {t("receive_po.total_entered", { count: totalEntered })}
               </Badge>
             )}
           </DialogFooter>

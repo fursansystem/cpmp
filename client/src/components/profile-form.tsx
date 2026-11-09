@@ -240,7 +240,7 @@ export function ProfileForm({ user }: ProfileFormProps) {
                     type="button"
                     size="icon"
                     variant="secondary"
-                    className="absolute bottom-0 right-0 rounded-full h-7 w-7"
+                    className="absolute bottom-0 end-0 rounded-full h-7 w-7"
                     onClick={() => fileInputRef.current?.click()}
                     data-testid="button-upload-photo"
                   >
@@ -251,7 +251,7 @@ export function ProfileForm({ user }: ProfileFormProps) {
                       type="button"
                       size="icon"
                       variant="destructive"
-                      className="absolute top-0 right-0 rounded-full h-5 w-5"
+                      className="absolute top-0 end-0 rounded-full h-5 w-5"
                       onClick={handleRemovePhoto}
                       data-testid="button-remove-photo"
                     >
@@ -277,7 +277,7 @@ export function ProfileForm({ user }: ProfileFormProps) {
                         type="button"
                         size="icon"
                         variant="destructive"
-                        className="absolute top-1 right-1 rounded-full h-5 w-5"
+                        className="absolute top-1 end-1 rounded-full h-5 w-5"
                         onClick={handleRemoveSignature}
                         data-testid="button-remove-signature"
                       >
@@ -303,7 +303,7 @@ export function ProfileForm({ user }: ProfileFormProps) {
                   onClick={() => signatureInputRef.current?.click()}
                   data-testid="button-upload-signature"
                 >
-                  <PenLine className="w-4 h-4 mr-2" />
+                  <PenLine className="w-4 h-4 me-2" />
                   Upload Signature
                 </Button>
               </div>

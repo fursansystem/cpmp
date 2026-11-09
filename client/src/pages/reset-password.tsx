@@ -78,7 +78,7 @@ export default function ResetPasswordPage() {
 
   if (isVerifying) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background p-4" dir="rtl">
+      <div className="min-h-screen flex items-center justify-center bg-background p-4">
         <Card className="w-full max-w-md">
           <CardContent className="py-12">
             <div className="flex flex-col items-center gap-4">
@@ -93,7 +93,7 @@ export default function ResetPasswordPage() {
 
   if (isSuccess) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background p-4" dir="rtl">
+      <div className="min-h-screen flex items-center justify-center bg-background p-4">
         <Card className="w-full max-w-md">
           <CardHeader className="text-center space-y-2">
             <div className="mx-auto w-16 h-16 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center mb-4">
@@ -107,7 +107,7 @@ export default function ResetPasswordPage() {
           <CardContent>
             <Link href="/login">
               <Button className="w-full" data-testid="button-go-to-login">
-                <ArrowRight className="w-4 h-4 ml-2" />
+                <ArrowRight className="w-4 h-4 ms-2 rtl:rotate-180" />
                 تسجيل الدخول
               </Button>
             </Link>
@@ -119,7 +119,7 @@ export default function ResetPasswordPage() {
 
   if (!isTokenValid) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background p-4" dir="rtl">
+      <div className="min-h-screen flex items-center justify-center bg-background p-4">
         <Card className="w-full max-w-md">
           <CardHeader className="text-center space-y-2">
             <div className="mx-auto w-16 h-16 bg-destructive/10 rounded-full flex items-center justify-center mb-4">
@@ -138,7 +138,7 @@ export default function ResetPasswordPage() {
             </Link>
             <Link href="/login">
               <Button variant="ghost" className="w-full" data-testid="button-back-to-login">
-                <ArrowRight className="w-4 h-4 ml-2" />
+                <ArrowRight className="w-4 h-4 ms-2 rtl:rotate-180" />
                 العودة لتسجيل الدخول
               </Button>
             </Link>
@@ -149,7 +149,7 @@ export default function ResetPasswordPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-4" dir="rtl">
+    <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center space-y-2">
           <div className="mx-auto w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mb-4">
@@ -179,14 +179,14 @@ export default function ResetPasswordPage() {
                   placeholder="أدخل كلمة المرور الجديدة"
                   required
                   disabled={isLoading}
-                  className="pl-10"
+                  className="ps-10"
                   data-testid="input-password"
                 />
                 <Button
                   type="button"
                   variant="ghost"
                   size="icon"
-                  className="absolute left-1 top-1/2 -translate-y-1/2 h-7 w-7"
+                  className="absolute start-1 top-1/2 -translate-y-1/2 h-7 w-7"
                   onClick={() => setShowPassword(!showPassword)}
                   tabIndex={-1}
                 >
@@ -210,14 +210,14 @@ export default function ResetPasswordPage() {
                   placeholder="أعد إدخال كلمة المرور"
                   required
                   disabled={isLoading}
-                  className="pl-10"
+                  className="ps-10"
                   data-testid="input-confirm-password"
                 />
                 <Button
                   type="button"
                   variant="ghost"
                   size="icon"
-                  className="absolute left-1 top-1/2 -translate-y-1/2 h-7 w-7"
+                  className="absolute start-1 top-1/2 -translate-y-1/2 h-7 w-7"
                   onClick={() => setShowConfirmPassword(!showConfirmPassword)}
                   tabIndex={-1}
                 >
@@ -238,12 +238,12 @@ export default function ResetPasswordPage() {
             >
               {isLoading ? (
                 <>
-                  <Loader2 className="w-4 h-4 ml-2 animate-spin" />
+                  <Loader2 className="w-4 h-4 ms-2 animate-spin" />
                   جاري التحديث...
                 </>
               ) : (
                 <>
-                  <Lock className="w-4 h-4 ml-2" />
+                  <Lock className="w-4 h-4 ms-2" />
                   إعادة تعيين كلمة المرور
                 </>
               )}

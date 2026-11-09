@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -21,6 +22,7 @@ const fmt = (v: any) =>
   Number(v || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 export function QuotationDetailsDialog({ quotationId, onOpenChange }: QuotationDetailsDialogProps) {
+  const { t } = useTranslation(["procurement", "common"]);
   const { data: quote, isLoading } = useQuery<any>({
     queryKey: ["/api/quotations", quotationId],
     enabled: !!quotationId,
@@ -35,7 +37,7 @@ export function QuotationDetailsDialog({ quotationId, onOpenChange }: QuotationD
         <DialogHeader className="p-6 pb-4 border-b shrink-0">
           <DialogTitle className="text-xl font-bold flex items-center gap-2">
             <DollarSign className="w-5 h-5 text-amber-600" />
-            Quotation Details {quote?.quotationNumber ? `(${quote.quotationNumber})` : ""}
+            {t("quotation.details_modal.title")} {quote?.quotationNumber ? `(${quote.quotationNumber})` : ""}
           </DialogTitle>
         </DialogHeader>
 
@@ -70,30 +72,33 @@ export function QuotationDetailsDialog({ quotationId, onOpenChange }: QuotationD
                 </div>
               </div>
               <Badge variant="secondary" className="text-[11px] font-bold">
-                {STATUS_LABELS[quote.status] || quote.status}
+                {quote.status === "accepted"
+                  ? t("orders.quotes_table.status_accepted")
+                  : quote.status === "rejected"
+                  ? t("orders.quotes_table.status_rejected")
+                  : t("orders.quotes_table.status_under_review")}
               </Badge>
             </div>
 
             {/* Meta */}
             <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-xs">
-              <Info label="RFQ" value={[quote.rfqNumber, quote.rfqTitle].filter(Boolean).join(" - ")} />
-              <Info label="Submission Date" value={quote.submissionDate} />
-              <Info label="Valid Until" value={quote.validUntil} />
-              <Info label="Lead Time" value={quote.leadTimeDays ? `${quote.leadTimeDays} days` : null} />
-              <Info label="Payment Terms" value={quote.paymentTerms} />
-              <Info label="Delivery Terms" value={quote.deliveryTerms} />
+              <Info label={t("quotation.linked_rfq")} value={[quote.rfqNumber, quote.rfqTitle].filter(Boolean).join(" - ")} />
+              <Info label={t("quotation.valid_until")} value={quote.validUntil} />
+              <Info label={t("quotation.lead_time_days")} value={quote.leadTimeDays ? `${quote.leadTimeDays} days` : null} />
+              <Info label={t("quotation.payment_terms")} value={quote.paymentTerms} />
+              <Info label={t("quotation.delivery_terms")} value={quote.deliveryTerms} />
             </div>
 
             {/* Items */}
             <div className="border rounded-xl overflow-hidden">
-              <table className="w-full text-left text-xs">
+              <table className="w-full text-start text-xs">
                 <thead className="bg-muted/40 border-b font-bold">
                   <tr>
                     <th className="p-3">#</th>
-                    <th className="p-3">Item</th>
-                    <th className="p-3">Qty</th>
-                    <th className="p-3">Unit Price</th>
-                    <th className="p-3">Total</th>
+                    <th className="p-3">{t("quotation.details_modal.item")}</th>
+                    <th className="p-3">{t("quotation.details_modal.qty")}</th>
+                    <th className="p-3">{t("quotation.details_modal.unit_price")}</th>
+                    <th className="p-3">{t("quotation.details_modal.total")}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y">
@@ -118,14 +123,14 @@ export function QuotationDetailsDialog({ quotationId, onOpenChange }: QuotationD
             </div>
 
             {/* Totals */}
-            <div className="ml-auto max-w-xs space-y-1 text-xs">
-              <Row label="Subtotal" value={`${fmt(quote.subtotal)} ${currency}`} />
+            <div className="ms-auto max-w-xs space-y-1 text-xs">
+              <Row label={t("quotation.subtotal")} value={`${fmt(quote.subtotal)} ${currency}`} />
               {Number(quote.discountAmount) > 0 && (
-                <Row label="Discount" value={`-${fmt(quote.discountAmount)} ${currency}`} />
+                <Row label={t("quotation.discount")} value={`-${fmt(quote.discountAmount)} ${currency}`} />
               )}
-              <Row label="VAT" value={`+${fmt(quote.taxAmount)} ${currency}`} />
+              <Row label={t("quotation.vat_rate_label")} value={`+${fmt(quote.taxAmount)} ${currency}`} />
               <div className="flex justify-between font-bold text-base border-t pt-1">
-                <span>Grand Total</span>
+                <span>{t("quotation.details_modal.grand_total")}</span>
                 <span>
                   {fmt(quote.totalAmount)} {currency}
                 </span>
@@ -134,7 +139,7 @@ export function QuotationDetailsDialog({ quotationId, onOpenChange }: QuotationD
 
             {quote.notes && (
               <div className="text-xs border rounded-xl p-3 bg-muted/20">
-                <p className="font-bold mb-1">Notes</p>
+                <p className="font-bold mb-1">{t("quotation.details_modal.notes")}</p>
                 <p className="whitespace-pre-wrap text-muted-foreground">{quote.notes}</p>
               </div>
             )}

@@ -63,7 +63,7 @@ export function FolderMoveDialog({ items, isOpen, onClose, onMove, currentFolder
           onClick={() => canMoveHere && setTargetFolderId(folder.id)}
           disabled={!canMoveHere}
           className={cn(
-            "flex items-center gap-2 px-3 py-2 text-sm transition-colors rounded-md text-left w-full",
+            "flex items-center gap-2 px-3 py-2 text-sm transition-colors rounded-md text-start w-full",
             isSelected ? "bg-primary text-primary-foreground font-medium" : "hover:bg-muted text-muted-foreground",
             !canMoveHere && "opacity-50 cursor-not-allowed"
           )}
@@ -94,7 +94,7 @@ export function FolderMoveDialog({ items, isOpen, onClose, onMove, currentFolder
               onClick={() => isValidTarget(null) && setTargetFolderId(null)}
               disabled={!isValidTarget(null)}
               className={cn(
-                "flex items-center gap-2 px-3 py-2 text-sm transition-colors rounded-md text-left w-full",
+                "flex items-center gap-2 px-3 py-2 text-sm transition-colors rounded-md text-start w-full",
                 targetFolderId === null ? "bg-primary text-primary-foreground font-medium" : "hover:bg-muted text-muted-foreground",
                 !isValidTarget(null) && "opacity-50 cursor-not-allowed"
               )}

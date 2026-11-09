@@ -1829,7 +1829,7 @@ export class DatabaseStorage implements IStorage {
       for (const item of items) {
         if (!item.materialId) {
           throw new Error(
-            `المادة "${item.materialName}" غير مرتبطة بالكتالوج. اختر المادة من الكتالوج أو أنشئها أولًا.`
+            `يجب ربط المادة "${item.materialName}" بالكتالوج أولًا`
           );
         }
 
@@ -1969,7 +1969,7 @@ export class DatabaseStorage implements IStorage {
         const finalMaterialId = item.materialId;
         if (!finalMaterialId) {
           throw new Error(
-            `المادة "${item.materialName}" غير مرتبطة بالكتالوج. اختر المادة من الكتالوج أو أنشئها أولًا.`
+            `يجب ربط المادة "${item.materialName}" بالكتالوج أولًا`
           );
         }
 
@@ -5499,13 +5499,13 @@ export class DatabaseStorage implements IStorage {
       // a mistake; the user wants an adjustment instead.
       if (input.movementType === "opening_balance" && (row?.movementCount ?? 0) > 0) {
         throw new Error(
-          `للمادة "${material.materialName}" حركات مسجّلة في هذا المستودع، فلا يصلح لها رصيد افتتاحي. استخدم "تسوية جرد" بدلًا منه.`
+          `لا يمكن إضافة رصيد افتتاحي للمادة "${material.materialName}" لوجود حركات مسجّلة. استخدم "تسوية جرد" بدلًا منه.`
         );
       }
 
       if (!inTypes.includes(input.movementType) && quantity > available) {
         throw new Error(
-          `الكمية (${quantity}) تتجاوز المتوفر من "${material.materialName}" في المستودع (${available})`
+          `لا يمكن صرف كمية (${quantity}) تتجاوز المتوفر من "${material.materialName}" في المستودع (${available})`
         );
       }
 
@@ -5625,7 +5625,7 @@ export class DatabaseStorage implements IStorage {
           sourceId: transfer.id,
           movementDate: input.transferDate,
           performedBy: input.createdBy ?? null,
-          notes: `تحويل ${transferNumber}: ${from.name} ← ${to.name}`,
+          notes: `Transfer ${transferNumber}: ${from.name} -> ${to.name}`,
         };
         await tx.insert(stockMovements).values([
           { ...shared, warehouseId: input.fromWarehouseId, movementType: "transfer_out" as const },
@@ -5757,7 +5757,7 @@ export class DatabaseStorage implements IStorage {
   // approval path so the stock checks can never diverge between them.
   private async postIssueMovements(tx: any, issue: MaterialIssue): Promise<void> {
     const lines = await tx.select().from(materialIssueItems).where(eq(materialIssueItems.issueId, issue.id));
-    if (lines.length === 0) throw new Error("سند الصرف بلا بنود");
+    if (lines.length === 0) throw new Error("يجب إضافة بنود لسند الصرف");
 
     // Lock the material rows in a deterministic order. Without the lock two concurrent
     // issues both read the same balance and both succeed, driving stock negative
@@ -5935,7 +5935,7 @@ export class DatabaseStorage implements IStorage {
     return await db.transaction(async (tx) => {
       const [issue] = await tx.select().from(materialIssues).where(eq(materialIssues.id, id));
       if (!issue) throw new Error("سند الصرف غير موجود");
-      if (issue.status === "cancelled") throw new Error("السند ملغي بالفعل");
+      if (issue.status === "cancelled") throw new Error("لا يمكن إلغاء السند لأنه ملغي بالفعل");
       if (issue.status === "rejected") throw new Error("لا يمكن إلغاء سند مرفوض");
 
       if (issue.status === "issued") {
@@ -5953,7 +5953,7 @@ export class DatabaseStorage implements IStorage {
             sourceId: issue.id,
             movementDate: new Date().toISOString().split("T")[0],
             performedBy: userId,
-            notes: `إلغاء سند الصرف ${issue.issueNumber}`,
+            notes: `Cancel issue ${issue.issueNumber}`,
           });
         }
       }
@@ -6116,7 +6116,7 @@ export class DatabaseStorage implements IStorage {
         // Over-receipt is recorded rather than blocked: stock must match what is physically
         // on site. The discrepancy is reported back to the caller instead.
         if (newReceived > ordered) {
-          overReceived.push(`${p.material.materialName} (${newReceived} من ${ordered})`);
+          overReceived.push(`${p.material.materialName} (${newReceived} / ${ordered})`);
         }
 
         await tx
@@ -6163,7 +6163,7 @@ export class DatabaseStorage implements IStorage {
       const unlinked = lines.filter((l) => !l.materialId);
       if (unlinked.length > 0) {
         throw new Error(
-          `${unlinked.length} بند بلا مادة من الكتالوج. اربط كل البنود بمواد قبل الاعتماد، وإلا تعذّر استلامها في المخزون.`
+          `يجب ربط ${unlinked.length} بند بمواد من الكتالوج قبل الاعتماد، وإلا تعذّر استلامها في المخزون.`
         );
       }
 

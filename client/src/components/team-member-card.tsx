@@ -90,7 +90,7 @@ export function TeamMemberCard({
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
                   <DropdownMenuItem onClick={onEdit} data-testid={`menu-edit-${id}`}>
-                    <Pencil className="w-4 h-4 mr-2" />
+                    <Pencil className="w-4 h-4 me-2" />
                     Edit
                   </DropdownMenuItem>
                   {canDelete && (
@@ -99,7 +99,7 @@ export function TeamMemberCard({
                       className="text-destructive focus:text-destructive"
                       data-testid={`menu-delete-${id}`}
                     >
-                      <Trash2 className="w-4 h-4 mr-2" />
+                      <Trash2 className="w-4 h-4 me-2" />
                       Delete
                     </DropdownMenuItem>
                   )}
@@ -141,7 +141,7 @@ export function TeamMemberCard({
             className="w-fit max-w-full"
             data-testid="badge-organization"
           >
-            <Building2 className="w-3 h-3 mr-1 flex-shrink-0" />
+            <Building2 className="w-3 h-3 me-1 flex-shrink-0" />
             <span className="truncate">{organizationName}</span>
           </Badge>
         )}

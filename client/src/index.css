@@ -73,7 +73,9 @@
   --input: 0 0% 70.98%;
   --ring: 40.32deg 69.83% 64.9%;
   --radius: 1.5rem;
-  --font-sans: 'Almarai', 'Poppins', sans-serif;
+  --font-sans: 'Almarai', 'Inter', sans-serif;
+  --font-serif: 'Almarai', 'Plus Jakarta Sans', sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   
   --sidebar-primary-border: hsl(var(--sidebar-primary));
   --sidebar-accent-border: hsl(var(--sidebar-accent));
@@ -129,7 +131,9 @@
   --destructive-border: hsl(var(--destructive));
   
   --radius: 1.5rem;
-  --font-sans: 'Almarai', Open Sans, sans-serif;
+  --font-sans: 'Almarai', 'Inter', sans-serif;
+  --font-serif: 'Almarai', 'Plus Jakarta Sans', sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
 
 @layer base {

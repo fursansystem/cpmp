@@ -11,6 +11,7 @@ import { AppSidebar } from "@/components/app-sidebar";
 import { AppHeader } from "@/components/app-header";
 import { LoginSummary } from "@/components/login-summary";
 import { ThemeProvider } from "@/components/theme-provider";
+import { LanguageProvider } from "@/lib/language-provider";
 import { AuthProvider, RequireAuth, useAuth } from "@/lib/auth";
 import type { TeamMember, Organization, UserTeamMember } from "@shared/schema";
 import Home from "@/pages/home";
@@ -209,14 +210,16 @@ function App() {
         },
       }}
     >
-      <TooltipProvider>
-        <ThemeProvider>
-          <AuthProvider>
-            <Router />
-            <Toaster />
-          </AuthProvider>
-        </ThemeProvider>
-      </TooltipProvider>
+      <LanguageProvider>
+        <TooltipProvider>
+          <ThemeProvider>
+            <AuthProvider>
+              <Router />
+              <Toaster />
+            </AuthProvider>
+          </ThemeProvider>
+        </TooltipProvider>
+      </LanguageProvider>
     </PersistQueryClientProvider>
   );
 }

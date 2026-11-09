@@ -1,0 +1,125 @@
+{
+  "sound": {
+    "mute": "كتم صوت التنبيهات",
+    "unmute": "تشغيل صوت التنبيهات"
+  },
+  "summary": {
+    "title": "ملخص ما ينتظرك",
+    "description": "أهم ما يحتاج متابعتك الآن وما وصلك منذ آخر زيارة.",
+    "required_from_you": "المطلوب منك",
+    "unread_count": "تنبيهات غير مقروءة ({{count}})",
+    "do_not_show": "لا تُظهر هذا الملخص عند تسجيل الدخول",
+    "mark_all_read": "تحديد الكل كمقروء",
+    "close": "إغلاق",
+    "inbox": {
+      "orders_approve": "أوامر دفع بانتظار اعتمادك",
+      "requests_approve": "طلبات تحويل بانتظار اعتمادك",
+      "certs_approve": "مستخلصات باطن بانتظار اعتمادك",
+      "chargebacks_approve": "تحميلات فواتير بانتظار اعتمادك",
+      "waivers_approve": "طلبات إعفاء بانتظار اعتمادك",
+      "requests_accept": "طلبات تحويل معتمدة بانتظار قبولك",
+      "bills_receive": "أصول فواتير بانتظار تأكيد الاستلام",
+      "orders_pay": "أوامر دفع معتمدة بانتظار الصرف",
+      "certs_order": "مستخلصات معتمدة بانتظار أمر دفع",
+      "returned_orders": "أوامر دفع أُعيدت إليك للتصحيح",
+      "returned_certs": "مستخلصات أُعيدت إليك للتصحيح",
+      "returned_bills": "أصول فواتير أُعيدت إليك للتصحيح"
+    },
+    "groups": {
+      "bills": "أصول الفواتير",
+      "orders": "أوامر الدفع",
+      "subcontractors": "مستخلصات الباطن",
+      "fines": "الخصومات",
+      "payments": "المدفوعات",
+      "permits": "الرخص والمعاملات",
+      "messages": "الرسائل والإشارات",
+      "other": "تنبيهات أخرى"
+    }
+  },
+  "permits": {
+    "assigned_transaction": "أُسندت إليك معاملة",
+    "assigned_step": "أُسندت إليك خطوة في معاملة",
+    "fees_paid": "سُدِّدت رسوم المعاملة",
+    "expired": "انتهت صلاحية رخصة",
+    "expires_today": "تنتهي اليوم",
+    "expires_in_days": "تنتهي خلال {{count}} يوماً",
+    "licence_expiring": "رخصة {{when}}",
+    "step_overdue": "خطوة متأخرة في معاملة",
+    "step_completed": "أُنجزت خطوة في معاملة",
+    "step_turn": "حان دورك في معاملة",
+    "fee_step_title": "سداد الرسوم",
+    "renewal_prefix": "تجديد: {{title}}",
+    "copy_suffix": " (نسخة)"
+  },
+  "invitation": {
+    "title": "دعوة للمشاركة في مشروع",
+    "message": "دعتكم {{invitingOrganizationName}} للمشاركة في مشروع {{projectName}} بصفة {{roleLabel}}",
+    "accepted_title": "قُبلت دعوة المشروع",
+    "declined_title": "اعتُذر عن دعوة المشروع",
+    "accepted_message": "انضمّت {{organizationName}} إلى مشروع {{projectName}}",
+    "declined_message": "اعتذرت {{organizationName}} عن المشاركة في مشروع {{projectName}}. الدور ما زال شاغراً",
+    "ended_title": "إنهاء المشاركة في مشروع",
+    "ended_message": "لم تعد منشأتكم {{roleLabel}} مشروع {{projectName}}",
+    "withdrawn_title": "سُحبت دعوة مشروع",
+    "withdrawn_message": "سُحبت دعوة المشاركة في مشروع {{projectName}}"
+  },
+  "requests": {
+    "awaiting_action_title": "طلب بانتظار إجرائك",
+    "awaiting_action_message": "الطلب {{requestNumber}} بانتظار إجرائك في خطوة: {{stepLabel}}"
+  },
+  "warehouse": {
+    "low_stock_single": "نقص مخزون",
+    "low_stock_multiple": "نقص مخزون في {{count}} مواد",
+    "min_stock_label": "الحد الأدنى",
+    "low_stock_message": "انخفض الرصيد تحت الحد الأدنى — {{summary}}"
+  },
+  "payments": {
+    "bills_review": "وصلت أصول فواتير للمراجعة",
+    "bills_received": "استلمت المحاسبة أصول الفواتير",
+    "bills_returned": "أُعيد طلب الأصول للتصحيح",
+    "originals_required": "مطلوب أصل الفاتورة بعد الصرف",
+    "request_pm_approved": "طلب تحويل معتمد من مدير المشروع",
+    "request_approved_for_creator": "اعتمد مدير المشروع طلبك",
+    "request_rejected": "رُفض طلب التحويل",
+    "order_awaiting_approval": "أمر دفع بانتظار الاعتماد",
+    "order_approved": "اعتُمد أمر الدفع",
+    "order_paid": "تم صرف الدفعة",
+    "order_paid_erp": "تم صرف الدفعة (من نظام ERP)",
+    "order_rejected": "رُفض أمر الدفع",
+    "bill_request_desc": "أصل الفاتورة والمستندات المؤيدة لأمر الدفع {{orderNo}}{{reason}}",
+    "sub_cert_awaiting_approval": "مستخلص مقاول باطن بانتظار الاعتماد",
+    "cert_approved": "اعتُمد المستخلص",
+    "cert_rejected": "رُفض المستخلص",
+    "cb_approved": "اعتُمد التحميل على المقاول",
+    "cb_rejected": "رُفض التحميل على المقاول",
+    "fine_waiver_requested": "طلب إعفاء من خصم بانتظار اعتمادك",
+    "fine_waiver_approved": "اعتُمد طلب الإعفاء",
+    "fine_waiver_rejected": "رُفض طلب الإعفاء",
+    "cb_fine_title": "تحميل فاتورة {{invoiceNo}} على {{subcontractorName}}"
+  },
+  "email": {
+    "invitation": {
+      "subject": "دعوة للمشاركة في مشروع {{projectName}} - نظام إدارة المشاريع",
+      "title": "دعوة للمشاركة في مشروع",
+      "greeting": "السلام عليكم،",
+      "body": "دعتكم {{inviterName}} للمشاركة في مشروع {{projectName}} بصفة {{roleLabel}}.",
+      "instructions": "سجّلوا بيانات منشأتكم من الرابط أدناه، ثم تجدون الدعوة بانتظار ردّكم عند أول دخول:",
+      "cta": "تسجيل المنشأة",
+      "copy_link": "أو انسخ الرابط التالي:",
+      "privacy_note": "بيانات منشأتكم تدخلونها بأنفسكم وتبقى تحت إدارتكم وحدكم، ولكم قبول المشروع أو رفضه.",
+      "expiry_note": "هذا الرابط صالح لمدة 7 أيام ويُستخدم مرة واحدة."
+    },
+    "password_reset": {
+      "subject": "استرجاع كلمة المرور - نظام إدارة المشاريع",
+      "title": "استرجاع كلمة المرور",
+      "greeting": "مرحباً {{userName}}،",
+      "body": "لقد تلقينا طلباً لاسترجاع كلمة المرور الخاصة بحسابك.",
+      "cta_instruction": "اضغط على الزر أدناه لإعادة تعيين كلمة المرور:",
+      "cta": "إعادة تعيين كلمة المرور",
+      "copy_link": "أو انسخ الرابط التالي:",
+      "expiry_note": "هذا الرابط صالح لمدة ساعة واحدة فقط.",
+      "ignore_note": "إذا لم تطلب استرجاع كلمة المرور، يمكنك تجاهل هذه الرسالة.",
+      "default_user": "المستخدم"
+    }
+  }
+}

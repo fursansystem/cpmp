@@ -213,7 +213,7 @@ export function TeamMemberFormDialog({ member, trigger, onSubmit, open: controll
                       ))}
                       <div className="border-t my-1" />
                       <SelectItem value="ADD_NEW" className="font-semibold text-primary">
-                        <Plus className="w-4 h-4 inline mr-2" />
+                        <Plus className="w-4 h-4 inline me-2" />
                         Add new option…
                       </SelectItem>
                     </SelectContent>

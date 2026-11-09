@@ -21,55 +21,35 @@ export type WebhookEvent = (typeof WEBHOOK_EVENTS)[number];
 export type WebhookEventName = WebhookEvent | "ping";
 
 // actions lists what each type sends; every payment type also sends file_added / file_removed for its attachments
-export const WEBHOOK_EVENT_INFO: Record<WebhookEvent, { label: string; description: string; actions: string[] }> = {
+export const WEBHOOK_EVENT_INFO: Record<WebhookEvent, { actions: string[] }> = {
   payment_order: {
-    label: "أوامر الدفع (Payment orders)",
-    description: "Transfer requests and payment orders through approval to payment",
     actions: ["requested", "created", "edited", "request_approved", "request_declined", "request_accepted", "request_withdrawn", "submitted", "approved", "rejected", "paid", "cancelled", "originals_requested"],
   },
   bill_request: {
-    label: "أصول الفواتير (Bill requests)",
-    description: "Requests for original invoices and the invoices listed on them",
     actions: ["created", "submitted", "received", "returned", "cancelled", "invoice_added", "invoice_removed", "chargeback_created"],
   },
   subcontractor_certificate: {
-    label: "مستخلصات مقاولي الباطن (Subcontractor certificates)",
-    description: "Subcontractor certificates from draft to paid",
     actions: ["created", "edited", "submitted", "approved", "rejected", "cancelled", "chargebacks_changed"],
   },
   chargeback: {
-    label: "التحميلات (Chargebacks)",
-    description: "Charges back to subcontractors, applied to or released from certificates",
     actions: ["created", "approved", "rejected", "withdrawn", "converted", "applied", "released"],
   },
   fine: {
-    label: "الغرامات (Fines)",
-    description: "Fines, waivers, recoveries and certificate deductions",
     actions: ["created", "edited", "status_changed", "recovered", "reserved", "released", "waiver_requested", "waiver_approved", "waiver_rejected", "waiver_withdrawn"],
   },
   permit: {
-    label: "الرخص والمعاملات (Permits & transactions)",
-    description: "Licences and government transactions: steps, documents, fees and expiry",
     actions: ["created", "edited", "status_changed", "step_completed", "step_reopened", "assigned", "payment_requested", "fee_paid", "expired", "renewed", "file_added", "file_removed", "deleted"],
   },
   purchase_order: {
-    label: "أوامر الشراء (Purchase orders)",
-    description: "Purchase orders created, approved and received against",
     actions: ["created", "approved", "received"],
   },
   material_issue: {
-    label: "سندات الصرف (Material issues)",
-    description: "Material issue vouchers raised, approved, rejected or cancelled",
     actions: ["created", "approved", "rejected", "cancelled"],
   },
   stock_movement: {
-    label: "تسويات المخزون (Stock adjustments)",
-    description: "Manual stock adjustments in a warehouse",
     actions: ["created"],
   },
   stock_transfer: {
-    label: "تحويلات المخزون (Stock transfers)",
-    description: "Stock moved between warehouses",
     actions: ["created"],
   },
 };

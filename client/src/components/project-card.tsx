@@ -3,7 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Building2, MapPin, ClipboardList, Calendar, MoreVertical, Pencil, Trash2, Settings, Folder } from "lucide-react";
-import { format } from "date-fns";
+import { format } from "@/lib/date-format";
 import { useLocation } from "wouter";
 import { cn } from "@/lib/utils";
 import {
@@ -91,7 +91,7 @@ export function ProjectCard({
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
                       <DropdownMenuItem onClick={onEdit} data-testid={`menu-edit-${id}`}>
-                        <Pencil className="w-4 h-4 mr-2" />
+                        <Pencil className="w-4 h-4 me-2" />
                         Edit
                       </DropdownMenuItem>
                       <DropdownMenuItem
@@ -99,7 +99,7 @@ export function ProjectCard({
                         className="text-destructive focus:text-destructive"
                         data-testid={`menu-delete-${id}`}
                       >
-                        <Trash2 className="w-4 h-4 mr-2" />
+                        <Trash2 className="w-4 h-4 me-2" />
                         Delete
                       </DropdownMenuItem>
                     </DropdownMenuContent>

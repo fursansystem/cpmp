@@ -83,7 +83,7 @@ import { cn } from "@/lib/utils";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { toast } from "@/hooks/use-toast";
 import { useAuth } from "@/lib/auth";
-import { format, parseISO, isValid, addHours } from "date-fns";
+import { format, parseISO, isValid, addHours } from "@/lib/date-format";
 import { WirFormDialog, InlinePdfViewer } from "@/components/wir-form-dialog";
 import { NcrFormDialog } from "@/components/ncr-form-dialog";
 import { SiFormDialog } from "@/components/si-form-dialog";
@@ -376,12 +376,12 @@ function SupplierCardWithAttachments({ rs, onPreviewDoc, index, onRemove, onEdit
               </Badge>
               {supplierObj?.taxNumber && (
                 <Badge variant="outline" className="bg-muted/30 text-muted-foreground border-border/50 text-xs font-medium py-0.5 px-2.5" title="VAT Number">
-                  <Hash className="w-3.5 h-3.5 mr-1.5 opacity-60" /> {supplierObj.taxNumber}
+                  <Hash className="w-3.5 h-3.5 me-1.5 opacity-60" /> {supplierObj.taxNumber}
                 </Badge>
               )}
               {supplierObj?.experienceYears && (
                 <Badge variant="outline" className="bg-muted/30 text-muted-foreground border-border/50 text-xs font-medium py-0.5 px-2.5" title="Experience Years">
-                  <Briefcase className="w-3.5 h-3.5 mr-1.5 opacity-60" /> {supplierObj.experienceYears}+ XP
+                  <Briefcase className="w-3.5 h-3.5 me-1.5 opacity-60" /> {supplierObj.experienceYears}+ XP
                 </Badge>
               )}
             </div>
@@ -490,7 +490,7 @@ function SupplierCardWithAttachments({ rs, onPreviewDoc, index, onRemove, onEdit
                         {doc.size && <p className="text-[10px] text-muted-foreground truncate mt-0.5">{doc.size}</p>}
                       </div>
                     </div>
-                    <Eye className="w-3.5 h-3.5 text-muted-foreground group-hover/doc:text-primary shrink-0 ml-2" />
+                    <Eye className="w-3.5 h-3.5 text-muted-foreground group-hover/doc:text-primary shrink-0 ms-2" />
                   </a>
                 );
               })}
@@ -512,9 +512,9 @@ function MaterialCardWithAttachments({ rm, onPreviewDoc }: { rm: any; onPreviewD
   return (
     <div className="group relative bg-card border border-muted/60 rounded-[1.5rem] p-4 overflow-hidden shadow-sm hover:shadow-md hover:border-primary/30 transition-all duration-300">
       {/* Left Accent Bar */}
-      <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-primary/40 group-hover:bg-primary transition-colors" />
+      <div className="absolute start-0 top-0 bottom-0 w-1.5 bg-primary/40 group-hover:bg-primary transition-colors" />
 
-      <div className="flex flex-col gap-3 w-full pl-2">
+      <div className="flex flex-col gap-3 w-full ps-2">
         <div className="flex items-center gap-3">
           <div className="w-12 h-12 rounded-[1.5rem] bg-primary/5 overflow-hidden flex items-center justify-center border border-primary/10 flex-shrink-0">
             {material.imageUrl ? (
@@ -610,7 +610,7 @@ function MaterialCardWithAttachments({ rm, onPreviewDoc }: { rm: any; onPreviewD
                           {(doc.size || doc.fileSize) && <p className="text-[10px] text-muted-foreground truncate mt-0.5">{doc.size || doc.fileSize}</p>}
                         </div>
                       </div>
-                      <Eye className="w-3.5 h-3.5 text-muted-foreground group-hover/doc:text-primary shrink-0 ml-2" />
+                      <Eye className="w-3.5 h-3.5 text-muted-foreground group-hover/doc:text-primary shrink-0 ms-2" />
                     </a>
                   );
                 })}
@@ -2784,7 +2784,7 @@ export default function RequestDetail() {
         <h2 className="text-xl font-semibold">Request not found</h2>
         <p className="text-muted-foreground mt-2">The request you're looking for doesn't exist.</p>
         <Button variant="outline" className="mt-4" onClick={() => navigate("/projects")}>
-          <ArrowLeft className="w-4 h-4 mr-2" />
+          <ArrowLeft className="w-4 h-4 me-2 rtl:rotate-180" />
           Back to Projects
         </Button>
       </div>
@@ -2797,10 +2797,10 @@ export default function RequestDetail() {
         <div className="flex items-center justify-between p-3 md:p-4 min-h-[4rem] gap-2">
           <div className="flex items-center gap-1 md:gap-2 shrink-0">
             <Button variant="ghost" size="sm" className="h-9 md:h-10 px-2 md:px-3 text-muted-foreground hover:text-foreground shrink-0" onClick={() => window.history.back()} data-testid="button-back">
-              <ArrowLeft className="w-4 h-4 md:w-5 md:h-5 md:mr-2" />
+              <ArrowLeft className="w-4 h-4 md:w-5 md:h-5 md:me-2 rtl:rotate-180" />
               <span className="text-xs md:text-sm font-bold hidden xs:inline">Back</span>
             </Button>
-            <div className="flex items-center gap-2 md:gap-3 ml-1 md:ml-2">
+            <div className="flex items-center gap-2 md:gap-3 ms-1 md:ms-2">
               <span className="font-bold text-base md:text-xl tracking-tight" data-testid="text-request-number">
                 {request.requestNumber}
               </span>
@@ -2834,7 +2834,7 @@ export default function RequestDetail() {
             </Badge>
           </div>
 
-          <div className="flex items-center gap-2 md:gap-4 ml-auto">
+          <div className="flex items-center gap-2 md:gap-4 ms-auto">
             <div className="flex items-center gap-2 md:gap-3">
               <div className="hidden md:flex flex-col items-end text-[10px] leading-tight">
                 <span className="text-muted-foreground font-semibold uppercase tracking-wider">Current Stage</span>
@@ -2901,7 +2901,7 @@ export default function RequestDetail() {
               >
                 <RotateCcw className="w-3.5 h-3.5 md:w-4 md:h-4" />
                 {hasNewData && (
-                  <span className="absolute -top-0.5 -right-0.5 w-2 md:w-2.5 h-2 md:h-2.5 bg-red-500 rounded-full border-2 border-background animate-pulse" />
+                  <span className="absolute -top-0.5 -end-0.5 w-2 md:w-2.5 h-2 md:h-2.5 bg-red-500 rounded-full border-2 border-background animate-pulse" />
                 )}
               </Button>
               <Button
@@ -3193,7 +3193,7 @@ export default function RequestDetail() {
                         <div>
                           <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/80">Units</p>
                           <button
-                            className="text-sm font-bold text-primary hover:underline underline-offset-4 decoration-2 text-left"
+                            className="text-sm font-bold text-primary hover:underline underline-offset-4 decoration-2 text-start"
                             onClick={() => setShowLocationsDialog(true)}
                             data-testid="button-view-units"
                           >
@@ -3220,11 +3220,11 @@ export default function RequestDetail() {
                               revisionDeliveries.map((rd, idx) => (
                                 <div
                                   key={idx}
-                                  className="group relative bg-card border border-muted/60 rounded-[1.5rem] p-3 pl-4 overflow-hidden shadow-sm hover:shadow-md hover:border-primary/30 transition-all duration-300 cursor-pointer"
+                                  className="group relative bg-card border border-muted/60 rounded-[1.5rem] p-3 ps-4 overflow-hidden shadow-sm hover:shadow-md hover:border-primary/30 transition-all duration-300 cursor-pointer"
                                   onClick={() => setSelectedDeliveryDetail(rd.delivery)}
                                 >
                                   {/* Left Accent Bar */}
-                                  <div className="absolute left-0 top-0 bottom-0 w-1 bg-primary/40 group-hover:bg-primary transition-colors" />
+                                  <div className="absolute start-0 top-0 bottom-0 w-1 bg-primary/40 group-hover:bg-primary transition-colors" />
 
                                   <div className="flex flex-col md:flex-row items-start md:items-center justify-between w-full gap-3 md:gap-0 min-h-[3.5rem] py-2">
                                     {/* Left: Supplier */}
@@ -3284,7 +3284,7 @@ export default function RequestDetail() {
                                     </div>
 
                                     {/* Mobile Eye Overlay/Indicator */}
-                                    <div className="md:hidden absolute top-3 right-3 opacity-30">
+                                    <div className="md:hidden absolute top-3 end-3 opacity-30">
                                       <Eye className="w-4 h-4 text-primary" />
                                     </div>
                                   </div>
@@ -3526,7 +3526,7 @@ export default function RequestDetail() {
                                   {isDSR || isSD ? (
                                     <div className="flex flex-col justify-center flex-1 min-w-0">
                                       <button
-                                        className="text-sm font-bold hover:underline text-left truncate text-foreground/90 hover:text-primary transition-colors pr-2 w-fit"
+                                        className="text-sm font-bold hover:underline text-start truncate text-foreground/90 hover:text-primary transition-colors pe-2 w-fit"
                                         onClick={() => setPreviewDoc(doc)}
                                         title={doc.title || doc.fileName || "Untitled"}
                                       >
@@ -3537,7 +3537,7 @@ export default function RequestDetail() {
                                     <div className="flex flex-col justify-center flex-1 min-w-0">
                                       <div className="flex items-center gap-2 flex-wrap">
                                         <button
-                                          className="text-sm font-bold hover:underline text-left truncate max-w-[250px]"
+                                          className="text-sm font-bold hover:underline text-start truncate max-w-[250px]"
                                           onClick={() => setPreviewDoc(doc)}
                                           title={doc.title || doc.fileName || "Untitled"}
                                         >
@@ -3557,7 +3557,7 @@ export default function RequestDetail() {
                                     </div>
                                   )}
                                 </div>
-                                <div className="flex items-center gap-2 shrink-0 ml-4">
+                                <div className="flex items-center gap-2 shrink-0 ms-4">
                                   {isSD && doc.documentRef && (
                                     <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-100/60 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-900/50 shadow-sm shrink-0">
                                       <span className="text-[10px] uppercase tracking-wider text-blue-500 font-bold shrink-0">ID:</span>
@@ -3637,7 +3637,7 @@ export default function RequestDetail() {
                               data-testid="button-step-102-to-103"
                               title="Submit for PM Approval"
                             >
-                              <ArrowRight className="w-4 h-4" />
+                              <ArrowRight className="w-4 h-4 rtl:rotate-180" />
                             </Button>
                           )}
                         </div>
@@ -3674,7 +3674,7 @@ export default function RequestDetail() {
                           data-testid="button-step-103-to-104"
                           title="Submit for Engineer Review"
                         >
-                          <ArrowRight className="w-4 h-4" />
+                          <ArrowRight className="w-4 h-4 rtl:rotate-180" />
                         </Button>
                       )}
                     </div>
@@ -3700,7 +3700,7 @@ export default function RequestDetail() {
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="border rounded-[1.5rem] p-4 space-y-3">
-                    <div className="flex items-center gap-4 mr-2">
+                    <div className="flex items-center gap-4 me-2">
                       <label className="font-medium">Team Approvals</label>
                       {consultantReviews.every(r => !r.receivedAt) && (
                         <Badge variant="secondary" className="bg-yellow-500/10 text-yellow-600 border-yellow-500/20">
@@ -3833,7 +3833,7 @@ export default function RequestDetail() {
                                       </Button>
                                     )}
                                   </div>
-                                  <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-xs px-2 py-1 truncate">
+                                  <div className="absolute bottom-0 start-0 end-0 bg-black/60 text-white text-xs px-2 py-1 truncate">
                                     {attachment.title || attachment.fileName}
                                   </div>
                                 </div>
@@ -3933,7 +3933,7 @@ export default function RequestDetail() {
                                             disabled={checklistResponseMutation.isPending || isAtStep(107)}
                                             data-testid={`btn-yes-${item.id}`}
                                           >
-                                            <Check className="w-3 h-3 mr-1" />
+                                            <Check className="w-3 h-3 me-1" />
                                             Yes
                                           </Button>
                                           <Button
@@ -3947,7 +3947,7 @@ export default function RequestDetail() {
                                             disabled={checklistResponseMutation.isPending || isAtStep(107)}
                                             data-testid={`btn-no-${item.id}`}
                                           >
-                                            <X className="w-3 h-3 mr-1" />
+                                            <X className="w-3 h-3 me-1" />
                                             No
                                           </Button>
                                           <Button
@@ -4006,7 +4006,7 @@ export default function RequestDetail() {
                                             disabled={checklistResponseMutation.isPending || isAtStep(107)}
                                             data-testid={`btn-sbc-yes-${item.id}`}
                                           >
-                                            <Check className="w-3 h-3 mr-1" />
+                                            <Check className="w-3 h-3 me-1" />
                                             Yes
                                           </Button>
                                           <Button
@@ -4020,7 +4020,7 @@ export default function RequestDetail() {
                                             disabled={checklistResponseMutation.isPending || isAtStep(107)}
                                             data-testid={`btn-sbc-no-${item.id}`}
                                           >
-                                            <X className="w-3 h-3 mr-1" />
+                                            <X className="w-3 h-3 me-1" />
                                             No
                                           </Button>
                                           <Button
@@ -4082,7 +4082,7 @@ export default function RequestDetail() {
                                               disabled={checklistResponseMutation.isPending || isAtStep(107)}
                                               data-testid={isMAR ? `btn-mar-yes-${item.id}` : isSSR ? `btn-ssr-yes-${item.id}` : `btn-mir-yes-${item.id}`}
                                             >
-                                              <Check className="w-4 h-4 mr-1.5" />
+                                              <Check className="w-4 h-4 me-1.5" />
                                               Approved
                                             </Button>
                                             <Button
@@ -4096,7 +4096,7 @@ export default function RequestDetail() {
                                               disabled={checklistResponseMutation.isPending || isAtStep(107)}
                                               data-testid={isMAR ? `btn-mar-no-${item.id}` : isSSR ? `btn-ssr-no-${item.id}` : `btn-mir-no-${item.id}`}
                                             >
-                                              <X className="w-4 h-4 mr-1.5" />
+                                              <X className="w-4 h-4 me-1.5" />
                                               Rejected
                                             </Button>
                                             <Button
@@ -4139,7 +4139,7 @@ export default function RequestDetail() {
                                     data-testid="btn-add-recommendation"
                                     disabled={isAtStep(107) || isManagerApproved}
                                   >
-                                    <Plus className="w-4 h-4 mr-1" />
+                                    <Plus className="w-4 h-4 me-1" />
                                     Add Recommendation
                                   </Button>
                                 </div>
@@ -4268,7 +4268,7 @@ export default function RequestDetail() {
                                 {isSavingApproval ? (
                                   <Loader2 className="w-4 h-4 animate-spin" />
                                 ) : (
-                                  <ArrowRight className="w-4 h-4" />
+                                  <ArrowRight className="w-4 h-4 rtl:rotate-180" />
                                 )}
                               </Button>
                             )}
@@ -4358,7 +4358,7 @@ export default function RequestDetail() {
                                     data-testid="button-site-to-consultant-pm"
                                     title="Send to Consultant PM"
                                   >
-                                    <ArrowRight className="w-4 h-4" />
+                                    <ArrowRight className="w-4 h-4 rtl:rotate-180" />
                                   </Button>
                                 )}
                               </div>
@@ -4518,7 +4518,7 @@ export default function RequestDetail() {
                           <p className={`text-sm font-medium ${statusColors[safeStatus.statusCode] || ""}`}>
                             ({safeStatus.statusCode}) {safeStatus.statusLabel}
                             {isAtStep(101) && safeStatus.statusCode === "C" && (
-                              <span className="ml-2 text-xs font-normal text-muted-foreground">(Previous Result)</span>
+                              <span className="ms-2 text-xs font-normal text-muted-foreground">(Previous Result)</span>
                             )}
                           </p>
                           {safeStatus.comments && (
@@ -4544,7 +4544,7 @@ export default function RequestDetail() {
                 </div>
               </CardHeader>
               <CardContent className="space-y-3">
-                <ScrollArea className="h-64 pr-2">
+                <ScrollArea className="h-64 pe-2">
                   {chatMessages.length === 0 ? (
                     <p className="text-sm text-muted-foreground text-center py-8">No messages yet</p>
                   ) : (
@@ -4641,7 +4641,7 @@ export default function RequestDetail() {
                       placeholder="Type a message..."
                       value={chatMessage}
                       onChange={(e) => setChatMessage(e.target.value)}
-                      className="resize-none min-h-[38px] max-h-[120px] pr-10 rounded-[1.5rem] px-4 py-2.5"
+                      className="resize-none min-h-[38px] max-h-[120px] pe-10 rounded-[1.5rem] px-4 py-2.5"
                       rows={1}
                       onKeyDown={(e) => {
                         if (e.key === "Enter" && !e.shiftKey) {
@@ -4751,7 +4751,7 @@ export default function RequestDetail() {
                             </div>
                           </HoverCardTrigger>
                           <HoverCardContent className="w-80 rounded-[1.5rem]">
-                            <div className="flex justify-between space-x-4">
+                            <div className="flex justify-between gap-4">
                               <Avatar className="h-10 w-10">
                                 <AvatarFallback className="text-sm">
                                   {member.nameEnglish?.substring(0, 2).toUpperCase() || "??"}
@@ -4822,14 +4822,14 @@ export default function RequestDetail() {
                   </div>
                 </CardHeader>
                 <CardContent>
-                  <ScrollArea className="h-[200px] pl-2 pr-4">
+                  <ScrollArea className="h-[200px] ps-2 pe-4">
                     <div className="space-y-4 pb-6">
                       {statusHistory.map((history, index) => (
-                        <div key={history.id} className="relative pl-11 pb-8 last:pb-2">
+                        <div key={history.id} className="relative ps-11 pb-8 last:pb-2">
                           {index !== statusHistory.length - 1 && (
-                            <div className="absolute left-[18px] top-[32px] bottom-6 w-[2px] bg-muted/60" />
+                            <div className="absolute start-[18px] top-[32px] bottom-6 w-[2px] bg-muted/60" />
                           )}
-                          <div className="absolute left-1 top-1.5 w-7 h-7 rounded-full bg-white border border-primary/20 flex items-center justify-center shadow-sm z-10">
+                          <div className="absolute start-1 top-1.5 w-7 h-7 rounded-full bg-white border border-primary/20 flex items-center justify-center shadow-sm z-10">
                             <Clock className="w-4 h-4 text-primary shrink-0" />
                           </div>
                           <div className="space-y-1.5">
@@ -4907,7 +4907,7 @@ export default function RequestDetail() {
       <Dialog open={showFullStatusHistory} onOpenChange={setShowFullStatusHistory}>
         <DialogContent className="max-w-2xl max-h-[85vh] flex flex-col p-0 overflow-hidden border-none shadow-2xl ring-1 ring-black/5 rounded-[1.5rem]">
           <DialogHeader className="p-5 pb-4 bg-gradient-to-br from-primary/5 via-background to-background relative overflow-hidden">
-            <div className="absolute top-0 right-0 w-24 h-24 bg-primary/5 rounded-full -mr-12 -mt-12 blur-2xl" />
+            <div className="absolute top-0 right-0 w-24 h-24 bg-primary/5 rounded-full -me-12 -mt-12 blur-2xl" />
             <div className="flex items-center gap-3 relative z-10">
               <div className="p-2 rounded-xl bg-primary shadow-md shadow-primary/10 flex items-center justify-center">
                 <Clock className="w-5 h-5 text-primary-foreground shrink-0" />
@@ -4920,7 +4920,7 @@ export default function RequestDetail() {
 
           <div className="flex-1 overflow-y-auto p-6 pt-2 custom-scrollbar">
             <div className="relative">
-              <div className="absolute left-[17px] top-6 bottom-6 w-[2px] bg-gradient-to-b from-primary/30 via-muted to-muted/30" />
+              <div className="absolute start-[17px] top-6 bottom-6 w-[2px] bg-gradient-to-b from-primary/30 via-muted to-muted/30" />
 
               <div className="space-y-10">
                 {statusHistory.map((history, index) => {
@@ -4934,7 +4934,7 @@ export default function RequestDetail() {
                   })();
 
                   return (
-                    <div key={history.id} className="relative pl-12 group transition-all duration-300">
+                    <div key={history.id} className="relative ps-12 group transition-all duration-300">
                       {/* Timeline Dot */}
                       <div className={`absolute left-0 top-1.5 w-9 h-9 rounded-full border-4 border-background flex items-center justify-center z-10 shadow-md transition-transform group-hover:scale-110 duration-200 ${theme.dot}`}>
                         <theme.icon className="w-4.5 h-4.5 text-white shrink-0" />
@@ -4954,7 +4954,7 @@ export default function RequestDetail() {
 
                         {history.remarks && (
                           <div className="bg-white border rounded-xl p-4 shadow-sm group-hover:shadow-md transition-shadow duration-300 relative">
-                            <div className="absolute left-0 top-4 w-1 h-8 bg-primary/20 rounded-r-full" />
+                            <div className="absolute start-0 top-4 w-1 h-8 bg-primary/20 rounded-e-full" />
                             <p className="text-[15px] leading-relaxed text-foreground/80 font-medium">
                               {history.remarks}
                             </p>
@@ -4976,7 +4976,7 @@ export default function RequestDetail() {
           </div>
 
           <div className="p-4 bg-muted/30 border-t flex justify-between items-center px-6">
-            <div className="flex -space-x-2">
+            <div className="flex -gap-2">
               {/* Optional: Add avatars of people involved */}
             </div>
             <Button
@@ -5134,12 +5134,12 @@ export default function RequestDetail() {
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b bg-muted/50">
-                      <th className="p-2 text-left font-medium">Unit</th>
-                      <th className="p-2 text-left font-medium">Zone</th>
-                      <th className="p-2 text-left font-medium">Block</th>
-                      <th className="p-2 text-left font-medium">Building</th>
-                      <th className="p-2 text-left font-medium">Floor</th>
-                      <th className="p-2 text-left font-medium">Part</th>
+                      <th className="p-2 text-start font-medium">Unit</th>
+                      <th className="p-2 text-start font-medium">Zone</th>
+                      <th className="p-2 text-start font-medium">Block</th>
+                      <th className="p-2 text-start font-medium">Building</th>
+                      <th className="p-2 text-start font-medium">Floor</th>
+                      <th className="p-2 text-start font-medium">Part</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -5193,7 +5193,7 @@ export default function RequestDetail() {
               {(previewDocDetail || (previewDoc && (previewDoc.fileUrl || previewDoc.fileData))) && (
                 <Button variant="outline" size="sm" className="rounded-xl font-bold h-9 bg-background/50 border-primary/20 text-primary hover:bg-primary/5 hidden sm:flex" asChild>
                   <a href={(previewDocDetail?.fileUrl || previewDocDetail?.fileData) || (previewDoc?.fileUrl || previewDoc?.fileData)} target="_blank" rel="noopener noreferrer">
-                    <Link2 className="w-4 h-4 mr-2" />
+                    <Link2 className="w-4 h-4 me-2" />
                     Open Original
                   </a>
                 </Button>
@@ -5702,7 +5702,7 @@ export default function RequestDetail() {
               className="w-full"
               data-testid="button-modal-refresh"
             >
-              <RotateCcw className="w-4 h-4 mr-2" />
+              <RotateCcw className="w-4 h-4 me-2" />
               تحديث البيانات الآن
             </Button>
           </DialogFooter>
@@ -5899,7 +5899,7 @@ export default function RequestDetail() {
                       <span className="text-sm text-muted-foreground italic">No levels selected</span>
                     ) : (
                       editSelectedWorkLevels.map(level => (
-                        <Badge key={level.id} variant="secondary" className="gap-1 pl-2 pr-1 py-1">
+                        <Badge key={level.id} variant="secondary" className="gap-1 ps-2 pe-1 py-1">
                           {level.code}
                           <Button
                             variant="ghost"
@@ -5992,7 +5992,7 @@ export default function RequestDetail() {
                             Actions
                             <Button
                               size="icon"
-                              className="ml-2 rounded-full h-7 w-7"
+                              className="ms-2 rounded-full h-7 w-7"
                               onClick={() => setEditAddLocationOpen(true)}
                               data-testid="button-edit-add-location"
                             >
@@ -6086,7 +6086,7 @@ export default function RequestDetail() {
                         <TableHead className="font-bold">Invoice No</TableHead>
                         <TableHead className="font-bold">Material</TableHead>
                         <TableHead className="font-bold">Supplier</TableHead>
-                        <TableHead className="w-16 text-right font-bold pr-6">Actions</TableHead>
+                        <TableHead className="w-16 text-end font-bold pe-6">Actions</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -6107,7 +6107,7 @@ export default function RequestDetail() {
                             <TableCell>{delivery.deliveryInvoiceNumber || "---"}</TableCell>
                             <TableCell>{delivery.materialName}</TableCell>
                             <TableCell>{delivery.supplier}</TableCell>
-                            <TableCell className="text-right pr-6">
+                            <TableCell className="text-end pe-6">
                               <Button
                                 size="icon"
                                 variant="ghost"
@@ -6182,7 +6182,7 @@ export default function RequestDetail() {
                                   </div>
 
                                   <div className="flex flex-col gap-1.5 flex-1 min-w-0 justify-center">
-                                    <h4 className="font-bold text-base text-foreground/90 truncate pr-2 group-hover:text-primary transition-colors">{material.materialName || "Unknown"}</h4>
+                                    <h4 className="font-bold text-base text-foreground/90 truncate pe-2 group-hover:text-primary transition-colors">{material.materialName || "Unknown"}</h4>
                                     <div className="flex flex-wrap items-center gap-1.5">
                                       {material.materialCode && (
                                         <Badge variant="outline" className="bg-primary/5 text-primary/90 font-mono text-[10px] h-5 border-primary/20 px-1.5">
@@ -6206,7 +6206,7 @@ export default function RequestDetail() {
                                   </div>
                                 </div>
 
-                                <div className="flex items-center gap-1 shrink-0 ml-2">
+                                <div className="flex items-center gap-1 shrink-0 ms-2">
                                   <Button
                                     size="icon"
                                     variant="ghost"
@@ -6244,7 +6244,7 @@ export default function RequestDetail() {
                               </div>
 
                               {material.description && (
-                                <div className="pl-[72px] -mt-2">
+                                <div className="ps-[72px] -mt-2">
                                   <p className="text-xs text-muted-foreground/70 leading-relaxed line-clamp-2">
                                     {material.description}
                                   </p>
@@ -6370,7 +6370,7 @@ export default function RequestDetail() {
                         <TableHead className="font-bold">Title</TableHead>
                         <TableHead className="font-bold">Doc Type</TableHead>
                         <TableHead className="font-bold">File</TableHead>
-                        <TableHead className="w-16 text-right font-bold pr-6">Actions</TableHead>
+                        <TableHead className="w-16 text-end font-bold pe-6">Actions</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -6444,7 +6444,7 @@ export default function RequestDetail() {
                                 <span className="truncate">{doc.fileName}</span>
                               </div>
                             </TableCell>
-                            <TableCell className="text-right pr-6">
+                            <TableCell className="text-end pe-6">
                               <Button
                                 size="icon"
                                 variant="ghost"
@@ -6479,7 +6479,7 @@ export default function RequestDetail() {
             >
               {isSavingDetails ? (
                 <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  <Loader2 className="me-2 h-4 w-4 animate-spin" />
                   Saving...
                 </>
               ) : (
@@ -6549,7 +6549,7 @@ export default function RequestDetail() {
 
             <div className="flex flex-wrap gap-2 mt-2">
               {editSelectedDeliveries.map((delivery) => (
-                <Badge key={delivery.id} variant="secondary" className="gap-1 pr-1">
+                <Badge key={delivery.id} variant="secondary" className="gap-1 pe-1">
                   {delivery.shipmentNumber}
                   <Button
                     variant="ghost"
@@ -6574,7 +6574,7 @@ export default function RequestDetail() {
       <Dialog open={editAddSupplierOpen} onOpenChange={setEditAddSupplierOpen}>
         <DialogContent className="max-w-2xl rounded-[1.5rem]">
           <DialogHeader>
-            <div className="flex items-center justify-between w-full pr-6">
+            <div className="flex items-center justify-between w-full pe-6">
               <DialogTitle className="flex items-center gap-2">
                 <Database className="w-5 h-5 text-primary" />
                 Add Suppliers
@@ -6591,7 +6591,7 @@ export default function RequestDetail() {
                 variant="outline"
                 className="rounded-xl shadow-sm bg-primary/5 text-primary hover:bg-primary/10 border-primary/20 transition-all"
               >
-                <Plus className="w-4 h-4 mr-1" />
+                <Plus className="w-4 h-4 me-1" />
                 Create New
               </Button>
             </div>
@@ -6659,7 +6659,7 @@ export default function RequestDetail() {
 
             <div className="flex flex-wrap gap-2 mt-2">
               {editSelectedSuppliers.map((supplier) => (
-                <Badge key={supplier.id} variant="secondary" className="gap-1 pr-1">
+                <Badge key={supplier.id} variant="secondary" className="gap-1 pe-1">
                   {supplier.name}
                   <Button
                     variant="ghost"
@@ -6684,7 +6684,7 @@ export default function RequestDetail() {
       <Dialog open={editAddMaterialOpen} onOpenChange={setEditAddMaterialOpen}>
         <DialogContent className="max-w-2xl rounded-[1.5rem]">
           <DialogHeader>
-            <div className="flex items-center justify-between w-full pr-6">
+            <div className="flex items-center justify-between w-full pe-6">
               <DialogTitle className="flex items-center gap-2">
                 <Layers className="w-5 h-5 text-primary" />
                 Add Materials
@@ -6701,7 +6701,7 @@ export default function RequestDetail() {
                 variant="outline"
                 className="rounded-xl shadow-sm bg-primary/5 text-primary hover:bg-primary/10 border-primary/20 transition-all"
               >
-                <Plus className="w-4 h-4 mr-1" />
+                <Plus className="w-4 h-4 me-1" />
                 Create New
               </Button>
             </div>
@@ -6794,7 +6794,7 @@ export default function RequestDetail() {
 
             <div className="flex flex-wrap gap-2 mt-2">
               {editSelectedMaterials.map((material) => (
-                <Badge key={material.id} variant="secondary" className="gap-1 pr-1 shadow-sm bg-primary/5 text-primary border-primary/10">
+                <Badge key={material.id} variant="secondary" className="gap-1 pe-1 shadow-sm bg-primary/5 text-primary border-primary/10">
                   {material.materialName}
                   <Button
                     variant="ghost"
@@ -6906,7 +6906,7 @@ export default function RequestDetail() {
                         <div className="flex items-center justify-between w-full">
                           <span>
                             {location.unitCustomNumber || "N/A"} - {location.unitZone || ""} {location.floor || ""}
-                            <span className="text-xs text-muted-foreground ml-2">
+                            <span className="text-xs text-muted-foreground ms-2">
                               ({location.buildingNo || "No Bldg"}, {location.part || "No Part"})
                             </span>
                           </span>
@@ -6921,7 +6921,7 @@ export default function RequestDetail() {
 
             <div className="flex flex-wrap gap-2 mt-2">
               {editSelectedLocations.map((loc) => (
-                <Badge key={loc.id} variant="secondary" className="gap-1 pr-1">
+                <Badge key={loc.id} variant="secondary" className="gap-1 pe-1">
                   {loc.unit || loc.building}
                   <Button
                     variant="ghost"
@@ -6968,7 +6968,7 @@ export default function RequestDetail() {
               <p className="text-sm text-foreground font-medium mb-3">
                 You cannot submit this request because the following mandatory fields or documents are missing:
               </p>
-              <ul className="space-y-2 max-h-48 overflow-y-auto pr-2">
+              <ul className="space-y-2 max-h-48 overflow-y-auto pe-2">
                 {missingFields.map((f, i) => (
                   <li key={i} className="text-sm text-destructive font-semibold flex items-start gap-2 bg-destructive/5 p-2 rounded-lg">
                     <span className="shrink-0 mt-0.5">•</span>
@@ -7083,7 +7083,7 @@ export default function RequestDetail() {
               <div className="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center">
                 <File className="w-5 h-5 text-primary" />
               </div>
-              <div className="flex flex-col text-left">
+              <div className="flex flex-col text-start">
                 <h3 className="text-sm font-black uppercase tracking-tight truncate max-w-[300px] md:max-w-[500px]">
                   {previewDeliveryAttachment?.fileName || previewDeliveryAttachment?.name || "Delivery Attachment"}
                 </h3>
@@ -7103,7 +7103,7 @@ export default function RequestDetail() {
             <div className="flex items-center gap-3">
               <Button variant="outline" size="sm" className="rounded-xl font-bold h-9 bg-background/50 border-primary/20 text-primary hover:bg-primary/5 hidden sm:flex" asChild>
                 <a href={getFileUrl(previewDeliveryAttachment?.fileUrl || (previewDeliveryAttachment as any)?.fileData || (previewDeliveryAttachment as any)?.file_data)} target="_blank" rel="noopener noreferrer">
-                  <ExternalLink className="w-4 h-4 mr-2" />
+                  <ExternalLink className="w-4 h-4 me-2" />
                   Open Original
                 </a>
               </Button>

@@ -16,7 +16,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { format } from "date-fns";
+import { format } from "@/lib/date-format";
 import { useLocation } from "wouter";
 import { cn } from "@/lib/utils";
 

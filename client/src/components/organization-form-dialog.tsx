@@ -167,7 +167,7 @@ export function OrganizationFormDialog({ organization, trigger, onSubmit, open: 
                   onClick={handleRemoveLogo}
                   title="Remove logo"
                   aria-label="Remove logo"
-                  className="absolute -right-2 -top-2 rounded-full border border-border bg-background p-1 text-muted-foreground opacity-0 shadow-sm transition-opacity hover:text-destructive focus:opacity-100 group-hover:opacity-100"
+                  className="absolute -end-2 -top-2 rounded-full border border-border bg-background p-1 text-muted-foreground opacity-0 shadow-sm transition-opacity hover:text-destructive focus:opacity-100 group-hover:opacity-100"
                   data-testid="button-remove-logo"
                 >
                   <X className="h-3.5 w-3.5" />

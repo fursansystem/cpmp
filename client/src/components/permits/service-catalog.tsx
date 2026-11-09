@@ -1,6 +1,7 @@
 // دليل الخدمات: the service catalogue, laid out like the national portal's service directory — search, categories,
 // an authority filter and service cards — plus the forms that start a transaction and edit a service.
 import { useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import {
@@ -20,14 +21,11 @@ import { cn } from "@/lib/utils";
 import { PaymentDialog, Section } from "@/components/payments/payments-common";
 import {
   PERMIT_CATEGORIES,
-  PERMIT_CATEGORY_LABELS,
-  REQUIREMENT_KIND_LABELS,
   STEP_PARTIES,
-  STEP_PARTY_LABELS,
   type PermitsContext,
-  type PermitUserRef,
-} from "@shared/permits";
+  type PermitUserRef, REQUIREMENT_KINDS } from "@shared/permits";
 import { errorMessage, getJson, invalidatePermits, money, permitsQuery } from "./permits-common";
+import { enumText, enumOptions } from "@/lib/enums";
 
 export interface CatalogStep { title: string; description: string | null; party: string; slaDays: number | null; isPaymentStep: boolean }
 export interface CatalogRequirement { kind: string; title: string; description: string | null; mandatory: boolean }
@@ -63,11 +61,12 @@ export function useCatalog() {
   });
 }
 
-export const feeText = (s: CatalogService) => (Number(s.feeAmount) > 0 ? money(s.feeAmount) : s.feeNote ?? "تُحدَّد من الجهة");
+export const feeText = (s: CatalogService) => (Number(s.feeAmount) > 0 ? money(s.feeAmount) : s.feeNote ?? "");
 
 // ------------------------------------------------------------------ catalogue tab
 
 export function ServiceCatalogTab({ ctx, projectId }: { ctx: PermitsContext; projectId: string }) {
+  const { t } = useTranslation("permits");
   const { data, isLoading } = useCatalog();
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("all");
@@ -102,30 +101,30 @@ export function ServiceCatalogTab({ ctx, projectId }: { ctx: PermitsContext; pro
       <div className="flex flex-wrap items-center gap-2">
         <div className="relative flex-1 min-w-[220px] max-w-md">
           <Search className="absolute start-3 top-2.5 w-4 h-4 text-muted-foreground" />
-          <Input className="ps-9" placeholder="ابحث عن خدمة أو جهة…" value={search} onChange={(e) => setSearch(e.target.value)} data-testid="input-catalog-search" />
+          <Input className="ps-9" placeholder={t("hero.search_placeholder")} value={search} onChange={(e) => setSearch(e.target.value)} data-testid="input-catalog-search" />
         </div>
         <Select value={authority} onValueChange={setAuthority}>
           <SelectTrigger className="w-[260px]"><SelectValue /></SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">كل الجهات</SelectItem>
+            <SelectItem value="all">{t("catalog.all_authorities")}</SelectItem>
             {usedAuthorities.map((a) => <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>)}
           </SelectContent>
         </Select>
         <div className="ms-auto flex gap-2">
-          {canStart && <Button variant="outline" onClick={() => setStarting(null)}><Plus className="w-4 h-4 me-1" /> معاملة حرة</Button>}
-          {canAdd && <Button onClick={() => setEditing("new")} data-testid="button-new-service"><Plus className="w-4 h-4 me-1" /> خدمة جديدة</Button>}
+          {canStart && <Button variant="outline" onClick={() => setStarting(null)}><Plus className="w-4 h-4 me-1" /> {t("hero.free_transaction")}</Button>}
+          {canAdd && <Button onClick={() => setEditing("new")} data-testid="button-new-service"><Plus className="w-4 h-4 me-1" /> {t("hero.new_service")}</Button>}
         </div>
       </div>
 
       <div className="flex flex-wrap gap-2">
-        <CategoryChip active={category === "all"} onClick={() => setCategory("all")} label="الكل" count={services.length} />
+        <CategoryChip active={category === "all"} onClick={() => setCategory("all")} label={t("catalog.filter_all")} count={services.length} />
         {PERMIT_CATEGORIES.filter((c) => counts.get(c)).map((c) => (
-          <CategoryChip key={c} active={category === c} onClick={() => setCategory(c)} label={PERMIT_CATEGORY_LABELS[c]} count={counts.get(c) ?? 0} />
+          <CategoryChip key={c} active={category === c} onClick={() => setCategory(c)} label={enumText("permit_category", c)} count={counts.get(c) ?? 0} />
         ))}
       </div>
 
-      {isLoading && <p className="text-sm text-muted-foreground">جارٍ التحميل…</p>}
-      {!isLoading && filtered.length === 0 && <Card className="p-10 text-center text-muted-foreground">لا توجد خدمات مطابقة</Card>}
+      {isLoading && <p className="text-sm text-muted-foreground">{t("catalog.loading")}</p>}
+      {!isLoading && filtered.length === 0 && <Card className="p-10 text-center text-muted-foreground">{t("catalog.no_matches")}</Card>}
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
         {filtered.map((s) => (
@@ -138,23 +137,23 @@ export function ServiceCatalogTab({ ctx, projectId }: { ctx: PermitsContext; pro
               </div>
             </div>
             <div className="flex flex-wrap gap-1.5">
-              <Badge variant="secondary" className="border-none">{PERMIT_CATEGORY_LABELS[s.category as keyof typeof PERMIT_CATEGORY_LABELS] ?? s.category}</Badge>
-              {s.isLicense && <Badge variant="secondary" className="border-none bg-teal-500/10 text-teal-700 dark:text-teal-400">رخصة بتاريخ انتهاء</Badge>}
-              {!s.isSystem && <Badge variant="secondary" className="border-none bg-violet-500/10 text-violet-700 dark:text-violet-400">خدمة خاصة</Badge>}
-              {!s.active && <Badge variant="secondary" className="border-none">موقوفة</Badge>}
+              <Badge variant="secondary" className="border-none">{enumText("permit_category", s.category)}</Badge>
+              {s.isLicense && <Badge variant="secondary" className="border-none bg-teal-500/10 text-teal-700 dark:text-teal-400">{t("catalog.license_with_expiry")}</Badge>}
+              {!s.isSystem && <Badge variant="secondary" className="border-none bg-violet-500/10 text-violet-700 dark:text-violet-400">{t("catalog.custom_service")}</Badge>}
+              {!s.active && <Badge variant="secondary" className="border-none">{t("catalog.suspended")}</Badge>}
             </div>
             {s.description && <p className="text-sm text-muted-foreground line-clamp-2">{s.description}</p>}
             <div className="mt-auto grid grid-cols-3 gap-2 text-xs text-muted-foreground border-t pt-3">
-              <span className="flex items-center gap-1"><ListChecks className="w-3.5 h-3.5" /> {s.steps.length} خطوات</span>
-              <span className="flex items-center gap-1"><FileText className="w-3.5 h-3.5" /> {s.requirements.length} متطلبات</span>
-              <span className="flex items-center gap-1"><Clock className="w-3.5 h-3.5" /> {s.slaDays ? `${s.slaDays} يوم` : "—"}</span>
+              <span className="flex items-center gap-1"><ListChecks className="w-3.5 h-3.5" /> {t("catalog.steps_count", { count: s.steps.length })}</span>
+              <span className="flex items-center gap-1"><FileText className="w-3.5 h-3.5" /> {t("catalog.requirements_count", { count: s.requirements.length })}</span>
+              <span className="flex items-center gap-1"><Clock className="w-3.5 h-3.5" /> {s.slaDays ? t("catalog.sla_days", { count: s.slaDays }) : "—"}</span>
             </div>
           </Card>
         ))}
       </div>
 
       <p className="text-xs text-muted-foreground">
-        الخدمات النظامية مرجع عام لخطوات ومستندات الإجراءات الشائعة، وتختلف التفاصيل والرسوم والمدد حسب المدينة ونوع المشروع. تحقّق منها لدى الجهة عبر رابط بوابتها، ويمكنك نسخ أي خدمة إلى خدماتك وتعديلها.
+        {t("catalog.disclaimer_tab")}
       </p>
 
       {open && (
@@ -191,17 +190,18 @@ function CategoryChip({ active, onClick, label, count }: { active: boolean; onCl
 // ------------------------------------------------------------------ one service
 
 export function ServiceDetailDialog({ ctx, service: s, onClose, onStart, onEdit }: { ctx: PermitsContext; service: CatalogService; onClose: () => void; onStart: () => void; onEdit: () => void }) {
+  const { t } = useTranslation("permits");
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const duplicate = useMutation({
     mutationFn: async () => apiRequest("POST", `/api/permits/services/${s.id}/duplicate`),
-    onSuccess: () => { invalidatePermits(queryClient); toast({ title: "نُسخت الخدمة إلى خدماتك" }); onClose(); },
-    onError: (e) => toast({ title: "تعذّر النسخ", description: errorMessage(e), variant: "destructive" }),
+    onSuccess: () => { invalidatePermits(queryClient); toast({ title: t("service_dialog.copy_success") }); onClose(); },
+    onError: (e) => toast({ title: t("service_dialog.copy_error"), description: errorMessage(e), variant: "destructive" }),
   });
   const remove = useMutation({
     mutationFn: async () => apiRequest("DELETE", `/api/permits/services/${s.id}`),
     onSuccess: () => { invalidatePermits(queryClient); onClose(); },
-    onError: (e) => toast({ title: "تعذّر الحذف", description: errorMessage(e), variant: "destructive" }),
+    onError: (e) => toast({ title: t("service_dialog.delete_error"), description: errorMessage(e), variant: "destructive" }),
   });
   const documents = s.requirements.filter((r) => r.kind === "document");
   const conditions = s.requirements.filter((r) => r.kind !== "document");
@@ -211,50 +211,50 @@ export function ServiceDetailDialog({ ctx, service: s, onClose, onStart, onEdit 
     <PaymentDialog
       onClose={onClose}
       icon={Landmark}
-      kind="خدمة"
+      kind={t("service_dialog.kind")}
       title={s.name}
       description={s.authorityName ?? undefined}
       footer={
         <>
-          {ctx.projects.some((p) => p.isDeveloper) && s.active && <Button onClick={onStart} data-testid="button-start-transaction"><Rocket className="w-4 h-4 me-1" /> بدء معاملة لمشروع</Button>}
-          {portal && <Button variant="outline" asChild><a href={portal} target="_blank" rel="noreferrer"><ExternalLink className="w-4 h-4 me-1" /> بوابة الجهة</a></Button>}
-          {s.canEdit && <Button variant="outline" onClick={onEdit}><Pencil className="w-4 h-4 me-1" /> تعديل</Button>}
-          {s.isSystem && ctx.canManageOrgCatalog && <Button variant="ghost" disabled={duplicate.isPending} onClick={() => duplicate.mutate()}><Copy className="w-4 h-4 me-1" /> نسخ إلى خدماتي</Button>}
-          {s.canEdit && <Button variant="ghost" className="text-destructive" disabled={remove.isPending} onClick={() => confirm("حذف هذه الخدمة من الدليل؟ تبقى المعاملات التي بُدئت منها.") && remove.mutate()}><Trash2 className="w-4 h-4 me-1" /> حذف</Button>}
+          {ctx.projects.some((p) => p.isDeveloper) && s.active && <Button onClick={onStart} data-testid="button-start-transaction"><Rocket className="w-4 h-4 me-1" /> {t("service_dialog.btn_start_transaction")}</Button>}
+          {portal && <Button variant="outline" asChild><a href={portal} target="_blank" rel="noreferrer"><ExternalLink className="w-4 h-4 me-1" /> {t("service_dialog.btn_portal")}</a></Button>}
+          {s.canEdit && <Button variant="outline" onClick={onEdit}><Pencil className="w-4 h-4 me-1" /> {t("service_dialog.btn_edit")}</Button>}
+          {s.isSystem && ctx.canManageOrgCatalog && <Button variant="ghost" disabled={duplicate.isPending} onClick={() => duplicate.mutate()}><Copy className="w-4 h-4 me-1" /> {t("service_dialog.btn_copy_to_mine")}</Button>}
+          {s.canEdit && <Button variant="ghost" className="text-destructive" disabled={remove.isPending} onClick={() => confirm(t("service_dialog.confirm_delete")) && remove.mutate()}><Trash2 className="w-4 h-4 me-1" /> {t("service_dialog.btn_delete")}</Button>}
         </>
       }
     >
       {s.description && <p className="text-sm leading-7">{s.description}</p>}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <InfoTile icon={Building2} label="الجهة" value={s.authorityName ?? "—"} />
-        <InfoTile icon={Wallet} label="رسوم الخدمة" value={feeText(s)} />
-        <InfoTile icon={Clock} label="مدة التنفيذ" value={s.slaDays ? `${s.slaDays} يوم` : "حسب الجهة"} />
-        <InfoTile icon={BadgeCheck} label="الصلاحية" value={s.isLicense ? (s.validityMonths ? `${s.validityMonths} شهر` : "حسب الرخصة") : "لا تنتهي"} />
+        <InfoTile icon={Building2} label={t("service_dialog.authority")} value={s.authorityName ?? "—"} />
+        <InfoTile icon={Wallet} label={t("service_dialog.service_fee")} value={feeText(s) || t("catalog.fee_determined_by_authority")} />
+        <InfoTile icon={Clock} label={t("service_dialog.duration")} value={s.slaDays ? t("catalog.sla_days", { count: s.slaDays }) : t("service_dialog.per_authority")} />
+        <InfoTile icon={BadgeCheck} label={t("service_dialog.validity")} value={s.isLicense ? (s.validityMonths ? t("service_dialog.months_count", { count: s.validityMonths }) : t("service_dialog.per_license")) : t("service_dialog.no_expiry")} />
       </div>
-      {s.channels && <p className="text-sm"><span className="font-semibold">قنوات التقديم: </span>{s.channels}</p>}
+      {s.channels && <p className="text-sm"><span className="font-semibold">{t("service_dialog.channels")}: </span>{s.channels}</p>}
 
-      <Section title="خطوات الحصول على الخدمة" icon={ListChecks}>
+      <Section title={t("service_dialog.steps_title")} icon={ListChecks}>
         <ol className="space-y-2">
           {s.steps.map((st, i) => (
             <li key={i} className="flex gap-3 items-start">
               <span className="w-6 h-6 rounded-full bg-primary/10 text-primary text-xs font-bold flex items-center justify-center shrink-0">{i + 1}</span>
               <div className="flex-1 text-sm">
                 <span className="font-medium">{st.title}</span>
-                <span className="text-xs text-muted-foreground"> · {STEP_PARTY_LABELS[st.party as keyof typeof STEP_PARTY_LABELS] ?? st.party}{st.slaDays ? ` · ${st.slaDays} يوم` : ""}{st.isPaymentStep ? " · سداد عبر المدفوعات" : ""}</span>
+                <span className="text-xs text-muted-foreground"> · {enumText("step_party", st.party)}{st.slaDays ? ` · ${t("catalog.sla_days", { count: st.slaDays })}` : ""}{st.isPaymentStep ? ` · ${t("service_dialog.payment_via_payments")}` : ""}</span>
               </div>
             </li>
           ))}
-          {s.steps.length === 0 && <p className="text-sm text-muted-foreground">لم تُحدَّد خطوات.</p>}
+          {s.steps.length === 0 && <p className="text-sm text-muted-foreground">{t("service_dialog.no_steps")}</p>}
         </ol>
       </Section>
       {conditions.length > 0 && (
-        <Section title="متطلبات الخدمة" icon={BadgeCheck}>
-          <ul className="list-disc ps-5 space-y-1 text-sm">{conditions.map((r, i) => <li key={i}>{r.title}{!r.mandatory && <span className="text-muted-foreground"> (اختياري)</span>}</li>)}</ul>
+        <Section title={t("service_dialog.requirements_title")} icon={BadgeCheck}>
+          <ul className="list-disc ps-5 space-y-1 text-sm">{conditions.map((r, i) => <li key={i}>{r.title}{!r.mandatory && <span className="text-muted-foreground"> ({t("service_dialog.optional")})</span>}</li>)}</ul>
         </Section>
       )}
-      <Section title="المستندات المطلوبة" icon={FileText}>
-        <ul className="list-disc ps-5 space-y-1 text-sm">{documents.map((r, i) => <li key={i}>{r.title}{!r.mandatory && <span className="text-muted-foreground"> (اختياري)</span>}</li>)}</ul>
-        {documents.length === 0 && <p className="text-sm text-muted-foreground">لا توجد مستندات محددة.</p>}
+      <Section title={t("service_dialog.documents_title")} icon={FileText}>
+        <ul className="list-disc ps-5 space-y-1 text-sm">{documents.map((r, i) => <li key={i}>{r.title}{!r.mandatory && <span className="text-muted-foreground"> ({t("service_dialog.optional")})</span>}</li>)}</ul>
+        {documents.length === 0 && <p className="text-sm text-muted-foreground">{t("service_dialog.no_documents")}</p>}
       </Section>
     </PaymentDialog>
   );
@@ -274,6 +274,7 @@ function InfoTile({ icon: Icon, label, value }: { icon: typeof Clock; label: str
 export function NewTransactionDialog({ ctx, services, defaultProjectId, serviceId, onClose }: {
   ctx: PermitsContext; services: CatalogService[]; defaultProjectId: string; serviceId: string | null; onClose: () => void;
 }) {
+  const { t } = useTranslation("permits");
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [, navigate] = useLocation();
@@ -320,11 +321,11 @@ export function NewTransactionDialog({ ctx, services, defaultProjectId, serviceI
     },
     onSuccess: (row: { id: string }) => {
       invalidatePermits(queryClient);
-      toast({ title: "أُنشئت المعاملة" });
+      toast({ title: t("new_transaction.title_success") });
       onClose();
       navigate(`/permits/${row.id}`);
     },
-    onError: (e) => toast({ title: "تعذّر الإنشاء", description: errorMessage(e), variant: "destructive" }),
+    onError: (e) => toast({ title: t("new_transaction.toast_error"), description: errorMessage(e), variant: "destructive" }),
   });
 
   return (
@@ -332,21 +333,21 @@ export function NewTransactionDialog({ ctx, services, defaultProjectId, serviceI
       onClose={onClose}
       size="md"
       icon={Rocket}
-      kind="معاملة جديدة"
-      title={service?.name ?? "معاملة حرة"}
-      description={service?.authorityName ?? "خارج دليل الخدمات"}
-      footer={<Button disabled={create.isPending || !projectId || (!service && !form.title.trim())} onClick={() => create.mutate()} data-testid="button-create-transaction"><Save className="w-4 h-4 me-1" /> إنشاء</Button>}
+      kind={t("new_transaction.title")}
+      title={service?.name ?? t("new_transaction.free_service_option")}
+      description={service?.authorityName ?? t("new_transaction.free_desc")}
+      footer={<Button disabled={create.isPending || !projectId || (!service && !form.title.trim())} onClick={() => create.mutate()} data-testid="button-create-transaction"><Save className="w-4 h-4 me-1" /> {t("new_transaction.btn_start")}</Button>}
     >
       <div className="grid sm:grid-cols-2 gap-3">
         <div className="space-y-1.5 sm:col-span-2">
-          <Label>المشروع (أنت المطوّر فيه)</Label>
+          <Label>{t("new_transaction.field_project_dev")}</Label>
           <Select value={projectId} onValueChange={(v) => { setProjectId(v); set("assigneeUserId")(""); }}>
-            <SelectTrigger><SelectValue placeholder="اختر المشروع" /></SelectTrigger>
+            <SelectTrigger><SelectValue placeholder={t("new_transaction.select_project")} /></SelectTrigger>
             <SelectContent>{devProjects.map((p) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent>
           </Select>
         </div>
         <div className="space-y-1.5 sm:col-span-2">
-          <Label>الخدمة</Label>
+          <Label>{t("new_transaction.field_service")}</Label>
           <Select value={svcId} onValueChange={(v) => {
             setSvcId(v);
             const s = services.find((x) => x.id === v);
@@ -354,41 +355,41 @@ export function NewTransactionDialog({ ctx, services, defaultProjectId, serviceI
           }}>
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="none">معاملة حرة (بدون خدمة من الدليل)</SelectItem>
+              <SelectItem value="none">{t("new_transaction.free_service_option")}</SelectItem>
               {services.filter((s) => s.active).map((s) => <SelectItem key={s.id} value={s.id}>{s.name} — {s.authorityName ?? ""}</SelectItem>)}
             </SelectContent>
           </Select>
-          {service && <p className="text-xs text-muted-foreground">تُنسخ {service.steps.length} خطوات و{service.requirements.length} متطلبات من الخدمة، ويمكن تعديلها بعد الإنشاء.</p>}
+          {service && <p className="text-xs text-muted-foreground">{t("new_transaction.copy_note", { steps: service.steps.length, reqs: service.requirements.length })}</p>}
         </div>
-        <div className="space-y-1.5 sm:col-span-2"><Label>العنوان</Label><Input value={form.title} onChange={(e) => set("title")(e.target.value)} placeholder="مثال: رخصة بناء البرج A" /></div>
+        <div className="space-y-1.5 sm:col-span-2"><Label>{t("new_transaction.field_title")}</Label><Input value={form.title} onChange={(e) => set("title")(e.target.value)} placeholder={t("new_transaction.title_ph")} /></div>
         {!service && (
           <>
-            <div className="space-y-1.5"><Label>الجهة</Label><Input value={form.authorityName} onChange={(e) => set("authorityName")(e.target.value)} /></div>
+            <div className="space-y-1.5"><Label>{t("new_transaction.field_authority")}</Label><Input value={form.authorityName} onChange={(e) => set("authorityName")(e.target.value)} /></div>
             <div className="space-y-1.5">
-              <Label>النوع</Label>
+              <Label>{t("new_transaction.field_kind")}</Label>
               <Select value={form.kind} onValueChange={set("kind")}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent><SelectItem value="transaction">معاملة</SelectItem><SelectItem value="license">رخصة (لها تاريخ انتهاء)</SelectItem></SelectContent>
+                <SelectContent><SelectItem value="transaction">{t("new_transaction.kind_transaction")}</SelectItem><SelectItem value="license">{t("new_transaction.kind_license")}</SelectItem></SelectContent>
               </Select>
             </div>
           </>
         )}
         <div className="space-y-1.5 sm:col-span-2">
-          <Label>المسؤول عن المتابعة</Label>
+          <Label>{t("new_transaction.field_assignee")}</Label>
           <Select value={form.assigneeUserId || "none"} onValueChange={(v) => set("assigneeUserId")(v === "none" ? "" : v)} disabled={!projectId}>
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="none">— بدون —</SelectItem>
-              {assignees.map((u) => <SelectItem key={u.id} value={u.id}>{u.name} · {STEP_PARTY_LABELS[u.party]}</SelectItem>)}
+              <SelectItem value="none">{t("service_editor.authority_none")}</SelectItem>
+              {assignees.map((u) => <SelectItem key={u.id} value={u.id}>{u.name} · {enumText("step_party", u.party)}</SelectItem>)}
             </SelectContent>
           </Select>
-          <p className="text-xs text-muted-foreground">تُسند إليه خطوات المطوّر تلقائياً، وتُسند خطوات المقاول والاستشاري من صفحة المعاملة.</p>
+          <p className="text-xs text-muted-foreground">{t("new_transaction.assignee_help")}</p>
         </div>
-        <div className="space-y-1.5"><Label>تاريخ البدء</Label><Input type="date" value={form.startDate} onChange={(e) => set("startDate")(e.target.value)} /></div>
-        <div className="space-y-1.5"><Label>المستهدف إنجازها قبل</Label><Input type="date" value={form.dueDate} onChange={(e) => set("dueDate")(e.target.value)} /></div>
-        <div className="space-y-1.5"><Label>الرسوم المتوقعة</Label><Input type="number" min="0" step="0.01" value={form.feeAmount} onChange={(e) => set("feeAmount")(e.target.value)} placeholder={service?.feeNote ?? "0"} /></div>
-        <div className="space-y-1.5"><Label>رقم الطلب لدى الجهة</Label><Input value={form.referenceNo} onChange={(e) => set("referenceNo")(e.target.value)} /></div>
-        <div className="space-y-1.5 sm:col-span-2"><Label>ملاحظات</Label><Textarea rows={2} value={form.notes} onChange={(e) => set("notes")(e.target.value)} /></div>
+        <div className="space-y-1.5"><Label>{t("new_transaction.field_start_date")}</Label><Input type="date" value={form.startDate} onChange={(e) => set("startDate")(e.target.value)} /></div>
+        <div className="space-y-1.5"><Label>{t("new_transaction.field_due_date")}</Label><Input type="date" value={form.dueDate} onChange={(e) => set("dueDate")(e.target.value)} /></div>
+        <div className="space-y-1.5"><Label>{t("new_transaction.field_fee")}</Label><Input type="number" min="0" step="0.01" value={form.feeAmount} onChange={(e) => set("feeAmount")(e.target.value)} placeholder={service?.feeNote ?? "0"} /></div>
+        <div className="space-y-1.5"><Label>{t("new_transaction.field_reference_no")}</Label><Input value={form.referenceNo} onChange={(e) => set("referenceNo")(e.target.value)} /></div>
+        <div className="space-y-1.5 sm:col-span-2"><Label>{t("new_transaction.field_notes")}</Label><Textarea rows={2} value={form.notes} onChange={(e) => set("notes")(e.target.value)} /></div>
       </div>
     </PaymentDialog>
   );
@@ -397,6 +398,7 @@ export function NewTransactionDialog({ ctx, services, defaultProjectId, serviceI
 // ------------------------------------------------------------------ edit a service
 
 export function ServiceEditorDialog({ ctx, service, authorities, onClose }: { ctx: PermitsContext; service: CatalogService | null; authorities: CatalogAuthority[]; onClose: () => void }) {
+  const { t } = useTranslation("permits");
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [scope, setScope] = useState<"system" | "org">(service ? (service.isSystem ? "system" : "org") : ctx.canManageOrgCatalog ? "org" : "system");
@@ -446,8 +448,8 @@ export function ServiceEditorDialog({ ctx, service, authorities, onClose }: { ct
       };
       return service ? apiRequest("PATCH", `/api/permits/services/${service.id}`, body) : apiRequest("POST", "/api/permits/services", body);
     },
-    onSuccess: () => { invalidatePermits(queryClient); toast({ title: "حُفظت الخدمة" }); onClose(); },
-    onError: (e) => toast({ title: "تعذّر الحفظ", description: errorMessage(e), variant: "destructive" }),
+    onSuccess: () => { invalidatePermits(queryClient); toast({ title: t("service_editor.saved_toast") }); onClose(); },
+    onError: (e) => toast({ title: t("service_editor.toast_error"), description: errorMessage(e), variant: "destructive" }),
   });
 
   const move = <T,>(list: T[], i: number, d: -1 | 1) => {
@@ -463,73 +465,73 @@ export function ServiceEditorDialog({ ctx, service, authorities, onClose }: { ct
       onClose={onClose}
       size="lg"
       icon={Landmark}
-      kind={service ? "تعديل خدمة" : "خدمة جديدة"}
-      title={form.name || "خدمة جديدة"}
-      footer={<Button disabled={save.isPending || !form.name.trim() || (form.authorityId === "new" && !form.authorityName.trim())} onClick={() => save.mutate()}><Save className="w-4 h-4 me-1" /> حفظ</Button>}
+      kind={service ? t("service_editor.kind_edit") : t("service_editor.title_new")}
+      title={form.name || t("service_editor.title_new")}
+      footer={<Button disabled={save.isPending || !form.name.trim() || (form.authorityId === "new" && !form.authorityName.trim())} onClick={() => save.mutate()}><Save className="w-4 h-4 me-1" /> {t("service_editor.btn_save")}</Button>}
     >
       <div className="grid sm:grid-cols-2 gap-3">
         {!service && ctx.canManageSystemCatalog && ctx.canManageOrgCatalog && (
           <div className="space-y-1.5 sm:col-span-2">
-            <Label>تُضاف إلى</Label>
+            <Label>{t("service_editor.add_to")}</Label>
             <Select value={scope} onValueChange={(v) => setScope(v as "system" | "org")}>
               <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent><SelectItem value="org">خدمات منظمتي</SelectItem><SelectItem value="system">الدليل النظامي (لكل المطوّرين)</SelectItem></SelectContent>
+              <SelectContent><SelectItem value="org">{t("service_editor.scope_org")}</SelectItem><SelectItem value="system">{t("service_editor.scope_system")}</SelectItem></SelectContent>
             </Select>
           </div>
         )}
-        <div className="space-y-1.5 sm:col-span-2"><Label>اسم الخدمة</Label><Input value={form.name} onChange={(e) => set("name")(e.target.value)} /></div>
+        <div className="space-y-1.5 sm:col-span-2"><Label>{t("service_editor.field_name")}</Label><Input value={form.name} onChange={(e) => set("name")(e.target.value)} /></div>
         <div className="space-y-1.5">
-          <Label>الجهة</Label>
+          <Label>{t("service_editor.field_authority")}</Label>
           <Select value={form.authorityId || "none"} onValueChange={(v) => set("authorityId")(v === "none" ? "" : v)}>
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="none">— بدون —</SelectItem>
+              <SelectItem value="none">{t("service_editor.authority_none")}</SelectItem>
               {authorities.map((a) => <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>)}
-              <SelectItem value="new">+ جهة جديدة…</SelectItem>
+              <SelectItem value="new">{t("service_editor.authority_new")}</SelectItem>
             </SelectContent>
           </Select>
         </div>
         <div className="space-y-1.5">
-          <Label>التصنيف</Label>
+          <Label>{t("service_editor.field_category")}</Label>
           <Select value={form.category} onValueChange={set("category")}>
             <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent>{PERMIT_CATEGORIES.map((c) => <SelectItem key={c} value={c}>{PERMIT_CATEGORY_LABELS[c]}</SelectItem>)}</SelectContent>
+            <SelectContent>{PERMIT_CATEGORIES.map((c) => <SelectItem key={c} value={c}>{enumText("permit_category", c)}</SelectItem>)}</SelectContent>
           </Select>
         </div>
         {form.authorityId === "new" && (
           <>
-            <div className="space-y-1.5"><Label>اسم الجهة الجديدة</Label><Input value={form.authorityName} onChange={(e) => set("authorityName")(e.target.value)} /></div>
-            <div className="space-y-1.5"><Label>رابط بوابة الجهة</Label><Input dir="ltr" value={form.authorityPortalUrl} onChange={(e) => set("authorityPortalUrl")(e.target.value)} placeholder="https://" /></div>
+            <div className="space-y-1.5"><Label>{t("service_editor.new_authority_name")}</Label><Input value={form.authorityName} onChange={(e) => set("authorityName")(e.target.value)} /></div>
+            <div className="space-y-1.5"><Label>{t("service_editor.new_authority_url")}</Label><Input dir="ltr" value={form.authorityPortalUrl} onChange={(e) => set("authorityPortalUrl")(e.target.value)} placeholder="https://" /></div>
           </>
         )}
-        <div className="space-y-1.5 sm:col-span-2"><Label>وصف الخدمة</Label><Textarea rows={3} value={form.description} onChange={(e) => set("description")(e.target.value)} /></div>
-        <div className="space-y-1.5"><Label>رابط الخدمة</Label><Input dir="ltr" value={form.serviceUrl} onChange={(e) => set("serviceUrl")(e.target.value)} placeholder="https://" /></div>
-        <div className="space-y-1.5"><Label>قنوات التقديم</Label><Input value={form.channels} onChange={(e) => set("channels")(e.target.value)} /></div>
-        <div className="space-y-1.5"><Label>الرسوم المعتادة</Label><Input type="number" min="0" step="0.01" value={form.feeAmount} onChange={(e) => set("feeAmount")(e.target.value)} /></div>
-        <div className="space-y-1.5"><Label>ملاحظة الرسوم</Label><Input value={form.feeNote} onChange={(e) => set("feeNote")(e.target.value)} /></div>
-        <div className="space-y-1.5"><Label>مدة التنفيذ المتوقعة (يوم)</Label><Input type="number" min="0" value={form.slaDays} onChange={(e) => set("slaDays")(e.target.value)} /></div>
-        <div className="flex items-center gap-3 pt-6"><Switch checked={form.active} onCheckedChange={set("active")} /><Label>الخدمة متاحة</Label></div>
-        <div className="flex items-center gap-3"><Switch checked={form.isLicense} onCheckedChange={set("isLicense")} /><Label>تُنتج رخصة لها تاريخ انتهاء</Label></div>
+        <div className="space-y-1.5 sm:col-span-2"><Label>{t("service_editor.field_desc")}</Label><Textarea rows={3} value={form.description} onChange={(e) => set("description")(e.target.value)} /></div>
+        <div className="space-y-1.5"><Label>{t("service_editor.field_service_url")}</Label><Input dir="ltr" value={form.serviceUrl} onChange={(e) => set("serviceUrl")(e.target.value)} placeholder="https://" /></div>
+        <div className="space-y-1.5"><Label>{t("service_editor.field_channels")}</Label><Input value={form.channels} onChange={(e) => set("channels")(e.target.value)} /></div>
+        <div className="space-y-1.5"><Label>{t("service_editor.field_fee")}</Label><Input type="number" min="0" step="0.01" value={form.feeAmount} onChange={(e) => set("feeAmount")(e.target.value)} /></div>
+        <div className="space-y-1.5"><Label>{t("service_editor.field_fee_note")}</Label><Input value={form.feeNote} onChange={(e) => set("feeNote")(e.target.value)} /></div>
+        <div className="space-y-1.5"><Label>{t("service_editor.field_sla_days")}</Label><Input type="number" min="0" value={form.slaDays} onChange={(e) => set("slaDays")(e.target.value)} /></div>
+        <div className="flex items-center gap-3 pt-6"><Switch checked={form.active} onCheckedChange={set("active")} /><Label>{t("service_editor.service_available")}</Label></div>
+        <div className="flex items-center gap-3"><Switch checked={form.isLicense} onCheckedChange={set("isLicense")} /><Label>{t("service_editor.produces_license")}</Label></div>
         {form.isLicense && (
           <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5"><Label>الصلاحية (شهر)</Label><Input type="number" min="0" value={form.validityMonths} onChange={(e) => set("validityMonths")(e.target.value)} /></div>
-            <div className="space-y-1.5"><Label>التنبيه قبل الانتهاء (يوم)</Label><Input type="number" min="0" value={form.renewalLeadDays} onChange={(e) => set("renewalLeadDays")(e.target.value)} /></div>
+            <div className="space-y-1.5"><Label>{t("service_editor.field_validity_months")}</Label><Input type="number" min="0" value={form.validityMonths} onChange={(e) => set("validityMonths")(e.target.value)} /></div>
+            <div className="space-y-1.5"><Label>{t("service_editor.field_renewal_lead")}</Label><Input type="number" min="0" value={form.renewalLeadDays} onChange={(e) => set("renewalLeadDays")(e.target.value)} /></div>
           </div>
         )}
       </div>
 
-      <Section title="الخطوات" icon={ListChecks}>
+      <Section title={t("service_editor.steps_title")} icon={ListChecks}>
         <div className="space-y-2">
           {steps.map((st, i) => (
             <div key={i} className="grid grid-cols-12 gap-2 items-center rounded-lg border p-2">
               <span className="col-span-12 sm:col-span-1 text-xs font-bold text-muted-foreground">{i + 1}</span>
-              <Input className="col-span-12 sm:col-span-5" value={st.title} placeholder="عنوان الخطوة" onChange={(e) => setSteps((l) => l.map((x, j) => (j === i ? { ...x, title: e.target.value } : x)))} />
+              <Input className="col-span-12 sm:col-span-5" value={st.title} placeholder={t("service_editor.step_title_ph")} onChange={(e) => setSteps((l) => l.map((x, j) => (j === i ? { ...x, title: e.target.value } : x)))} />
               <Select value={st.party} onValueChange={(v) => setSteps((l) => l.map((x, j) => (j === i ? { ...x, party: v } : x)))}>
                 <SelectTrigger className="col-span-6 sm:col-span-2"><SelectValue /></SelectTrigger>
-                <SelectContent>{STEP_PARTIES.map((p) => <SelectItem key={p} value={p}>{STEP_PARTY_LABELS[p]}</SelectItem>)}</SelectContent>
+                <SelectContent>{STEP_PARTIES.map((p) => <SelectItem key={p} value={p}>{enumText("step_party", p)}</SelectItem>)}</SelectContent>
               </Select>
-              <Input className="col-span-6 sm:col-span-1" type="number" min="0" placeholder="أيام" value={st.slaDays ?? ""} onChange={(e) => setSteps((l) => l.map((x, j) => (j === i ? { ...x, slaDays: e.target.value === "" ? null : Number(e.target.value) } : x)))} />
-              <label className="col-span-6 sm:col-span-2 flex items-center gap-1.5 text-xs"><Switch checked={st.isPaymentStep} onCheckedChange={(v) => setSteps((l) => l.map((x, j) => (j === i ? { ...x, isPaymentStep: v } : x)))} /> خطوة سداد</label>
+              <Input className="col-span-6 sm:col-span-1" type="number" min="0" placeholder={t("service_editor.days_ph")} value={st.slaDays ?? ""} onChange={(e) => setSteps((l) => l.map((x, j) => (j === i ? { ...x, slaDays: e.target.value === "" ? null : Number(e.target.value) } : x)))} />
+              <label className="col-span-6 sm:col-span-2 flex items-center gap-1.5 text-xs"><Switch checked={st.isPaymentStep} onCheckedChange={(v) => setSteps((l) => l.map((x, j) => (j === i ? { ...x, isPaymentStep: v } : x)))} /> {t("service_editor.payment_step")}</label>
               <div className="col-span-6 sm:col-span-1 flex justify-end">
                 <Button type="button" variant="ghost" size="icon" onClick={() => setSteps((l) => move(l, i, -1))}><ArrowUp className="w-4 h-4" /></Button>
                 <Button type="button" variant="ghost" size="icon" onClick={() => setSteps((l) => move(l, i, 1))}><ArrowDown className="w-4 h-4" /></Button>
@@ -537,24 +539,24 @@ export function ServiceEditorDialog({ ctx, service, authorities, onClose }: { ct
               </div>
             </div>
           ))}
-          <Button type="button" variant="outline" size="sm" onClick={() => setSteps((l) => [...l, { title: "", description: null, party: "any", slaDays: null, isPaymentStep: false }])}><Plus className="w-4 h-4 me-1" /> خطوة</Button>
+          <Button type="button" variant="outline" size="sm" onClick={() => setSteps((l) => [...l, { title: "", description: null, party: "any", slaDays: null, isPaymentStep: false }])}><Plus className="w-4 h-4 me-1" /> {t("service_editor.step_btn")}</Button>
         </div>
       </Section>
 
-      <Section title="المتطلبات والمستندات" icon={FileText}>
+      <Section title={t("service_editor.requirements_title")} icon={FileText}>
         <div className="space-y-2">
           {reqs.map((r, i) => (
             <div key={i} className="grid grid-cols-12 gap-2 items-center rounded-lg border p-2">
               <Select value={r.kind} onValueChange={(v) => setReqs((l) => l.map((x, j) => (j === i ? { ...x, kind: v } : x)))}>
                 <SelectTrigger className="col-span-5 sm:col-span-3"><SelectValue /></SelectTrigger>
-                <SelectContent>{Object.entries(REQUIREMENT_KIND_LABELS).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}</SelectContent>
+                <SelectContent>{enumOptions("requirement_kind", REQUIREMENT_KINDS).map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent>
               </Select>
-              <Input className="col-span-7 sm:col-span-6" value={r.title} placeholder="المتطلب أو المستند" onChange={(e) => setReqs((l) => l.map((x, j) => (j === i ? { ...x, title: e.target.value } : x)))} />
-              <label className="col-span-8 sm:col-span-2 flex items-center gap-1.5 text-xs"><Switch checked={r.mandatory} onCheckedChange={(v) => setReqs((l) => l.map((x, j) => (j === i ? { ...x, mandatory: v } : x)))} /> إلزامي</label>
+              <Input className="col-span-7 sm:col-span-6" value={r.title} placeholder={t("service_editor.req_title_ph")} onChange={(e) => setReqs((l) => l.map((x, j) => (j === i ? { ...x, title: e.target.value } : x)))} />
+              <label className="col-span-8 sm:col-span-2 flex items-center gap-1.5 text-xs"><Switch checked={r.mandatory} onCheckedChange={(v) => setReqs((l) => l.map((x, j) => (j === i ? { ...x, mandatory: v } : x)))} /> {t("service_editor.mandatory")}</label>
               <Button type="button" variant="ghost" size="icon" className="col-span-4 sm:col-span-1 text-destructive justify-self-end" onClick={() => setReqs((l) => l.filter((_, j) => j !== i))}><Trash2 className="w-4 h-4" /></Button>
             </div>
           ))}
-          <Button type="button" variant="outline" size="sm" onClick={() => setReqs((l) => [...l, { kind: "document", title: "", description: null, mandatory: true }])}><Plus className="w-4 h-4 me-1" /> متطلب / مستند</Button>
+          <Button type="button" variant="outline" size="sm" onClick={() => setReqs((l) => [...l, { kind: "document", title: "", description: null, mandatory: true }])}><Plus className="w-4 h-4 me-1" /> {t("service_editor.req_btn")}</Button>
         </div>
       </Section>
     </PaymentDialog>

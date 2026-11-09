@@ -82,16 +82,16 @@ export function LinkMaterialDialog({
 
         <div className="p-6 space-y-4">
            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Search className="absolute start-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <Input 
                 placeholder="Search materials..." 
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10 rounded-xl"
+                className="ps-10 rounded-xl"
               />
            </div>
 
-           <ScrollArea className="h-[300px] pr-4">
+           <ScrollArea className="h-[300px] pe-4">
               <div className="space-y-2">
                  {filteredMaterials.length === 0 ? (
                     <div className="text-center py-8 text-muted-foreground italic text-sm">

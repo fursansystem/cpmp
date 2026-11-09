@@ -232,7 +232,7 @@ export default function ChecklistPage() {
             <TableHead>English Name</TableHead>
             <TableHead dir="rtl">Arabic Name</TableHead>
             <TableHead>Description</TableHead>
-            <TableHead className="w-24 text-right">Actions</TableHead>
+            <TableHead className="w-24 text-end">Actions</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -305,7 +305,7 @@ export default function ChecklistPage() {
                   isImporting={isImporting}
                 />
                 <Button onClick={openCreateDialog} data-testid="button-add-main">
-                  <Plus className="h-4 w-4 mr-2" />
+                  <Plus className="h-4 w-4 me-2" />
                   Add Item
                 </Button>
               </div>
@@ -327,7 +327,7 @@ export default function ChecklistPage() {
                   isImporting={isImporting}
                 />
                 <Button onClick={openCreateDialog} data-testid="button-add-sbc">
-                  <Plus className="h-4 w-4 mr-2" />
+                  <Plus className="h-4 w-4 me-2" />
                   Add Item
                 </Button>
               </div>
@@ -349,7 +349,7 @@ export default function ChecklistPage() {
                   isImporting={isImporting}
                 />
                 <Button onClick={openCreateDialog} data-testid="button-add-recommendations">
-                  <Plus className="h-4 w-4 mr-2" />
+                  <Plus className="h-4 w-4 me-2" />
                   Add Item
                 </Button>
               </div>
@@ -430,7 +430,7 @@ export default function ChecklistPage() {
                   Cancel
                 </Button>
                 <Button type="submit" disabled={isPending} data-testid="button-submit-checklist">
-                  {isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                  {isPending && <Loader2 className="h-4 w-4 me-2 animate-spin" />}
                   {editingItem ? "Update" : "Create"}
                 </Button>
               </DialogFooter>
@@ -453,7 +453,7 @@ export default function ChecklistPage() {
               onClick={() => deleteItemId && deleteMutation.mutate(deleteItemId)}
               data-testid="button-confirm-delete-checklist"
             >
-              {deleteMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              {deleteMutation.isPending && <Loader2 className="h-4 w-4 me-2 animate-spin" />}
               Delete
             </AlertDialogAction>
           </AlertDialogFooter>

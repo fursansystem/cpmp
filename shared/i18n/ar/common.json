@@ -1,0 +1,37 @@
+{
+  "language": {
+    "label": "اللغة",
+    "description": "اختر لغة العرض",
+    "ar": "العربية",
+    "en": "English"
+  },
+  "actions": {
+    "save": "حفظ",
+    "cancel": "إلغاء",
+    "close": "إغلاق",
+    "back": "رجوع",
+    "search": "بحث",
+    "retry": "إعادة المحاولة"
+  },
+  "time_ago": {
+    "just_now": "الآن",
+    "minutes_one": "قبل دقيقة",
+    "minutes_two": "قبل دقيقتين",
+    "minutes_few": "قبل {{count}} دقائق",
+    "minutes_many": "قبل {{count}} دقيقة",
+    "minutes_other": "قبل {{count}} دقيقة",
+    "hours_one": "قبل ساعة",
+    "hours_two": "قبل ساعتين",
+    "hours_few": "قبل {{count}} ساعات",
+    "hours_many": "قبل {{count}} ساعة",
+    "hours_other": "قبل {{count}} ساعة",
+    "days_one": "أمس",
+    "days_two": "قبل يومين",
+    "days_few": "قبل {{count}} أيام",
+    "days_many": "قبل {{count}} يوماً",
+    "days_other": "قبل {{count}} يوم"
+  },
+  "currency": {
+    "sar": "ريال"
+  }
+}

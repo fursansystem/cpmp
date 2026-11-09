@@ -71,7 +71,7 @@ import {
 
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
-import { format } from "date-fns";
+import { format } from "@/lib/date-format";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { cn, formatFileSize, formatGMT3 } from "@/lib/utils";
@@ -232,7 +232,7 @@ export default function ProjectDeliveries({
       {!embedded && (
         <>
       {/* Background Decorative Elements */}
-      <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none -z-10">
+      <div className="absolute top-0 start-0 w-full h-full overflow-hidden pointer-events-none -z-10">
         <div className="absolute top-[-10%] right-[-10%] w-[40%] h-[40%] bg-primary/5 rounded-full blur-[120px]" />
         <div className="absolute bottom-[-10%] left-[-10%] w-[40%] h-[40%] bg-blue-500/5 rounded-full blur-[120px]" />
       </div>
@@ -243,10 +243,10 @@ export default function ProjectDeliveries({
           <Button
             variant="ghost"
             size="sm"
-            className="-ml-2 h-8 w-8 p-0 md:h-auto md:w-auto md:px-3 md:py-2 text-muted-foreground hover:text-foreground shrink-0 shadow-sm z-10"
+            className="-ms-2 h-8 w-8 p-0 md:h-auto md:w-auto md:px-3 md:py-2 text-muted-foreground hover:text-foreground shrink-0 shadow-sm z-10"
             onClick={() => navigate(`/projects/${projectId}`)}
           >
-            <ArrowLeft className="w-5 h-5 md:mr-2" />
+            <ArrowLeft className="w-5 h-5 md:me-2 rtl:rotate-180" />
             <span className="hidden md:inline font-semibold">Back to Project</span>
           </Button>
         </div>
@@ -254,14 +254,14 @@ export default function ProjectDeliveries({
         {/* Centered Page Title */}
         <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none flex items-center gap-2 lg:gap-3 w-full justify-center px-12 lg:px-0">
           <Badge variant="secondary" className="px-4 py-1.5 lg:px-8 lg:py-2 border-none bg-primary/10 text-primary dark:bg-primary/20 rounded-full shadow-sm lg:shadow-md">
-            <Warehouse className="w-4 h-4 lg:w-6 lg:h-6 mr-2 lg:mr-3 text-primary" />
+            <Warehouse className="w-4 h-4 lg:w-6 lg:h-6 me-2 lg:me-3 text-primary" />
             <span className="text-sm lg:text-xl font-bold tracking-tight uppercase truncate max-w-[200px] sm:max-w-none">Warehouse & Delivery Notes</span>
           </Badge>
         </div>
 
         <div className="flex items-center gap-3 shrink-0 z-10">
           <Button onClick={handleAdd} className="shadow-lg rounded-full font-black text-[10px] uppercase tracking-widest px-6 h-9 lg:h-11 bg-primary hover:bg-primary/90 text-primary-foreground transition-all active:scale-95">
-            <Plus className="w-4 h-4 mr-2" />
+            <Plus className="w-4 h-4 me-2" />
             Add Delivery
           </Button>
         </div>
@@ -306,12 +306,12 @@ export default function ProjectDeliveries({
           <p className="text-[10px] lg:text-xs font-bold text-muted-foreground uppercase tracking-widest opacity-60">Comprehensive log of incoming materials</p>
         </div>
         <div className="relative w-full max-w-md group">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground group-focus-within:text-primary transition-colors" />
+          <Search className="absolute start-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground group-focus-within:text-primary transition-colors" />
           <Input
             placeholder="Search deliveries, materials, or suppliers..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-12 h-10 lg:h-12 bg-white dark:bg-background/50 border-none focus-visible:ring-2 focus-visible:ring-primary/50 rounded-full shadow-inner transition-all text-sm font-medium"
+            className="ps-12 h-10 lg:h-12 bg-white dark:bg-background/50 border-none focus-visible:ring-2 focus-visible:ring-primary/50 rounded-full shadow-inner transition-all text-sm font-medium"
           />
         </div>
       </div>
@@ -375,9 +375,9 @@ export default function ProjectDeliveries({
                                   className="font-bold rounded-lg m-1 py-2 text-xs"
                                 >
                                   {delivery.isFinalApproved ? (
-                                    <Lock className="w-4 h-4 mr-2.5 text-muted-foreground" />
+                                    <Lock className="w-4 h-4 me-2.5 text-muted-foreground" />
                                   ) : (
-                                    <Edit2 className="w-4 h-4 mr-2.5 text-primary" />
+                                    <Edit2 className="w-4 h-4 me-2.5 text-primary" />
                                   )}
                                   Edit Details
                                 </DropdownMenuItem>
@@ -395,7 +395,7 @@ export default function ProjectDeliveries({
                               e.stopPropagation();
                               setPreviewAttachment(delivery.attachment!);
                             }} className="font-bold rounded-lg m-1 py-2 text-xs">
-                              <Paperclip className="w-4 h-4 mr-2.5 text-primary" /> Preview Document
+                              <Paperclip className="w-4 h-4 me-2.5 text-primary" /> Preview Document
                             </DropdownMenuItem>
                           )}
                           {paymentRoles.mode && (
@@ -406,7 +406,7 @@ export default function ProjectDeliveries({
                               }}
                               className="font-bold rounded-lg m-1 py-2 text-xs"
                             >
-                              <Banknote className="w-4 h-4 mr-2.5 text-primary" />
+                              <Banknote className="w-4 h-4 me-2.5 text-primary" />
                               {paymentRoles.mode === "accounting" ? "Request invoice for this delivery" : "Request a transfer"}
                             </DropdownMenuItem>
                           )}
@@ -424,9 +424,9 @@ export default function ProjectDeliveries({
                                   disabled={delivery.linkedRequests && delivery.linkedRequests.length > 0}
                                 >
                                   {delivery.linkedRequests && delivery.linkedRequests.length > 0 ? (
-                                    <Lock className="w-4 h-4 mr-2.5 text-muted-foreground" />
+                                    <Lock className="w-4 h-4 me-2.5 text-muted-foreground" />
                                   ) : (
-                                    <Trash2 className="w-4 h-4 mr-2.5" />
+                                    <Trash2 className="w-4 h-4 me-2.5" />
                                   )}
                                   Remove Log
                                 </DropdownMenuItem>
@@ -606,7 +606,7 @@ export default function ProjectDeliveries({
             <div className="flex items-center gap-3">
               <Button variant="outline" size="sm" className="rounded-xl font-bold h-9 bg-background/50 border-primary/20 text-primary hover:bg-primary/5 hidden sm:flex" asChild>
                 <a href={getFileUrl(previewAttachment?.fileUrl || (previewAttachment as any)?.fileData || (previewAttachment as any)?.file_data)} target="_blank" rel="noopener noreferrer">
-                  <Link2 className="w-4 h-4 mr-2" />
+                  <Link2 className="w-4 h-4 me-2" />
                   Open Original
                 </a>
               </Button>

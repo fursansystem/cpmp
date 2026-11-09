@@ -235,7 +235,7 @@ export default function Team() {
           <TeamMemberFormDialog
             trigger={
               <Button data-testid="button-new-member">
-                <Plus className="w-4 h-4 mr-2" />
+                <Plus className="w-4 h-4 me-2" />
                 Add Member
               </Button>
             }
@@ -260,12 +260,12 @@ export default function Team() {
 
       <div className="flex items-center gap-4 flex-wrap">
         <div className="relative flex-1 min-w-[200px] max-w-md">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <Search className="absolute start-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <Input
             placeholder="Search members..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-10"
+            className="ps-10"
             data-testid="input-search"
           />
         </div>
@@ -334,7 +334,7 @@ export default function Team() {
               </Button>
             ) : canEdit ? (
               <Button onClick={() => setDialogOpen(true)} data-testid="button-empty-add-member">
-                <UserPlus className="w-4 h-4 mr-2" />
+                <UserPlus className="w-4 h-4 me-2" />
                 Add Member
               </Button>
             ) : null}

@@ -3,6 +3,7 @@ import { pgTable, text, varchar, integer, decimal, date, boolean, timestamp, uni
 import { relations } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
+import { LANGUAGES, enumMap } from "./i18n";
 
 export const organizations = pgTable("organizations", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -193,6 +194,7 @@ export const users = pgTable("users", {
   phone: text("phone"),
   photo: text("photo"),
   signature: text("signature"),
+  language: text("language").notNull().default("ar"), // ar | en — direction follows from it, never set on its own
 });
 
 // User-Team Member Junction Table - Many-to-many relationship
@@ -1273,55 +1275,7 @@ export const positions = pgTable("positions", {
 });
 
 // Default positions for seeding
-export const DEFAULT_POSITIONS = [
-  { titleEnglish: "Project Manager", titleArabic: "مدير مشروع" },
-  { titleEnglish: "Civil Engineer", titleArabic: "مهندس مدني" },
-  { titleEnglish: "Architect Engineer", titleArabic: "مهندس معماري" },
-  { titleEnglish: "Mechanical Engineer", titleArabic: "مهندس ميكانيكي" },
-  { titleEnglish: "Customer Team", titleArabic: "فريق المالك" },
-  { titleEnglish: "Owner Representative", titleArabic: "ممثل المالك" },
-  { titleEnglish: "Electrical Engineer", titleArabic: "مهندس كهربائي" },
-  { titleEnglish: "Quantity Surveyor", titleArabic: "محاسب كميات" },
-  { titleEnglish: "Surveyor", titleArabic: "مساح" },
-  { titleEnglish: "General Inspector", titleArabic: "مراقب عام" },
-  { titleEnglish: "Fresh Graduated Engineer", titleArabic: "مهندس حديث تخرج" },
-  { titleEnglish: "Civil Inspector", titleArabic: "مراقب مدني" },
-  { titleEnglish: "Architectural Inspector", titleArabic: "مراقب معماري" },
-  { titleEnglish: "Electrical Inspector", titleArabic: "مراقب كهربائي" },
-  { titleEnglish: "Mechanical Inspector", titleArabic: "مراقب ميكانيكي" },
-  { titleEnglish: "Safety Officer", titleArabic: "مسؤول امن وسلامة" },
-  { titleEnglish: "Document Controller", titleArabic: "مراقب المستندات" },
-  { titleEnglish: "Accountant", titleArabic: "محاسب" },
-  { titleEnglish: "Administrative Manager", titleArabic: "مدير إداري" },
-  { titleEnglish: "Administrative Assistant", titleArabic: "مساعد إداري" },
-  { titleEnglish: "Reporter", titleArabic: "مراسل" },
-  { titleEnglish: "Technician", titleArabic: "فني" },
-  { titleEnglish: "HR Operation Specialist", titleArabic: "أخصائي عمليات موارد بشرية" },
-  { titleEnglish: "Project Engineer", titleArabic: "مهندس مشروع" },
-  { titleEnglish: "Draftsman Map", titleArabic: "رسام خرائط و مخططات" },
-  { titleEnglish: "Sales Engineer", titleArabic: "مهندس مبيعات" },
-  { titleEnglish: "Building Technician and Supervisor", titleArabic: "فني و مراقب أبنية" },
-  { titleEnglish: "Secretary", titleArabic: "سكرتيرة" },
-  { titleEnglish: "Buildings Technician", titleArabic: "فني أبنية" },
-  { titleEnglish: "Draftsman", titleArabic: "رسام عام" },
-  { titleEnglish: "Marketing Specialist", titleArabic: "أخصائي تسويق" },
-  { titleEnglish: "Man Draft Architect", titleArabic: "رسام معماري" },
-  { titleEnglish: "Survey Technician", titleArabic: "فني مساحة" },
-  { titleEnglish: "General Maintenance Mechanic", titleArabic: "فني ميكانيك صيانة عامة" },
-  { titleEnglish: "Administrative Officer", titleArabic: "موظف إداري" },
-  { titleEnglish: "Design Manager", titleArabic: "مدير تصميم" },
-  { titleEnglish: "Building Carpenter", titleArabic: "نجار مباني" },
-  { titleEnglish: "Document Keeper", titleArabic: "حافظ وثائق" },
-  { titleEnglish: "Planning Engineer", titleArabic: "مهندس تنظيم" },
-  { titleEnglish: "Chief Surveyor", titleArabic: "رئيس المساح" },
-  { titleEnglish: "QA/QC HSE Manager", titleArabic: "مدير ضمان / مراقبة الجودة، الصحة والسلامة والبيئة" },
-  { titleEnglish: "QA/QC", titleArabic: "ضمان / مراقبة الجودة" },
-  { titleEnglish: "Construction Manager", titleArabic: "مدير التشييد" },
-  { titleEnglish: "Technical Office Manager", titleArabic: "مدير المكتب الفني" },
-  { titleEnglish: "Project Coordinator", titleArabic: "منسق المشروع" },
-  { titleEnglish: "CEO", titleArabic: "المدير التنفيذي" },
-  { titleEnglish: "General Manager", titleArabic: "المدير العام" },
-];
+export { DEFAULT_POSITIONS } from "./positions-seed";
 
 // Purpose schemas and types
 export const insertPurposeSchema = createInsertSchema(purposes, {
@@ -1538,6 +1492,7 @@ export const updateUserSchema = z.object({
   phone: z.string().optional().nullable(),
   photo: z.string().optional().nullable(),
   signature: z.string().optional().nullable(),
+  language: z.enum(LANGUAGES).optional(),
 });
 
 export const updatePasswordSchema = z.object({
@@ -1557,12 +1512,12 @@ export type InsertPasswordResetToken = z.infer<typeof insertPasswordResetTokenSc
 export type PasswordResetToken = typeof passwordResetTokens.$inferSelect;
 
 export const forgotPasswordSchema = z.object({
-  email: z.string().email("البريد الإلكتروني غير صالح"),
+  email: z.string().email("Invalid email address"),
 });
 
 export const resetPasswordSchema = z.object({
-  token: z.string().min(1, "رمز الاسترجاع مطلوب"),
-  password: z.string().min(6, "كلمة المرور يجب أن تكون 6 أحرف على الأقل"),
+  token: z.string().min(1, "Reset token is required"),
+  password: z.string().min(6, "Password must be at least 6 characters"),
 });
 
 export type ForgotPasswordInput = z.infer<typeof forgotPasswordSchema>;
@@ -1931,14 +1886,7 @@ export const NON_PO_RECEIPT_SOURCES = [
   "emergency",
 ] as const;
 
-export const RECEIPT_SOURCE_LABELS: Record<ReceiptSource, string> = {
-  purchase_order: "أمر شراء",
-  owner_supplied: "مواد من المالك",
-  project_transfer: "نقل من مشروع آخر",
-  sample: "عينة",
-  emergency: "شراء طارئ",
-  legacy: "سابق للنظام",
-};
+export const RECEIPT_SOURCE_LABELS: Record<ReceiptSource, string> = enumMap("receipt_source", RECEIPT_SOURCES);
 
 export const insertDeliverySchema = createInsertSchema(deliveries, {
   projectId: z.string().min(1, "Project ID is required"),
@@ -2175,14 +2123,7 @@ export const MANUAL_MOVEMENT_TYPES = [
   "opening_balance",
 ] as const;
 
-export const MANUAL_MOVEMENT_LABELS: Record<(typeof MANUAL_MOVEMENT_TYPES)[number], string> = {
-  adjustment_in: "تسوية جرد - زيادة",
-  adjustment_out: "تسوية جرد - نقص",
-  waste: "تالف / مفقود",
-  return_to_supplier: "إرجاع للمورد",
-  return_from_site: "مرتجع من موقع العمل",
-  opening_balance: "رصيد افتتاحي",
-};
+export const MANUAL_MOVEMENT_LABELS: Record<(typeof MANUAL_MOVEMENT_TYPES)[number], string> = enumMap("manual_movement", MANUAL_MOVEMENT_TYPES);
 
 export const createManualStockMovementSchema = insertStockMovementSchema
   .omit({ sourceType: true, sourceId: true, projectId: true })
@@ -2292,14 +2233,14 @@ export const createPoReceiptSchema = z.object({
   lines: z
     .array(
       z.object({
-        poItemId: z.string().min(1, "بند أمر الشراء مطلوب"),
+        poItemId: z.string().min(1, "PO item is required"),
         quantity: z
           .string()
-          .regex(/^\d+(\.\d{1,2})?$/, "كمية غير صالحة"),
+          .regex(/^\d+(\.\d{1,2})?$/, "Invalid quantity"),
         notes: z.string().optional().nullable(),
       })
     )
-    .min(1, "يجب إدخال كمية مستلمة لبند واحد على الأقل"),
+    .min(1, "At least one item quantity is required"),
 });
 export type CreatePoReceipt = z.infer<typeof createPoReceiptSchema>;
 

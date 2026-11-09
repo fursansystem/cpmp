@@ -388,7 +388,7 @@ function CreateUserDialog({
                                 <span className="text-muted-foreground">Select team members...</span>
                               )}
                             </div>
-                            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                            <ChevronsUpDown className="ms-2 h-4 w-4 shrink-0 opacity-50" />
                           </Button>
                         </FormControl>
                       </PopoverTrigger>
@@ -414,7 +414,7 @@ function CreateUserDialog({
                                       }}
                                     >
                                       <Check
-                                        className={`mr-2 h-4 w-4 ${isSelected ? "opacity-100" : "opacity-0"}`}
+                                        className={`me-2 h-4 w-4 ${isSelected ? "opacity-100" : "opacity-0"}`}
                                       />
                                       <div className="flex-1 flex items-center gap-2">
                                         <span>{member.name}</span>
@@ -1091,7 +1091,7 @@ export default function AdminPage() {
           <CreateUserDialog
             trigger={
               <Button data-testid="button-add-user">
-                <Plus className="w-4 h-4 mr-2" />
+                <Plus className="w-4 h-4 me-2" />
                 Add User
               </Button>
             }
@@ -1109,12 +1109,12 @@ export default function AdminPage() {
         <CardHeader className="pb-4">
           <div className="flex items-center gap-4 flex-wrap">
             <div className="relative flex-1 min-w-[200px]">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Search className="absolute start-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <Input
                 placeholder="Search users..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-9"
+                className="ps-9"
                 data-testid="input-search-users"
               />
             </div>
@@ -1170,7 +1170,7 @@ export default function AdminPage() {
                   <TableHead>Team Links</TableHead>
                   <TableHead className="text-center">Admin</TableHead>
                   <TableHead className="text-center">Active</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
+                  <TableHead className="text-end">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -1245,7 +1245,7 @@ export default function AdminPage() {
                         </Badge>
                       )}
                     </TableCell>
-                    <TableCell className="text-right">
+                    <TableCell className="text-end">
                       <div className="flex items-center justify-end gap-2">
                         {canManageTeamLinks(user) && (
                           <Button
@@ -1309,7 +1309,7 @@ export default function AdminPage() {
       <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle dir="rtl">تأكيد الحذف</AlertDialogTitle>
+            <AlertDialogTitle>تأكيد الحذف</AlertDialogTitle>
             <AlertDialogDescription>
               Are you sure you want to delete user "{userToDelete?.fullName}"? This action cannot be undone.
             </AlertDialogDescription>

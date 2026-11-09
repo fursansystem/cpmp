@@ -30,6 +30,7 @@ import {
   type WebhookEvent,
   type WebhookSummary,
 } from "@shared/webhooks";
+import { webhookEventLabel, webhookEventDescription } from "@/lib/enums";
 
 // Delivery logs change on their own as retries run, so they are never kept in localStorage
 const liveQuery = { persist: false } as const;
@@ -64,7 +65,7 @@ function CopyButton({ text, label = "Copy" }: { text: string; label?: string }) 
         });
       }}
     >
-      {copied ? <Check className="w-4 h-4 mr-1.5" /> : <Copy className="w-4 h-4 mr-1.5" />}
+      {copied ? <Check className="w-4 h-4 me-1.5" /> : <Copy className="w-4 h-4 me-1.5" />}
       {copied ? "Copied" : label}
     </Button>
   );
@@ -167,8 +168,8 @@ function WebhookFormDialog({
                   >
                     <Checkbox checked={checked} onCheckedChange={(v) => toggle(event, v === true)} className="mt-0.5" data-testid={`checkbox-event-${event}`} />
                     <div className="min-w-0">
-                      <p className="text-sm font-medium leading-tight">{info.label}</p>
-                      <p className="text-xs text-muted-foreground mt-0.5">{info.description}</p>
+                      <p className="text-sm font-medium leading-tight">{webhookEventLabel(event)}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">{webhookEventDescription(event)}</p>
                       <code className="text-[10px] text-muted-foreground">{event}</code>
                     </div>
                   </label>
@@ -278,7 +279,7 @@ function DeliveryDialog({ deliveryId, onClose }: { deliveryId: string | null; on
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Close</Button>
           <Button onClick={() => redeliver.mutate()} disabled={!d || redeliver.isPending} data-testid="button-redeliver">
-            <RotateCw className={cn("w-4 h-4 mr-1.5", redeliver.isPending && "animate-spin")} /> Redeliver
+            <RotateCw className={cn("w-4 h-4 me-1.5", redeliver.isPending && "animate-spin")} /> Redeliver
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -303,7 +304,7 @@ function DeliveriesTable({ webhookId, onOpen }: { webhookId: string; onOpen: (id
             <TableHead>Event</TableHead>
             <TableHead>Status</TableHead>
             <TableHead className="hidden sm:table-cell">Attempts</TableHead>
-            <TableHead className="text-right">When</TableHead>
+            <TableHead className="text-end">When</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -312,7 +313,7 @@ function DeliveriesTable({ webhookId, onOpen }: { webhookId: string; onOpen: (id
               <TableCell><code className="text-xs">{d.event}{d.action ? `.${d.action}` : ""}</code></TableCell>
               <TableCell><DeliveryBadge status={d.status} responseStatus={d.responseStatus} /></TableCell>
               <TableCell className="hidden sm:table-cell text-xs text-muted-foreground">{d.attempts}</TableCell>
-              <TableCell className="text-right text-xs text-muted-foreground whitespace-nowrap">{fmtDateTime(d.createdAt)}</TableCell>
+              <TableCell className="text-end text-xs text-muted-foreground whitespace-nowrap">{fmtDateTime(d.createdAt)}</TableCell>
             </TableRow>
           ))}
         </TableBody>
@@ -453,7 +454,7 @@ export default function WebhooksPage() {
         <TabsContent value="outgoing" className="mt-6 space-y-6">
       <div className="flex justify-end">
         <Button onClick={() => { setEditing(null); setFormOpen(true); }} data-testid="button-new-webhook">
-          <Plus className="w-4 h-4 mr-2" /> Add webhook
+          <Plus className="w-4 h-4 me-2" /> Add webhook
         </Button>
       </div>
 
@@ -461,13 +462,13 @@ export default function WebhooksPage() {
         <CardHeader className="cursor-pointer" onClick={() => setShowGuide((v) => !v)}>
           <CardTitle className="flex items-center gap-2 text-base">
             <ShieldCheck className="w-5 h-5" /> How deliveries work
-            {showGuide ? <ChevronDown className="w-4 h-4 ml-auto" /> : <ChevronRight className="w-4 h-4 ml-auto" />}
+            {showGuide ? <ChevronDown className="w-4 h-4 ms-auto" /> : <ChevronRight className="w-4 h-4 ms-auto rtl:rotate-180" />}
           </CardTitle>
           <CardDescription>Headers, signature check and retries, for whoever sets up the ERP side</CardDescription>
         </CardHeader>
         {showGuide && (
           <CardContent className="space-y-3 text-sm">
-            <ul className="list-disc pl-5 space-y-1 text-muted-foreground">
+            <ul className="list-disc ps-5 space-y-1 text-muted-foreground">
               <li>Each event is a <code className="text-xs">POST</code> with a JSON body: <code className="text-xs">event</code>, <code className="text-xs">action</code>, <code className="text-xs">project</code>, <code className="text-xs">actor</code>, <code className="text-xs">change</code> and the record itself in <code className="text-xs">data</code>.</li>
               <li><code className="text-xs">{WEBHOOK_HEADERS.event}</code> names the event type, <code className="text-xs">{WEBHOOK_HEADERS.delivery}</code> is a unique id per delivery, and <code className="text-xs">{WEBHOOK_HEADERS.signature}</code> is the HMAC-SHA256 signature.</li>
               <li>Answer with any 2xx status within 10 seconds. Anything else is retried after 1 min, 5 min, 30 min, 2 h, 6 h and 12 h, then marked failed. Failed deliveries can be sent again from the log.</li>
@@ -515,7 +516,7 @@ export default function WebhooksPage() {
                     <div className="flex items-center gap-1.5 flex-wrap">
                       <Switch checked={w.active} onCheckedChange={() => toggleActive.mutate(w)} aria-label="Active" />
                       <Button variant="outline" size="sm" onClick={() => ping.mutate(w)} disabled={ping.isPending} data-testid={`button-ping-${w.id}`}>
-                        <Send className="w-4 h-4 mr-1.5" /> Test
+                        <Send className="w-4 h-4 me-1.5" /> Test
                       </Button>
                       <Button variant="ghost" size="icon" onClick={() => { setEditing(w); setFormOpen(true); }} aria-label="Edit"><Pencil className="w-4 h-4" /></Button>
                       <Button variant="ghost" size="icon" onClick={() => rotate.mutate(w)} disabled={rotate.isPending} aria-label="New secret" title="Generate a new secret"><KeyRound className="w-4 h-4" /></Button>
@@ -523,7 +524,7 @@ export default function WebhooksPage() {
                     </div>
                   </div>
                   <button type="button" className="flex items-center gap-1 text-sm font-medium text-primary" onClick={() => setExpanded(open ? null : w.id)}>
-                    {open ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />} Recent deliveries
+                    {open ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4 rtl:rotate-180" />} Recent deliveries
                   </button>
                   {open && <DeliveriesTable webhookId={w.id} onOpen={setDeliveryId} />}
                 </CardContent>

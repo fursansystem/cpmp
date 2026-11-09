@@ -279,7 +279,7 @@ export default function ProjectMaterialGallery() {
   return (
     <div className="min-h-screen bg-transparent px-6 lg:px-10 pt-2 pb-8 space-y-4 relative overflow-hidden">
       {/* Background Decorative Elements */}
-      <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none -z-10">
+      <div className="absolute top-0 start-0 w-full h-full overflow-hidden pointer-events-none -z-10">
         <div className="absolute top-[-10%] right-[-10%] w-[40%] h-[40%] bg-primary/5 rounded-full blur-[120px]" />
         <div className="absolute bottom-[-10%] left-[-10%] w-[40%] h-[40%] bg-blue-500/5 rounded-full blur-[120px]" />
       </div>
@@ -289,10 +289,10 @@ export default function ProjectMaterialGallery() {
           <Button
             variant="ghost"
             size="sm"
-            className="-ml-2 h-8 w-8 p-0 md:h-auto md:w-auto md:px-3 md:py-2 text-muted-foreground hover:text-foreground shrink-0 shadow-sm z-10"
+            className="-ms-2 h-8 w-8 p-0 md:h-auto md:w-auto md:px-3 md:py-2 text-muted-foreground hover:text-foreground shrink-0 shadow-sm z-10"
             onClick={() => navigate(`/projects/${projectId}`)}
           >
-            <ArrowLeft className="w-5 h-5 md:mr-2" />
+            <ArrowLeft className="w-5 h-5 md:me-2 rtl:rotate-180" />
             <span className="hidden md:inline font-semibold">Back to Project</span>
           </Button>
         </div>
@@ -300,7 +300,7 @@ export default function ProjectMaterialGallery() {
         {/* Absolute Centered Title Badge */}
         <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none flex items-center gap-2 lg:gap-3 w-full justify-center px-12 lg:px-0">
           <Badge variant="secondary" className="px-4 py-1.5 lg:px-8 lg:py-2 border-none bg-primary/10 text-primary rounded-full shadow-sm lg:shadow-md">
-            <Boxes className="w-4 h-4 lg:w-6 lg:h-6 mr-2 lg:mr-3 text-primary" />
+            <Boxes className="w-4 h-4 lg:w-6 lg:h-6 me-2 lg:me-3 text-primary" />
             <span className="text-sm lg:text-xl font-bold tracking-tight uppercase truncate max-w-[200px] sm:max-w-none">Project Materials</span>
           </Badge>
         </div>
@@ -310,7 +310,7 @@ export default function ProjectMaterialGallery() {
             onClick={handleAddClick}
             className="shadow-lg rounded-full font-bold text-[10px] uppercase tracking-widest px-6 h-9 lg:h-11 bg-primary hover:bg-primary/90 text-primary-foreground transition-all active:scale-95"
           >
-            <Plus className="w-4 h-4 mr-2" />
+            <Plus className="w-4 h-4 me-2" />
             Add Material
           </Button>
         </div>
@@ -343,12 +343,12 @@ export default function ProjectMaterialGallery() {
         <div className="flex items-center gap-3.5 w-full md:w-auto justify-between md:justify-end">
           {/* Search Input Bar */}
           <div className="relative w-full md:w-64 group">
-            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/50 transition-colors group-focus-within:text-primary" />
+            <Search className="absolute start-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/50 transition-colors group-focus-within:text-primary" />
             <Input
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search material..."
-              className="pl-10 h-10 bg-background/50 border-border/60 rounded-xl text-sm transition-all focus:bg-background shadow-sm"
+              className="ps-10 h-10 bg-background/50 border-border/60 rounded-xl text-sm transition-all focus:bg-background shadow-sm"
             />
           </div>
 
@@ -428,11 +428,11 @@ export default function ProjectMaterialGallery() {
               <div className="h-44 w-full relative overflow-hidden bg-muted/40 shrink-0 border-b border-border/40">
                 {/* Document Count Badge in Cover Image */}
                 {(material as any).attachmentCount > 0 && (
-                  <div className="absolute top-3.5 left-3.5 z-10">
+                  <div className="absolute top-3.5 start-3.5 z-10">
                     <div className="bg-white dark:bg-neutral-800 text-primary border-none rounded-full h-7 px-3 gap-1.5 shadow-lg flex items-center group/doc shrink-0">
                       <div className="relative">
                         <FileText className="w-3.5 h-3.5 transition-transform group-hover/doc:rotate-12" />
-                        <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 bg-amber-400 rounded-full animate-pulse border border-white" />
+                        <span className="absolute -top-0.5 -end-0.5 w-1.5 h-1.5 bg-amber-400 rounded-full animate-pulse border border-white" />
                       </div>
                       <span className="text-[9px] font-black uppercase tracking-wider">
                         {(material as any).attachmentCount} Docs
@@ -467,7 +467,7 @@ export default function ProjectMaterialGallery() {
                 </div>
 
                 {/* Edit & Delete Actions (Show on Card Hover) */}
-                <div className="absolute top-3.5 right-3.5 flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-all duration-300 translate-y-1 group-hover:translate-y-0">
+                <div className="absolute top-3.5 end-3.5 flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-all duration-300 translate-y-1 group-hover:translate-y-0">
                   <Button
                     variant="secondary"
                     size="icon"
@@ -591,7 +591,7 @@ export default function ProjectMaterialGallery() {
                       <div className="bg-white dark:bg-neutral-800 text-primary border border-border/40 rounded-full h-7 px-3 gap-1.5 shadow-sm flex items-center group/doc shrink-0">
                         <div className="relative">
                           <FileText className="w-3.5 h-3.5 transition-transform group-hover/doc:rotate-12" />
-                          <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 bg-amber-400 rounded-full animate-pulse border border-white" />
+                          <span className="absolute -top-0.5 -end-0.5 w-1.5 h-1.5 bg-amber-400 rounded-full animate-pulse border border-white" />
                         </div>
                         <span className="text-[9px] font-black uppercase tracking-wider">
                           {(material as any).attachmentCount} Docs
@@ -677,8 +677,8 @@ export default function ProjectMaterialGallery() {
               </div>
 
               {/* Bottom Panel - Info, Description, Suppliers & MAR Requests */}
-              <div className="w-full flex-1 px-5 pt-4 pb-5 flex flex-col gap-4 overflow-y-auto text-left bg-muted/15 dark:bg-neutral-900/30">
-                <DialogHeader className="p-0 text-left space-y-2">
+              <div className="w-full flex-1 px-5 pt-4 pb-5 flex flex-col gap-4 overflow-y-auto text-start bg-muted/15 dark:bg-neutral-900/30">
+                <DialogHeader className="p-0 text-start space-y-2">
                   <DialogTitle className="text-lg font-bold tracking-tight text-foreground/90 leading-snug capitalize flex items-center justify-between gap-3 min-w-0 w-full">
                     <div className="flex items-center gap-1.5 min-w-0">
                       <span className="truncate">{previewMaterial.materialName}</span>
@@ -729,14 +729,14 @@ export default function ProjectMaterialGallery() {
                             <div className="relative">
                               <FileText className="w-3.5 h-3.5 transition-transform group-hover/doc:rotate-12" />
                               {attachments.length > 0 && (
-                                <span className="absolute -top-1 -right-1 w-2 h-2 bg-amber-400 rounded-full animate-pulse border border-white" />
+                                <span className="absolute -top-1 -end-1 w-2 h-2 bg-amber-400 rounded-full animate-pulse border border-white" />
                               )}
                             </div>
                             <span className="text-[10px] font-bold uppercase tracking-wider">{attachments.length} Docs</span>
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="start" className="w-[320px] md:w-[350px] rounded-[1.5rem] p-3 shadow-2xl border border-primary/15 bg-white/95 dark:bg-neutral-900/95 backdrop-blur-xl z-50">
-                          <div className="px-4 py-3 border-b border-muted/50 mb-2 text-left">
+                          <div className="px-4 py-3 border-b border-muted/50 mb-2 text-start">
                             <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Material Files & Certificates</p>
                           </div>
                           {attachments.length === 0 ? (
@@ -747,7 +747,7 @@ export default function ProjectMaterialGallery() {
                               <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider opacity-40">No documents / لا توجد مستندات</p>
                             </div>
                           ) : (
-                            <div className="space-y-1.5 max-h-[250px] overflow-y-auto custom-scrollbar pr-1">
+                            <div className="space-y-1.5 max-h-[250px] overflow-y-auto custom-scrollbar pe-1">
                               {attachments.map(att => {
                                 const doc = att.document || {};
                                 const fileUrl = getFileUrl(doc.fileUrl || doc.fileData || "");
@@ -762,7 +762,7 @@ export default function ProjectMaterialGallery() {
                                         <div className="w-8 h-8 bg-primary/10 rounded-xl flex items-center justify-center group-focus:bg-primary/20 shrink-0">
                                           <FileText className="w-4 h-4 text-primary" />
                                         </div>
-                                        <div className="min-w-0 flex-1 text-left">
+                                        <div className="min-w-0 flex-1 text-start">
                                           <p className="truncate text-xs font-bold text-foreground leading-tight tracking-tight">
                                             {doc.fileName || doc.name}
                                           </p>
@@ -781,7 +781,7 @@ export default function ProjectMaterialGallery() {
                                           </div>
                                         </div>
                                       </div>
-                                      <div className="flex items-center gap-1 shrink-0 ml-2 text-left" onClick={e => e.stopPropagation()}>
+                                      <div className="flex items-center gap-1 shrink-0 ms-2 text-start" onClick={e => e.stopPropagation()}>
                                         <Button
                                           variant="ghost"
                                           size="icon"
@@ -826,14 +826,14 @@ export default function ProjectMaterialGallery() {
                             <div className="relative">
                               <FileText className="w-3.5 h-3.5 transition-transform group-hover/mar:rotate-12" />
                               {linkedRequests.length > 0 && (
-                                <span className="absolute -top-1 -right-1 w-2 h-2 bg-emerald-400 rounded-full animate-pulse border border-white" />
+                                <span className="absolute -top-1 -end-1 w-2 h-2 bg-emerald-400 rounded-full animate-pulse border border-white" />
                               )}
                             </div>
                             <span className="text-[10px] font-bold uppercase tracking-wider">{linkedRequests.length} MAR</span>
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="start" className="w-[320px] md:w-[350px] rounded-[1.5rem] p-3 shadow-2xl border border-primary/15 bg-white/95 dark:bg-neutral-900/95 backdrop-blur-xl z-50">
-                          <div className="px-4 py-3 border-b border-muted/50 mb-2 text-left">
+                          <div className="px-4 py-3 border-b border-muted/50 mb-2 text-start">
                             <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Material Approval Requests</p>
                           </div>
                           {isLoadingRequests ? (
@@ -848,7 +848,7 @@ export default function ProjectMaterialGallery() {
                               <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider opacity-40">No MAR records</p>
                             </div>
                           ) : (
-                            <div className="space-y-1.5 max-h-[250px] overflow-y-auto custom-scrollbar pr-1">
+                            <div className="space-y-1.5 max-h-[250px] overflow-y-auto custom-scrollbar pe-1">
                               {linkedRequests.map((req) => (
                                 <DropdownMenuItem
                                   key={req.requestId}
@@ -866,7 +866,7 @@ export default function ProjectMaterialGallery() {
                                       <div className="w-8 h-8 bg-primary/10 rounded-xl flex items-center justify-center group-focus:bg-primary/20 shrink-0">
                                         <FileText className="w-4 h-4 text-primary" />
                                       </div>
-                                      <div className="min-w-0 flex-1 text-left">
+                                      <div className="min-w-0 flex-1 text-start">
                                         <p className="truncate text-xs font-bold text-foreground leading-tight tracking-tight">
                                           {req.requestNumber}
                                         </p>
@@ -876,7 +876,7 @@ export default function ProjectMaterialGallery() {
                                         </div>
                                       </div>
                                     </div>
-                                    <div className="shrink-0 ml-2">
+                                    <div className="shrink-0 ms-2">
                                       {(() => {
                                         const code = req.approvalStatusCode;
                                         if (code) {
@@ -911,7 +911,7 @@ export default function ProjectMaterialGallery() {
                 </DialogHeader>
 
                 {/* Description Box */}
-                <div className="text-left bg-muted/30 border border-border/40 p-4 rounded-2xl flex gap-3 shadow-sm">
+                <div className="text-start bg-muted/30 border border-border/40 p-4 rounded-2xl flex gap-3 shadow-sm">
                   <div className="p-1.5 bg-primary/10 rounded-lg text-primary shrink-0 self-start">
                     <Info className="w-4 h-4" />
                   </div>
@@ -919,7 +919,7 @@ export default function ProjectMaterialGallery() {
                     <h4 className="text-[10px] font-black uppercase tracking-wider text-muted-foreground/60">
                       Description
                     </h4>
-                    <p className="text-xs text-foreground/80 leading-relaxed whitespace-pre-wrap max-h-[85px] overflow-y-auto pr-1">
+                    <p className="text-xs text-foreground/80 leading-relaxed whitespace-pre-wrap max-h-[85px] overflow-y-auto pe-1">
                       {previewMaterial.description || "No description available for this material."}
                     </p>
                   </div>
@@ -950,7 +950,7 @@ export default function ProjectMaterialGallery() {
                       <p className="text-[10px] opacity-40 mt-0.5">Link a supplier from the Purchase Orders & Suppliers tab</p>
                     </div>
                   ) : (
-                    <div className="flex flex-col gap-2.5 max-h-[200px] overflow-y-auto overflow-x-hidden pr-1 w-full min-w-0">
+                    <div className="flex flex-col gap-2.5 max-h-[200px] overflow-y-auto overflow-x-hidden pe-1 w-full min-w-0">
                       {linkedSuppliers.map((sm) => (
                         <div
                           key={sm.id}
@@ -996,7 +996,7 @@ export default function ProjectMaterialGallery() {
               <div className="bg-primary/10 p-1.5 rounded-lg">
                 <FileText className="w-4 h-4 text-primary" />
               </div>
-              <div className="text-left">
+              <div className="text-start">
                 <DialogTitle className="text-sm font-black truncate max-w-md">
                   {previewFile?.name}
                 </DialogTitle>
@@ -1004,9 +1004,9 @@ export default function ProjectMaterialGallery() {
               </div>
             </div>
             {previewFile?.url && (
-              <Button variant="outline" size="sm" className="rounded-xl font-bold h-8 bg-background/50 border-primary/20 text-primary hover:bg-primary/5 mr-8 cursor-pointer" asChild>
+              <Button variant="outline" size="sm" className="rounded-xl font-bold h-8 bg-background/50 border-primary/20 text-primary hover:bg-primary/5 me-8 cursor-pointer" asChild>
                 <a href={previewFile.url} target="_blank" rel="noopener noreferrer">
-                  <ExternalLink className="w-3.5 h-3.5 mr-1.5" />
+                  <ExternalLink className="w-3.5 h-3.5 me-1.5" />
                   Open Original / فتح الأصل
                 </a>
               </Button>

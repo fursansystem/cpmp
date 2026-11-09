@@ -31,7 +31,8 @@ import {
   Wallet,
   Landmark,
 } from "lucide-react";
-import { format, differenceInDays, startOfDay } from "date-fns";
+import { useTranslation } from "react-i18next";
+import { format, differenceInDays, startOfDay } from "@/lib/date-format";
 import { cn } from "@/lib/utils";
 import type { Project } from "@shared/schema";
 import { useAuth } from "@/lib/auth";
@@ -46,6 +47,7 @@ const statusConfig = {
 };
 
 export default function ProjectDetail() {
+  const { t } = useTranslation(["projects", "common"]);
   const { projectId } = useParams();
   const [, navigate] = useLocation();
   const { user } = useAuth();
@@ -117,17 +119,18 @@ export default function ProjectDetail() {
   if (!project) {
     return (
       <div className="p-8 text-center text-muted-foreground">
-        Project not found.
+        {t("project_not_found")}
       </div>
     );
   }
 
   const statusInfo = statusConfig[project.status as keyof typeof statusConfig] || statusConfig.active;
+  const statusLabel = t(`status.${project.status?.replace("-", "_")}` as any, { defaultValue: statusInfo.label });
 
   const cards = [
     {
-      title: "Project Requests",
-      description: "Manage and track all project requests including WIR, MIR, and MSR approvals.",
+      title: t("cards.requests.title"),
+      description: t("cards.requests.description"),
       icon: ClipboardList,
       count: (project as any).requestCount || 0,
       link: `/projects/${projectId}/requests`,
@@ -136,8 +139,8 @@ export default function ProjectDetail() {
       active: true
     },
     {
-      title: "Purchase Orders",
-      description: "Supply chain management, material lists, and procurement tracking.",
+      title: t("cards.purchase_orders.title"),
+      description: t("cards.purchase_orders.description"),
       icon: ShoppingCart,
       count: (project as any).supplierCount || 0,
       link: `/projects/${projectId}/purchase-orders`,
@@ -146,8 +149,8 @@ export default function ProjectDetail() {
       active: true
     },
     {
-      title: "مصفوفة الإنجاز (Progress Matrix)",
-      description: "Weighted progress by phase, item and unit, filled automatically from approved WIRs.",
+      title: t("cards.progress_matrix.title"),
+      description: t("cards.progress_matrix.description"),
       icon: Grid3X3,
       count: matrixSummary && matrixSummary.nodeCount > 0 ? `${matrixSummary.projectProgress.toFixed(1)}%` : "—",
       link: `/projects/${projectId}/progress-matrix`,
@@ -156,8 +159,8 @@ export default function ProjectDetail() {
       active: true
     },
     {
-      title: "المستخلصات (Payment Certificates)",
-      description: "Unit-level payment certificates: earned, pending, paid and remaining amounts.",
+      title: t("cards.payment_certificates.title"),
+      description: t("cards.payment_certificates.description"),
       icon: Receipt,
       count: (project as any).paymentCertificateCount || 0,
       link: `/projects/${projectId}/progress-matrix?tab=certificates`,
@@ -166,10 +169,14 @@ export default function ProjectDetail() {
       active: true
     },
     {
-      title: "المدفوعات (Payments)",
+      title: t("cards.payments.title"),
       description: paymentsReport
-        ? `${paymentsReport.totals.openBillRequests} أصول مطلوبة · ${paymentsReport.totals.ordersPendingApproval} أوامر بانتظار الاعتماد · ${paymentsReport.monitoring.delayedDecisions.total} قرارات متأخرة`
-        : "طلب أصول الفواتير، أوامر الدفع، الرخص والخصومات لهذا المشروع.",
+        ? t("cards.payments.summary", {
+            openBills: paymentsReport.totals.openBillRequests,
+            ordersPending: paymentsReport.totals.ordersPendingApproval,
+            delayedDecisions: paymentsReport.monitoring.delayedDecisions.total,
+          })
+        : t("cards.payments.description"),
       icon: Wallet,
       // open items that need somebody: requests to answer, orders and certificates to decide, payments missing originals
       count: paymentsReport
@@ -182,10 +189,10 @@ export default function ProjectDetail() {
       active: true
     },
     {
-      title: "الرخص والمعاملات (Permits)",
+      title: t("cards.permits.title"),
       description: permitsOverview
-        ? `${permitsOpen} معاملات مفتوحة · ${permitsAttention} تحتاج انتباه (انتهاء، تأخير، رسوم)`
-        : "إجراءات المشروع لدى الجهات الحكومية: الخطوات والمستندات والرسوم وتواريخ الانتهاء.",
+        ? t("cards.permits.summary", { open: permitsOpen, attention: permitsAttention })
+        : t("cards.permits.description"),
       icon: Landmark,
       count: permitsOverview ? permitsOpen : "—",
       link: `/permits?project=${projectId}`,
@@ -194,8 +201,8 @@ export default function ProjectDetail() {
       active: true
     },
     {
-      title: "المستودع (Warehouse)",
-      description: "أرصدة المخزون، التوريدات، سندات الصرف، التحويلات ودفتر الحركة.",
+      title: t("cards.warehouse.title"),
+      description: t("cards.warehouse.description"),
       icon: Warehouse,
       count: (project as any).deliveryCount || 0,
       link: `/projects/${projectId}/warehouse`,
@@ -204,8 +211,8 @@ export default function ProjectDetail() {
       active: true
     },
     {
-      title: "Project Materials",
-      description: "A visual showroom of project materials categorized by sections (Sanitary, Electrical, Construction, etc.).",
+      title: t("cards.materials.title"),
+      description: t("cards.materials.description"),
       icon: Boxes,
       count: (project as any).materialCount || 0,
       link: `/projects/${projectId}/material-gallery`,
@@ -214,8 +221,8 @@ export default function ProjectDetail() {
       active: true
     },
     {
-      title: "Manage Storage",
-      description: "Manage project folders, engineering drawings, and documents with tags and categories.",
+      title: t("cards.storage.title"),
+      description: t("cards.storage.description"),
       icon: FolderOpen,
       count: (project as any).documentCount || 0,
       link: `/projects/${projectId}/storage`,
@@ -224,8 +231,8 @@ export default function ProjectDetail() {
       active: true
     },
     {
-      title: "Snag List & Punch List",
-      description: "Track site defects, inspections, punch lists, before/after photos, and contractor assignments.",
+      title: t("cards.snag_list.title"),
+      description: t("cards.snag_list.description"),
       icon: ClipboardList,
       count: (project as any).snagCount || 0,
       link: `/projects/${projectId}/snag-list`,
@@ -238,7 +245,7 @@ export default function ProjectDetail() {
   return (
     <div className="min-h-screen bg-transparent px-6 lg:px-10 pt-2 pb-8 space-y-4 relative overflow-hidden">
       {/* Background Decorative Elements */}
-      <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none -z-10">
+      <div className="absolute top-0 start-0 w-full h-full overflow-hidden pointer-events-none -z-10">
         <div className="absolute top-[-10%] right-[-10%] w-[40%] h-[40%] bg-primary/5 rounded-full blur-[120px]" />
         <div className="absolute bottom-[-10%] left-[-10%] w-[40%] h-[40%] bg-blue-500/5 rounded-full blur-[120px]" />
       </div>
@@ -249,11 +256,11 @@ export default function ProjectDetail() {
           <Button
             variant="ghost"
             size="sm"
-            className="-ml-2 h-8 w-8 p-0 md:h-auto md:w-auto md:px-3 md:py-2 text-muted-foreground hover:text-foreground shrink-0 shadow-sm z-10"
+            className="-ms-2 h-8 w-8 p-0 md:h-auto md:w-auto md:px-3 md:py-2 text-muted-foreground hover:text-foreground shrink-0 shadow-sm z-10"
             onClick={() => navigate("/projects")}
           >
-            <ArrowLeft className="w-5 h-5 md:mr-2" />
-            <span className="hidden md:inline font-semibold">Back to Projects</span>
+            <ArrowLeft className="w-5 h-5 md:me-2 rtl:rotate-180" />
+            <span className="hidden md:inline font-semibold">{t("back_to_projects")}</span>
           </Button>
         </div>
 
@@ -278,7 +285,7 @@ export default function ProjectDetail() {
                 "bg-blue-500"
               )} 
             />
-            <span className="hidden lg:inline text-sm font-bold">{statusInfo.label}</span>
+            <span className="hidden lg:inline text-sm font-bold">{statusLabel}</span>
           </Badge>
         </div>
 
@@ -304,7 +311,7 @@ export default function ProjectDetail() {
             <Users className="w-4 h-4 text-emerald-500" />
           </div>
           <Users className="w-3.5 h-3.5 text-emerald-500 lg:hidden" />
-          <span className="font-semibold text-foreground">{(project as any).developerName || "Client"}</span>
+          <span className="font-semibold text-foreground">{(project as any).developerName || t("parties.client")}</span>
         </div>
 
         {/* Date - Order 3 on mobile (bottom) */}
@@ -331,10 +338,10 @@ export default function ProjectDetail() {
             <div className="space-y-4 flex-1">
               <div className="flex items-center gap-2">
                 <div className="w-1.5 h-1.5 rounded-full bg-blue-500" />
-                <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest opacity-60">Live Progress</p>
+                <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest opacity-60">{t("stats.live_progress")}</p>
               </div>
               <div className="space-y-1">
-                <h3 className="text-xs font-bold text-foreground/70 uppercase tracking-tight">Overall Progress</h3>
+                <h3 className="text-xs font-bold text-foreground/70 uppercase tracking-tight">{t("stats.overall_progress")}</h3>
                 <p className="text-3xl font-black font-display tracking-tighter text-blue-600">{project.progress}%</p>
               </div>
               <div className="pt-2 flex items-center gap-3">
@@ -356,10 +363,10 @@ export default function ProjectDetail() {
             <div className="space-y-4 flex-1">
               <div className="flex items-center gap-2">
                 <div className="w-1.5 h-1.5 rounded-full bg-amber-500" />
-                <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest opacity-60">Supply Chain</p>
+                <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest opacity-60">{t("stats.supply_chain")}</p>
               </div>
               <div className="space-y-1">
-                <h3 className="text-xs font-bold text-foreground/70 uppercase tracking-tight">PO Requests</h3>
+                <h3 className="text-xs font-bold text-foreground/70 uppercase tracking-tight">{t("stats.po_requests")}</h3>
                 <p className="text-3xl font-black font-display tracking-tighter text-amber-600">{(project as any).purchaseOrderCount || 0}</p>
               </div>
               <div className="pt-2 flex items-center gap-3">
@@ -381,10 +388,10 @@ export default function ProjectDetail() {
             <div className="space-y-4 flex-1">
               <div className="flex items-center gap-2">
                 <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest opacity-60">Active Queue</p>
+                <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest opacity-60">{t("stats.active_queue")}</p>
               </div>
               <div className="space-y-1">
-                <h3 className="text-xs font-bold text-foreground/70 uppercase tracking-tight">Project Requests</h3>
+                <h3 className="text-xs font-bold text-foreground/70 uppercase tracking-tight">{t("stats.project_requests")}</h3>
                 <p className="text-3xl font-black font-display tracking-tighter text-emerald-600">{(project as any).requestCount || 0}</p>
               </div>
               <div className="pt-2 flex items-center gap-3">
@@ -406,10 +413,10 @@ export default function ProjectDetail() {
             <div className="space-y-4 flex-1">
               <div className="flex items-center gap-2">
                 <div className="w-1.5 h-1.5 rounded-full bg-rose-500" />
-                <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest opacity-60">Timeline</p>
+                <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest opacity-60">{t("stats.timeline")}</p>
               </div>
               <div className="space-y-1">
-                <h3 className="text-xs font-bold text-foreground/70 uppercase tracking-tight">Days Remaining</h3>
+                <h3 className="text-xs font-bold text-foreground/70 uppercase tracking-tight">{t("stats.days_remaining")}</h3>
                 <p className="text-3xl font-black font-display tracking-tighter text-rose-600">
                   {Math.max(0, differenceInDays(startOfDay(new Date(project.endDate)), startOfDay(new Date())))}
                 </p>
@@ -431,7 +438,7 @@ export default function ProjectDetail() {
       <div className="space-y-4">
         <div className="flex items-center gap-3">
           <div className="w-8 h-1 bg-primary rounded-full" />
-          <h2 className="text-xl font-black tracking-tight text-foreground/80 uppercase">Project Sections</h2>
+          <h2 className="text-xl font-black tracking-tight text-foreground/80 uppercase">{t("project_sections")}</h2>
           {/* Payments shortcuts for this project, by role: request the invoices / raise an order, or ask for a transfer */}
           <div className="ms-auto flex flex-wrap gap-2">
             <PaymentActionButtons context={{ projectId: projectId || "", sourceType: "project", sourceId: projectId || undefined }} />
@@ -474,7 +481,7 @@ export default function ProjectDetail() {
                     </div>
                   <div className="flex items-center gap-2">
                     <span className="text-xl font-black tracking-tighter text-foreground/80">{card.count}</span>
-                    <ChevronRight className="w-4 h-4 text-muted-foreground" />
+                    <ChevronRight className="w-4 h-4 text-muted-foreground rtl:rotate-180" />
                   </div>
                 </div>
 

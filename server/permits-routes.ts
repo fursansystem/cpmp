@@ -45,6 +45,7 @@ import {
   type PermitStatus,
 } from "@shared/permits";
 import { permitsService } from "./permits-service";
+import { enumLabel, translate } from "@shared/i18n";
 
 type CurrentUser = { user: PermissionUser; orgId: string | null; teamMemberIds: string[] };
 
@@ -527,7 +528,7 @@ export function registerPermitsRoutes(app: Express, deps: Deps) {
       });
       // A fee with no payment step in the template still needs one
       if (fee > 0 && !steps.some((s) => s.isPaymentStep)) {
-        steps.push({ transactionId: row.id, projectId: project.id, seq: steps.length + 1, title: "سداد الرسوم", description: null, party: "developer", isPaymentStep: true, assigneeUserId: data.assigneeUserId, dueDate: null });
+        steps.push({ transactionId: row.id, projectId: project.id, seq: steps.length + 1, title: translate("notifications", "permits.fee_step_title"), description: null, party: "developer", isPaymentStep: true, assigneeUserId: data.assigneeUserId, dueDate: null });
       }
       if (steps.length) await exec.insert(permitTransactionSteps).values(steps);
       if (template.requirements.length) {
@@ -545,7 +546,7 @@ export function registerPermitsRoutes(app: Express, deps: Deps) {
       return row;
     }));
     if (data.assigneeUserId) {
-      permitsService.notify([data.assigneeUserId], me(ctx), created, "أُسندت إليك معاملة", `${created.transactionNo} · ${created.title} · ${project.name}`);
+      permitsService.notify([data.assigneeUserId], me(ctx), created, translate("notifications", "permits.assigned_transaction"), `${created.transactionNo} · ${created.title} · ${project.name}`);
     }
     after(created, ctx);
     return created;
@@ -593,7 +594,7 @@ export function registerPermitsRoutes(app: Express, deps: Deps) {
     await permitsService.log(db, tx, "edited", me(ctx), values.status ? { from: tx.status, to: values.status } : {});
     if (data.assigneeUserId && data.assigneeUserId !== tx.assigneeUserId) {
       await permitsService.log(db, tx, "assigned", me(ctx), { note: (await userNames([data.assigneeUserId])).get(data.assigneeUserId) ?? null });
-      permitsService.notify([data.assigneeUserId], me(ctx), tx, "أُسندت إليك معاملة", `${tx.transactionNo} · ${data.title ?? tx.title} · ${project.name}`);
+      permitsService.notify([data.assigneeUserId], me(ctx), tx, translate("notifications", "permits.assigned_transaction"), `${tx.transactionNo} · ${data.title ?? tx.title} · ${project.name}`);
     }
     after(tx, ctx);
     res.json({ ok: true });
@@ -625,10 +626,10 @@ export function registerPermitsRoutes(app: Express, deps: Deps) {
       const [old] = await db.select().from(permitTransactions).where(eq(permitTransactions.id, tx.renewalOfId));
       if (old && old.status === "completed") {
         await db.update(permitTransactions).set({ status: "expired", expiryNoticeLevel: -1, updatedAt: now }).where(eq(permitTransactions.id, old.id));
-        await permitsService.log(db, old, "status_changed", me(ctx), { from: "completed", to: "expired", note: `جُدِّدت بالمعاملة ${tx.transactionNo}` });
+        await permitsService.log(db, old, "status_changed", me(ctx), { from: "completed", to: "expired", note: `Renewed by transaction ${tx.transactionNo}` });
       }
     }
-    permitsService.notify([tx.assigneeUserId, tx.createdBy], me(ctx), tx, `${rule.label}: ${tx.transactionNo}`, `${tx.title} · ${PERMIT_STATUS_LABELS[patch.status as PermitStatus]}`, "info");
+    permitsService.notify([tx.assigneeUserId, tx.createdBy], me(ctx), tx, `${enumLabel("permit_action", input.action)}: ${tx.transactionNo}`, `${tx.title} · ${PERMIT_STATUS_LABELS[patch.status as PermitStatus]}`, "info");
     const missing = await db.select({ id: permitTransactionRequirements.id }).from(permitTransactionRequirements)
       .where(and(eq(permitTransactionRequirements.transactionId, tx.id), eq(permitTransactionRequirements.mandatory, true), eq(permitTransactionRequirements.status, "missing")));
     after(tx, ctx);
@@ -654,7 +655,7 @@ export function registerPermitsRoutes(app: Express, deps: Deps) {
     const created = await instantiate(ctx, project, {
       projectId: project.id,
       serviceId: tx.serviceId,
-      title: `تجديد: ${tx.title}`,
+      title: translate("notifications", "permits.renewal_prefix", { title: tx.title }),
       kind: "license",
       category: tx.category,
       authorityName: tx.authorityName,
@@ -694,7 +695,7 @@ export function registerPermitsRoutes(app: Express, deps: Deps) {
     const [{ next }] = await db.select({ next: sql<number>`COALESCE(MAX(${permitTransactionSteps.seq}), 0) + 1` }).from(permitTransactionSteps).where(eq(permitTransactionSteps.transactionId, tx.id));
     const [row] = await db.insert(permitTransactionSteps).values({ ...data, transactionId: tx.id, projectId: tx.projectId, seq: Number(next) }).returning();
     await permitsService.log(db, tx, "step_added", me(ctx), { note: data.title });
-    if (data.assigneeUserId) permitsService.notify([data.assigneeUserId], me(ctx), tx, "أُسندت إليك خطوة في معاملة", `${tx.transactionNo} · ${data.title} · ${project.name}`);
+    if (data.assigneeUserId) permitsService.notify([data.assigneeUserId], me(ctx), tx, translate("notifications", "permits.assigned_step"), `${tx.transactionNo} · ${data.title} · ${project.name}`);
     after(tx, ctx);
     res.status(201).json(row);
   }));
@@ -713,7 +714,7 @@ export function registerPermitsRoutes(app: Express, deps: Deps) {
     await db.update(permitTransactionSteps).set(values).where(eq(permitTransactionSteps.id, step.id));
     if (data.assigneeUserId && data.assigneeUserId !== step.assigneeUserId) {
       await permitsService.log(db, tx, "assigned", me(ctx), { note: `${step.title} → ${(await userNames([data.assigneeUserId])).get(data.assigneeUserId) ?? ""}` });
-      permitsService.notify([data.assigneeUserId], me(ctx), tx, "أُسندت إليك خطوة في معاملة", `${tx.transactionNo} · ${data.title ?? step.title} · ${project.name}`);
+      permitsService.notify([data.assigneeUserId], me(ctx), tx, translate("notifications", "permits.assigned_step"), `${tx.transactionNo} · ${data.title ?? step.title} · ${project.name}`);
     }
     after(tx, ctx);
     res.json({ ok: true });
@@ -732,7 +733,7 @@ export function registerPermitsRoutes(app: Express, deps: Deps) {
     const input = stepStatusSchema.parse(req.body);
     if (input.status === "skipped" && !manage) return fail(403, "Only the developer can skip a step");
     if (step.isPaymentStep && input.status === "done" && Number(tx.feeAmount) > 0 && !tx.feePaid) {
-      return fail(409, "The fee step completes when its payment order is paid in المدفوعات");
+      return fail(409, "The fee step completes when its payment order is paid in Payments");
     }
     if (!(["not_started", "in_progress", "submitted", "returned"] as string[]).includes(tx.status) && input.status !== step.status) {
       return fail(409, "This transaction is closed; reopen it first");
@@ -753,8 +754,8 @@ export function registerPermitsRoutes(app: Express, deps: Deps) {
       // tell whoever follows the transaction, and the next step's assignee that it is their turn
       const next = (await db.select().from(permitTransactionSteps).where(eq(permitTransactionSteps.transactionId, tx.id)).orderBy(asc(permitTransactionSteps.seq)))
         .find((s) => s.seq > step.seq && s.status === "pending");
-      permitsService.notify([tx.assigneeUserId, tx.createdBy], me(ctx), tx, "أُنجزت خطوة في معاملة", `${tx.transactionNo} · ${step.title}`, "success");
-      if (next?.assigneeUserId) permitsService.notify([next.assigneeUserId], me(ctx), tx, "حان دورك في معاملة", `${tx.transactionNo} · ${next.title}`);
+      permitsService.notify([tx.assigneeUserId, tx.createdBy], me(ctx), tx, translate("notifications", "permits.step_completed"), `${tx.transactionNo} · ${step.title}`, "success");
+      if (next?.assigneeUserId) permitsService.notify([next.assigneeUserId], me(ctx), tx, translate("notifications", "permits.step_turn"), `${tx.transactionNo} · ${next.title}`);
     }
     after(tx, ctx);
     res.json({ ok: true });
@@ -972,7 +973,7 @@ export function registerPermitsRoutes(app: Express, deps: Deps) {
     const s = template.service;
     const id = await saveService(ctx, {
       scope: "org",
-      name: `${s.name} (نسخة)`,
+      name: `${s.name}${translate("notifications", "permits.copy_suffix")}`,
       authorityId: s.authorityId,
       authorityName: null,
       authorityPortalUrl: null,

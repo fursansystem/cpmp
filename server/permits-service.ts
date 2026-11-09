@@ -20,6 +20,7 @@ import {
   type Project,
 } from "@shared/schema";
 import { EXPIRY_FINAL_NOTICE_DAYS, DEFAULT_RENEWAL_LEAD_DAYS, daysUntil, type PermitUserRef } from "@shared/permits";
+import { translate } from "@shared/i18n";
 import { notificationService } from "./notification-service";
 import { seedPermitCatalogue } from "./permit-catalog-seed";
 import { notificationWss } from "./websocket";
@@ -179,7 +180,7 @@ class PermitsService {
         completedBy: done ? userId : null,
         completedAt: done ? new Date() : null,
       }).where(eq(permitTransactionSteps.id, step.id));
-      await this.log(db, tx, done ? "step_completed" : "step_reopened", userId, { note: `${step.title} (من Activity)` });
+      await this.log(db, tx, done ? "step_completed" : "step_reopened", userId, { note: `${step.title} (from Activity)` });
       if (tx.status === "not_started" && target !== "pending") {
         await db.update(permitTransactions).set({ status: "in_progress", updatedAt: new Date() }).where(eq(permitTransactions.id, tx.id));
         await this.log(db, tx, "status_changed", userId, { from: "not_started", to: "in_progress" });
@@ -189,12 +190,12 @@ class PermitsService {
     await this.syncTasks(tx.id);
   }
 
-  // ---- Fees paid through المدفوعات ----
+  // ---- Fees paid through payments ----
   // Inside the payment's own database transaction: the fee is paid when the order is
   async markFeePaid(exec: Exec, order: PaymentOrder, now: Date) {
     if (!order.permitTransactionId) return;
     await exec.update(permitTransactions).set({ feePaid: true, feePaidAt: now, updatedAt: now }).where(eq(permitTransactions.id, order.permitTransactionId));
-    await exec.update(permitTransactionSteps).set({ status: "done", completedAt: now, completedBy: order.paidBy ?? null, note: `سُدِّد بأمر الدفع ${order.orderNo}` })
+    await exec.update(permitTransactionSteps).set({ status: "done", completedAt: now, completedBy: order.paidBy ?? null, note: `Paid by payment order ${order.orderNo}` })
       .where(and(eq(permitTransactionSteps.transactionId, order.permitTransactionId), eq(permitTransactionSteps.isPaymentStep, true)));
   }
 
@@ -211,7 +212,7 @@ class PermitsService {
       const action = event === "requested" ? "payment_requested" : event === "paid" ? "fee_paid" : "payment_reverted";
       await this.log(db, tx, action, actorId, { note: order.orderNo });
       if (event === "paid") {
-        this.notify([tx.assigneeUserId, tx.createdBy], actorId, tx, "سُدِّدت رسوم المعاملة", `${tx.transactionNo} · ${tx.title} · ${order.orderNo}`, "success");
+        this.notify([tx.assigneeUserId, tx.createdBy], actorId, tx, translate("notifications", "permits.fees_paid"), `${tx.transactionNo} · ${tx.title} · ${order.orderNo}`, "success");
       }
       this.broadcast(tx.projectId);
       await this.syncTasks(tx.id);
@@ -271,7 +272,7 @@ class PermitsService {
       if (left < 0) {
         await db.update(permitTransactions).set({ status: "expired", expiryNoticeLevel: -1, updatedAt: new Date() }).where(eq(permitTransactions.id, tx.id));
         await this.log(db, tx, "expired", null, { from: "completed", to: "expired" });
-        this.notify(await this.recipients(tx), null, tx, "انتهت صلاحية رخصة", `${tx.transactionNo} · ${tx.title} · ${tx.expiryDate}`, "warning");
+        this.notify(await this.recipients(tx), null, tx, translate("notifications", "permits.expired"), `${tx.transactionNo} · ${tx.title} · ${tx.expiryDate}`, "warning");
         this.broadcast(tx.projectId);
         continue;
       }
@@ -283,8 +284,8 @@ class PermitsService {
       if (level === undefined) continue;
       if (tx.expiryNoticeLevel !== null && tx.expiryNoticeLevel <= level) continue;
       await db.update(permitTransactions).set({ expiryNoticeLevel: level }).where(eq(permitTransactions.id, tx.id));
-      const when = left === 0 ? "تنتهي اليوم" : `تنتهي خلال ${left} يوماً`;
-      this.notify(await this.recipients(tx), null, tx, `رخصة ${when}`, `${tx.transactionNo} · ${tx.title} · ${tx.expiryDate}`, "warning");
+      const when = left === 0 ? translate("notifications", "permits.expires_today") : translate("notifications", "permits.expires_in_days", { count: left });
+      this.notify(await this.recipients(tx), null, tx, translate("notifications", "permits.licence_expiring", { when }), `${tx.transactionNo} · ${tx.title} · ${tx.expiryDate}`, "warning");
     }
   }
 
@@ -303,7 +304,7 @@ class PermitsService {
       ));
     for (const { step, tx } of steps) {
       await db.update(permitTransactionSteps).set({ overdueNotifiedAt: new Date() }).where(eq(permitTransactionSteps.id, step.id));
-      this.notify([step.assigneeUserId], null, tx, "خطوة متأخرة في معاملة", `${tx.transactionNo} · ${step.title} · ${step.dueDate}`, "warning");
+      this.notify([step.assigneeUserId], null, tx, translate("notifications", "permits.step_overdue"), `${tx.transactionNo} · ${step.title} · ${step.dueDate}`, "warning");
       await this.syncTasks(tx.id);
     }
   }

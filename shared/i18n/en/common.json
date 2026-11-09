@@ -1,0 +1,37 @@
+{
+  "language": {
+    "label": "Language",
+    "description": "Choose your display language",
+    "ar": "العربية",
+    "en": "English"
+  },
+  "actions": {
+    "save": "Save",
+    "cancel": "Cancel",
+    "close": "Close",
+    "back": "Back",
+    "search": "Search",
+    "retry": "Retry"
+  },
+  "time_ago": {
+    "just_now": "Just now",
+    "minutes_one": "1 minute ago",
+    "minutes_two": "{{count}} minutes ago",
+    "minutes_few": "{{count}} minutes ago",
+    "minutes_many": "{{count}} minutes ago",
+    "minutes_other": "{{count}} minutes ago",
+    "hours_one": "1 hour ago",
+    "hours_two": "{{count}} hours ago",
+    "hours_few": "{{count}} hours ago",
+    "hours_many": "{{count}} hours ago",
+    "hours_other": "{{count}} hours ago",
+    "days_one": "Yesterday",
+    "days_two": "{{count}} days ago",
+    "days_few": "{{count}} days ago",
+    "days_many": "{{count}} days ago",
+    "days_other": "{{count}} days ago"
+  },
+  "currency": {
+    "sar": "SAR"
+  }
+}

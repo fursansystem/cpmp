@@ -103,7 +103,7 @@ export function LinkSupplierDialog({
     <Dialog open={isOpen} onOpenChange={handleOpenChange}>
       <DialogContent className="max-w-2xl">
         <DialogHeader>
-          <div className="flex items-center justify-between w-full pr-6">
+          <div className="flex items-center justify-between w-full pe-6">
             <DialogTitle className="flex items-center gap-2">
               <Database className="w-5 h-5 text-primary" />
               Select Suppliers
@@ -118,7 +118,7 @@ export function LinkSupplierDialog({
                 variant="outline"
                 className="rounded-xl shadow-sm bg-primary/5 text-primary hover:bg-primary/10 border-primary/20 transition-all"
               >
-                <Plus className="w-4 h-4 mr-1" />
+                <Plus className="w-4 h-4 me-1" />
                 Create New
               </Button>
             )}
@@ -186,7 +186,7 @@ export function LinkSupplierDialog({
 
           <div className="flex flex-wrap gap-2 mt-2">
             {selectedSuppliers.map((supplier) => (
-              <Badge key={supplier.id} variant="secondary" className="gap-1 pr-1 shadow-sm bg-primary/5 text-primary border-primary/10">
+              <Badge key={supplier.id} variant="secondary" className="gap-1 pe-1 shadow-sm bg-primary/5 text-primary border-primary/10">
                 {supplier.supplierName}
                 <Button
                   variant="ghost"
@@ -210,7 +210,7 @@ export function LinkSupplierDialog({
           >
             {isSubmitting ? (
               <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                <Loader2 className="me-2 h-4 w-4 animate-spin" />
                 Linking...
               </>
             ) : (

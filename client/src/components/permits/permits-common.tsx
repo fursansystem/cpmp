@@ -9,6 +9,7 @@ import {
   type PermitsContext,
 } from "@shared/permits";
 import { getJson, StatusBadge } from "@/components/payments/payments-common";
+import { enumText } from "@/lib/enums";
 
 export { getJson, errorMessage, fmtDate, money, StatusBadge } from "@/components/payments/payments-common";
 
@@ -58,7 +59,7 @@ export interface PermitRow {
 }
 
 export function PermitStatusBadge({ status }: { status: string }) {
-  return <StatusBadge status={status} labels={PERMIT_STATUS_LABELS} />;
+  return <StatusBadge status={status} group="permit_status" />;
 }
 
 export function AttentionBadge({ kind }: { kind: PermitAttention | null }) {
@@ -66,7 +67,7 @@ export function AttentionBadge({ kind }: { kind: PermitAttention | null }) {
   const tone = kind === "awaiting_payment" ? "bg-amber-500/10 text-amber-700 dark:text-amber-400" : "bg-destructive/10 text-destructive";
   return (
     <Badge variant="secondary" className={`border-none font-semibold gap-1 whitespace-nowrap ${tone}`}>
-      <AlertTriangle className="w-3 h-3" /> {PERMIT_ATTENTION_LABELS[kind]}
+      <AlertTriangle className="w-3 h-3" /> {enumText("permit_attention", kind)}
     </Badge>
   );
 }
