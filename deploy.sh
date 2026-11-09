@@ -44,6 +44,10 @@ npm run db:migrate-payments
 echo ">> Running permits migration..."
 npm run db:migrate-permits
 
+# عمود لغة المستخدم للمزامنة عبر الأجهزة. آمن عند التكرار.
+echo ">> Running language migration..."
+npm run db:migrate-language
+
 echo ">> Building..."
 npm run build
 
