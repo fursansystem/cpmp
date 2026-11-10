@@ -81,7 +81,7 @@ const AREAS = {
   progress: ["client/src/components/progress-matrix"],
   shell: ["client/src/components/app-sidebar.tsx", "client/src/components/app-header.tsx", "client/src/components/notification-center.tsx", "client/src/components/login-summary.tsx"],
   projects: ["client/src/pages/home.tsx", "client/src/pages/projects.tsx", "client/src/pages/project-detail.tsx"],
-  settings: ["client/src/pages/settings.tsx"],
+  settings: ["client/src/pages/settings.tsx", "client/src/pages/about.tsx"],
   server: ["server"],
   shared: ["shared"],
 };
