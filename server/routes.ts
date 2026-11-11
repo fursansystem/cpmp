@@ -7670,6 +7670,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       };
       const paymentsPrefix = translate("notifications", "summary.groups.payments", undefined, lang);
       const permitsLabel = translate("notifications", "summary.groups.permits", undefined, lang);
+      const procurementLabel = translate("notifications", "summary.groups.procurement", undefined, lang);
       const messagesLabel = translate("notifications", "summary.groups.messages", undefined, lang);
       const otherLabel = translate("notifications", "summary.groups.other", undefined, lang);
       type Group = { key: string; label: string; count: number; latestTitle: string; latestMessage: string; link: string | null; payments: boolean };
@@ -7677,8 +7678,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       for (const n of unread) {
         const tab = /^\/payments\?tab=([a-z]+)/.exec(n.link ?? "")?.[1];
         const permit = !tab && (n.link ?? "").startsWith("/permits");
-        const key = tab ? `payments:${tab}` : permit ? "permits" : ["message", "mention"].includes(n.type) ? "messages" : "other";
-        const label = tab ? `${paymentsPrefix} · ${paymentTabs[tab] ?? tab}` : permit ? permitsLabel : key === "messages" ? messagesLabel : otherLabel;
+        const procurement = !tab && !permit && /^\/projects\/[^/]+\/(purchase-orders|rfqs)(\/|\?|$)/.test(n.link ?? "");
+        const key = tab ? `payments:${tab}` : permit ? "permits" : procurement ? "procurement" : ["message", "mention"].includes(n.type) ? "messages" : "other";
+        const label = tab ? `${paymentsPrefix} · ${paymentTabs[tab] ?? tab}` : permit ? permitsLabel : procurement ? procurementLabel : key === "messages" ? messagesLabel : otherLabel;
         const existing = groups.get(key);
         if (existing) existing.count += 1;
         // the list is newest first, so the first one seen in a group is its latest
@@ -8501,6 +8503,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const completeRfq = await storage.getRfq(rfq.id);
       res.status(201).json(completeRfq);
+      if (user?.id) {
+        notificationService.notifyRfqCreated({
+          projectId,
+          rfqNumber: rfqNumber,
+          rfqId: rfq.id,
+          createdByUserId: user.id,
+        });
+      }
     } catch (error) {
       handleError(res, error);
     }
@@ -8653,6 +8663,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const completeQuote = await storage.getQuotation(quote.id);
       res.status(201).json(completeQuote);
+      const user = req.user as User | undefined;
+      if (rfq && user?.id) {
+        const supplier = await storage.getSupplier(quoteData.supplierId);
+        notificationService.notifyQuotationReceived({
+          projectId: rfq.projectId,
+          rfqNumber: rfq.rfqNumber,
+          rfqId: rfq.id,
+          supplierName: supplier?.supplierName || "",
+          createdByUserId: user.id,
+          rfqCreatedByUserId: rfq.createdBy,
+        });
+      }
     } catch (error) {
       handleError(res, error);
     }
@@ -8692,7 +8714,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const pos = await storage.createPurchaseOrdersFromAssignments(req.params.rfqId, assignments, user?.id);
       res.status(201).json(pos);
       for (const po of pos) {
-        if (po) webhookService.emit({ event: "purchase_order", action: "created", projectId: po.projectId, record: po, actorId: user?.id });
+        if (po) {
+          webhookService.emit({ event: "purchase_order", action: "created", projectId: po.projectId, record: po, actorId: user?.id });
+          if (user?.id) {
+            notificationService.notifyPoCreated({
+              projectId: po.projectId,
+              poNumber: po.poNumber,
+              poId: po.id,
+              title: po.title || po.poNumber,
+              supplierName: po.supplierName || "",
+              totalAmount: po.totalAmount || "0",
+              createdByUserId: user.id,
+            });
+          }
+        }
       }
     } catch (error: any) {
       if (error instanceof Error && !(error as any).code) {
@@ -8767,6 +8802,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const fullPo = await storage.getPurchaseOrder(po.id);
       res.status(201).json(fullPo);
       webhookService.emit({ event: "purchase_order", action: "created", projectId, record: fullPo, actorId: user?.id });
+      if (user?.id) {
+        notificationService.notifyPoCreated({
+          projectId,
+          poNumber: poNumber,
+          poId: po.id,
+          title: fullPo?.title || poNumber,
+          supplierName: fullPo?.supplierName || "",
+          totalAmount: fullPo?.totalAmount || "0",
+          createdByUserId: user.id,
+        });
+      }
     } catch (error) {
       handleError(res, error);
     }
@@ -8789,6 +8835,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const po = await storage.approvePurchaseOrder(req.params.id, currentUser.user.id);
       res.json(po);
       webhookService.emit({ event: "purchase_order", action: "approved", projectId: po.projectId, recordId: po.id, actorId: currentUser.user.id });
+      const approver = req.user as User;
+      notificationService.notifyPoApproved({
+        projectId: po.projectId,
+        poNumber: po.poNumber,
+        poId: po.id,
+        approvedByName: approver.fullName || approver.username,
+        createdByUserId: po.createdBy,
+        approvedByUserId: currentUser.user.id,
+      });
     } catch (error) {
       handleError(res, error);
     }
@@ -8819,6 +8874,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(201).json(receipt);
       // data is the order with its updated received quantities; the shipment itself rides along
       webhookService.emit({ event: "purchase_order", action: "received", projectId: po.projectId, recordId: po.id, actorId: ctx.currentUser.user.id, extra: { receipt } });
+      const updatedPo = await storage.getPurchaseOrder(po.id);
+      const receiver = req.user as User;
+      notificationService.notifyPoReceived({
+        projectId: po.projectId,
+        poNumber: po.poNumber,
+        poId: po.id,
+        receivedByName: receiver.fullName || receiver.username,
+        receivedByUserId: ctx.currentUser.user.id,
+        isPartial: updatedPo?.status === "partially_received",
+        createdByUserId: po.createdBy,
+      });
     } catch (error) {
       handleError(res, error);
     }

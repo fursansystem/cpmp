@@ -1,0 +1,189 @@
+{
+  "header": {
+    "title": "System Overview",
+    "subtitle": "What ProjectManager Pro is for, who uses it, its core modules and how to reach support."
+  },
+  "intro": {
+    "title": "About",
+    "description": "Primary functions, core objectives, and problems solved",
+    "product": "ProjectManager Pro (Semat)",
+    "body": "is a construction project management platform that brings site work, quality control, procurement, warehousing, payments and permits into one place, and turns them into consistent, traceable digital workflows.",
+    "goals": {
+      "paperless": {
+        "title": "Eliminate Paper Processes",
+        "text": "Real-time digital workflows replace paper inspection forms and manual sign-offs."
+      },
+      "transparency": {
+        "title": "Enhance Transparency",
+        "text": "Contractors, consultants and owners see quality status and pending actions as they happen."
+      },
+      "auditability": {
+        "title": "Ensure Full Auditability",
+        "text": "A complete history of every review, revision and approval, for contractual compliance."
+      },
+      "one_place": {
+        "title": "One Place for the Project Cycle",
+        "text": "From quotation to delivery and payment, and from inspection to certificate, without switching systems."
+      }
+    }
+  },
+  "audience": {
+    "title": "Who Uses It",
+    "subtitle": "The parties, departments and roles the system serves within a project",
+    "items": {
+      "contractors": {
+        "title": "Main Contractors",
+        "role": "Execute site operations, create Work Inspection Requests (WIRs), track snag lists, and manage deliveries.",
+        "badge": "Field Operations"
+      },
+      "consultants": {
+        "title": "Consultants & QA/QC Engineers",
+        "role": "Review and approve or reject inspection requests, issue Non-Conformance Reports (NCRs), and verify completed works.",
+        "badge": "Quality Control"
+      },
+      "managers": {
+        "title": "Project Managers & Executives",
+        "role": "Monitor project health and progress, approve certificates and payment orders, and review budget and audit logs.",
+        "badge": "Management"
+      },
+      "finance": {
+        "title": "Accountants & Finance",
+        "role": "Request invoice originals, issue payment orders, pay subcontractor certificates, and follow deductions and financial reports.",
+        "badge": "Finance"
+      },
+      "supply": {
+        "title": "Procurement & Storekeepers",
+        "role": "Request and award quotations, issue purchase orders, receive deliveries, and issue or transfer materials between warehouses.",
+        "badge": "Supply"
+      },
+      "admins": {
+        "title": "Organization Administrators",
+        "role": "Manage members and invitations, set permissions and positions, and configure project details and system settings.",
+        "badge": "Administration"
+      }
+    }
+  },
+  "features": {
+    "title": "Key Modules & Features",
+    "subtitle": "What the system offers for running a construction project, including the latest additions",
+    "new_badge": "New",
+    "groups": {
+      "quality": "Quality & Site Work",
+      "procurement": "Procurement & Warehouse",
+      "finance": "Finance & Payments",
+      "progress": "Progress & Certificates",
+      "permits": "Permits & Licenses",
+      "platform": "Platform & Integration"
+    },
+    "items": {
+      "wir": {
+        "title": "Work Inspection Requests (WIR)",
+        "description": "A digital workflow for submitting, reviewing and approving on-site inspection requests, with multi-step consultant approvals."
+      },
+      "ncr_si": {
+        "title": "NCRs & Site Instructions",
+        "description": "Issue Non-Conformance Reports (NCR) and Site Instructions (SI), and track corrective actions through to closure."
+      },
+      "snag": {
+        "title": "Snag List",
+        "description": "Catalogue handover defects, assign who is responsible for each, track rectification, and export formal PDF reports."
+      },
+      "checklists": {
+        "title": "Work Lists & Checklists",
+        "description": "A shared library that links each activity to its checklist, so an inspection request starts with its items ready."
+      },
+      "rfq": {
+        "title": "Quotations & Award",
+        "description": "Create Requests for Quotation (RFQ), record supplier quotations, and compare them side by side before awarding."
+      },
+      "purchase_orders": {
+        "title": "Purchase Orders",
+        "description": "Issue a purchase order automatically from the winning quotation or by hand, then track, receive and print it."
+      },
+      "deliveries": {
+        "title": "Deliveries",
+        "description": "Record material deliveries arriving on site and their receipt, linked to purchase orders."
+      },
+      "warehouse": {
+        "title": "Warehouse",
+        "description": "Stock balances, approved issue vouchers, transfers between warehouses, low-stock alerts, and a full movement ledger."
+      },
+      "materials": {
+        "title": "Material Gallery & Suppliers",
+        "description": "The project's material catalogue with photos and specifications, each material linked to its approved suppliers."
+      },
+      "payments": {
+        "title": "Payments & Payment Orders",
+        "description": "Request invoice originals from the project team, then issue, approve and follow payment orders until paid."
+      },
+      "sub_certificates": {
+        "title": "Subcontractor Certificates",
+        "description": "Prepared by the project team, approved by the project manager, then paid by accounting through a payment order."
+      },
+      "deductions": {
+        "title": "Deductions & Fines",
+        "description": "Record deductions and violations by issuing authority and liable party, and follow them until settled."
+      },
+      "fin_reports": {
+        "title": "Financial Reports",
+        "description": "Liability aging, expected cash flow, approval performance and subcontractor statements, all exportable."
+      },
+      "budget": {
+        "title": "Budget",
+        "description": "Track project allocations, expenditure and outstanding financial commitments."
+      },
+      "matrix": {
+        "title": "Progress Matrix",
+        "description": "A weighted work breakdown (WBS) per project, with progress entered per unit, floor and building, and Excel import and export."
+      },
+      "progress_certificates": {
+        "title": "Progress-Based Certificates",
+        "description": "Works out what can be claimed from actual progress (earned minus pending and paid), with cells locked once an approved inspection confirms them."
+      },
+      "permit_catalog": {
+        "title": "Authority Service Catalogue",
+        "description": "Government and utility services a project goes through: steps, requirements, documents, fees and lead time."
+      },
+      "permit_tracking": {
+        "title": "Transaction & License Tracking",
+        "description": "Start a transaction for a project and follow it step by step until the license is issued, with a reminder before it expires."
+      },
+      "storage": {
+        "title": "Project Documents",
+        "description": "Central cloud storage for drawings, specifications, material submittals and site photos."
+      },
+      "audit": {
+        "title": "Audit Log",
+        "description": "Comprehensive, immutable logging of every action, keeping every project decision and approval traceable."
+      },
+      "notifications": {
+        "title": "Notifications & Login Summary",
+        "description": "Real-time notifications for what needs your action, and a summary of what is waiting when you sign in."
+      },
+      "bilingual": {
+        "title": "Arabic & English",
+        "description": "The full interface in both languages, each with its own text direction; every user's choice is saved to their account."
+      },
+      "erp": {
+        "title": "ERP Integration",
+        "description": "Receive suppliers and payment confirmations from ERPNext, and send system events to external systems through webhooks."
+      },
+      "access": {
+        "title": "Organizations & Permissions",
+        "description": "Manage organizations, members and invitations, and set what each role and position can do within a project."
+      }
+    }
+  },
+  "support": {
+    "title": "Technical Support",
+    "description": "Contact details for the system owner and the technical support team",
+    "sponsor": "System Sponsor",
+    "logo_alt": "Fursan Al Nama logo",
+    "product_name": "ProjectManager Pro Contracting System (Semat)",
+    "company": "Fursan Al Nama Company - Makkah, KSA",
+    "channels": "Support Channels",
+    "hours_title": "Support Hours & SLA",
+    "hours": "Sat - Wed: 10:00 AM - 5:00 PM (GMT+3)",
+    "sla": "Critical on-site inspection issues receive a priority response within 2 hours."
+  }
+}

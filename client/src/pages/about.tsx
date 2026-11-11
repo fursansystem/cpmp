@@ -1,3 +1,5 @@
+import type { LucideIcon } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -9,6 +11,7 @@ import {
   FileCheck2,
   AlertTriangle,
   ClipboardList,
+  ListChecks,
   HardDrive,
   Coins,
   Mail,
@@ -16,69 +19,107 @@ import {
   Clock,
   ShieldCheck,
   Building2,
-  UserCheck
+  UserCheck,
+  Calculator,
+  PackageSearch,
+  FileSearch,
+  ShoppingCart,
+  Truck,
+  Warehouse,
+  Images,
+  Banknote,
+  ReceiptText,
+  BadgeMinus,
+  BarChart3,
+  Grid3x3,
+  FileBadge,
+  BookOpen,
+  Stamp,
+  History,
+  Bell,
+  Languages,
+  Webhook,
+  UsersRound,
 } from "lucide-react";
 
-export default function AboutPage() {
-  const targetAudience = [
-    {
-      title: "Main Contractors",
-      role: "Execute site operations, create Work Inspection Requests (WIRs), track snag lists, and manage deliveries.",
-      icon: Building2,
-      badge: "Field Operations"
-    },
-    {
-      title: "Consultants & QA/QC Engineers",
-      role: "Review and approve/reject inspection requests, issue Non-Conformance Reports (NCRs), and verify completed works.",
-      icon: UserCheck,
-      badge: "Quality Control"
-    },
-    {
-      title: "Project Managers & Executives",
-      role: "Monitor overall project health, track key milestones, review budget utilization, and access audit logs.",
-      icon: Target,
-      badge: "Management"
-    },
-    {
-      title: "Organization Administrators",
-      role: "Manage team memberships, set system permissions, configure project details, and handle system settings.",
-      icon: ShieldCheck,
-      badge: "Administration"
-    }
-  ];
+// Only ids and icons live here. Every word on the page comes from shared/i18n/<lang>/about.json,
+// keyed by these ids — adding a card means adding its id here and its text in both files.
+const GOALS = ["paperless", "transparency", "auditability", "one_place"] as const;
 
-  const keyFeatures = [
-    {
-      title: "Work Inspection Requests (WIR)",
-      description: "Digital workflow for submitting, reviewing, and approving on-site inspection requests with multi-step consultant approvals.",
-      icon: FileCheck2
-    },
-    {
-      title: "NCR & Site Inspection Tracking",
-      description: "Issue Non-Conformance Reports and Site Inspections, track corrective actions, and enforce quality control standards.",
-      icon: AlertTriangle
-    },
-    {
-      title: "Snag List Management",
-      description: "Catalog defect items, assign responsible parties, track rectification statuses, and export formal PDF snag reports.",
-      icon: ClipboardList
-    },
-    {
-      title: "Project Storage & Documents",
-      description: "Centralized cloud document storage for construction drawings, specifications, material submittals, and site photos.",
-      icon: HardDrive
-    },
-    {
-      title: "Budget & Financial Tracking",
-      description: "Monitor purchase orders, track project expenditure, manage budget allocation, and oversee financial commitments.",
-      icon: Coins
-    },
-    {
-      title: "Audit Log & Compliance",
-      description: "Comprehensive immutable activity logging to maintain full traceability across all project decisions and form approvals.",
-      icon: Sparkles
-    }
-  ];
+const AUDIENCE: { id: string; icon: LucideIcon }[] = [
+  { id: "contractors", icon: Building2 },
+  { id: "consultants", icon: UserCheck },
+  { id: "managers", icon: Target },
+  { id: "finance", icon: Calculator },
+  { id: "supply", icon: PackageSearch },
+  { id: "admins", icon: ShieldCheck },
+];
+
+type Feature = { id: string; icon: LucideIcon; isNew?: boolean };
+
+const FEATURE_GROUPS: { id: string; items: Feature[] }[] = [
+  {
+    id: "quality",
+    items: [
+      { id: "wir", icon: FileCheck2 },
+      { id: "ncr_si", icon: AlertTriangle },
+      { id: "snag", icon: ClipboardList },
+      { id: "checklists", icon: ListChecks },
+    ],
+  },
+  {
+    id: "procurement",
+    items: [
+      { id: "rfq", icon: FileSearch, isNew: true },
+      { id: "purchase_orders", icon: ShoppingCart, isNew: true },
+      { id: "deliveries", icon: Truck },
+      { id: "warehouse", icon: Warehouse, isNew: true },
+      { id: "materials", icon: Images },
+    ],
+  },
+  {
+    id: "finance",
+    items: [
+      { id: "payments", icon: Banknote, isNew: true },
+      { id: "sub_certificates", icon: ReceiptText, isNew: true },
+      { id: "deductions", icon: BadgeMinus, isNew: true },
+      { id: "fin_reports", icon: BarChart3, isNew: true },
+      { id: "budget", icon: Coins },
+    ],
+  },
+  {
+    id: "progress",
+    items: [
+      { id: "matrix", icon: Grid3x3, isNew: true },
+      { id: "progress_certificates", icon: FileBadge, isNew: true },
+    ],
+  },
+  {
+    id: "permits",
+    items: [
+      { id: "permit_catalog", icon: BookOpen, isNew: true },
+      { id: "permit_tracking", icon: Stamp, isNew: true },
+    ],
+  },
+  {
+    id: "platform",
+    items: [
+      { id: "storage", icon: HardDrive },
+      { id: "audit", icon: History },
+      { id: "notifications", icon: Bell, isNew: true },
+      { id: "bilingual", icon: Languages, isNew: true },
+      { id: "erp", icon: Webhook, isNew: true },
+      { id: "access", icon: UsersRound },
+    ],
+  },
+];
+
+// Letter-spacing pulls joined Arabic letters apart, and Arabic has no capitals, so the small-caps
+// label treatment is applied in LTR only.
+const EYEBROW = "ltr:uppercase ltr:tracking-wider";
+
+export default function AboutPage() {
+  const { t } = useTranslation("about");
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-8">
@@ -88,10 +129,8 @@ export default function AboutPage() {
           <Info className="w-8 h-8" />
         </div>
         <div>
-          <h1 className="text-3xl font-display font-bold text-slate-900 dark:text-white tracking-tight">System Overview</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Understanding ProjectManager Pro: Objectives, target audience, support contacts, and core functionalities.
-          </p>
+          <h1 className="text-3xl font-display font-bold text-slate-900 dark:text-white tracking-tight">{t("header.title")}</h1>
+          <p className="text-sm text-muted-foreground mt-1">{t("header.subtitle")}</p>
         </div>
       </div>
 
@@ -100,27 +139,21 @@ export default function AboutPage() {
         <CardHeader className="bg-slate-50/50 dark:bg-slate-900/50 border-b border-slate-100 dark:border-white/5">
           <CardTitle className="flex items-center gap-2 text-xl font-bold">
             <Target className="w-5 h-5 text-primary" />
-            About
+            {t("intro.title")}
           </CardTitle>
-          <CardDescription>Primary functions, core objectives, and problems solved</CardDescription>
+          <CardDescription>{t("intro.description")}</CardDescription>
         </CardHeader>
         <CardContent className="pt-6 space-y-4 text-slate-700 dark:text-slate-300 leading-relaxed">
           <p>
-            <strong className="text-slate-900 dark:text-white font-semibold">ProjectManager Pro</strong> is an enterprise-grade construction management platform built to digitize, streamline, and standardize field operations, quality assurance, and project governance across complex engineering projects.
+            <strong className="text-slate-900 dark:text-white font-semibold">{t("intro.product")}</strong> {t("intro.body")}
           </p>
-          <div className="grid md:grid-cols-3 gap-4 pt-2">
-            <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-900/80 border border-slate-200/80 dark:border-slate-800">
-              <h4 className="font-bold text-slate-900 dark:text-white text-sm mb-1">Eliminate Paper Processes</h4>
-              <p className="text-xs text-slate-600 dark:text-slate-400">Replaces physical paper inspection forms and manual sign-offs with real-time digital workflows.</p>
-            </div>
-            <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-900/80 border border-slate-200/80 dark:border-slate-800">
-              <h4 className="font-bold text-slate-900 dark:text-white text-sm mb-1">Enhance Transparency</h4>
-              <p className="text-xs text-slate-600 dark:text-slate-400">Provides contractors, consultants, and owners real-time visibility into quality statuses and pending actions.</p>
-            </div>
-            <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-900/80 border border-slate-200/80 dark:border-slate-800">
-              <h4 className="font-bold text-slate-900 dark:text-white text-sm mb-1">Ensure Full Auditability</h4>
-              <p className="text-xs text-slate-600 dark:text-slate-400">Maintains complete historical logs of every review, revision, and approval for contractual compliance.</p>
-            </div>
+          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 pt-2">
+            {GOALS.map((id) => (
+              <div key={id} className="p-4 rounded-xl bg-slate-50 dark:bg-slate-900/80 border border-slate-200/80 dark:border-slate-800">
+                <h4 className="font-bold text-slate-900 dark:text-white text-sm mb-1">{t(`intro.goals.${id}.title`)}</h4>
+                <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">{t(`intro.goals.${id}.text`)}</p>
+              </div>
+            ))}
           </div>
         </CardContent>
       </Card>
@@ -130,25 +163,25 @@ export default function AboutPage() {
         <div>
           <h2 className="text-xl font-bold flex items-center gap-2 text-slate-900 dark:text-white">
             <Users className="w-5 h-5 text-primary" />
-            Who Uses It
+            {t("audience.title")}
           </h2>
-          <p className="text-sm text-muted-foreground">Intended audiences, departments, and user roles within the project ecosystem</p>
+          <p className="text-sm text-muted-foreground">{t("audience.subtitle")}</p>
         </div>
 
-        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
-          {targetAudience.map((item, idx) => (
-            <Card key={idx} className="border-slate-200 dark:border-white/10 flex flex-col justify-between hover:shadow-md transition-shadow">
+        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {AUDIENCE.map((item) => (
+            <Card key={item.id} className="border-slate-200 dark:border-white/10 flex flex-col hover:shadow-md transition-shadow">
               <CardHeader className="pb-3">
-                <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center justify-between gap-2 mb-2">
                   <div className="p-2 bg-primary/10 text-primary rounded-xl">
                     <item.icon className="w-5 h-5" />
                   </div>
-                  <Badge variant="secondary" className="text-[10px] uppercase font-bold tracking-wider">{item.badge}</Badge>
+                  <Badge variant="secondary" className={`text-xs font-bold ${EYEBROW}`}>{t(`audience.items.${item.id}.badge`)}</Badge>
                 </div>
-                <CardTitle className="text-base font-bold">{item.title}</CardTitle>
+                <CardTitle className="text-base font-bold">{t(`audience.items.${item.id}.title`)}</CardTitle>
               </CardHeader>
               <CardContent className="pt-0">
-                <p className="text-xs text-slate-600 dark:text-slate-400 leading-normal">{item.role}</p>
+                <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">{t(`audience.items.${item.id}.role`)}</p>
               </CardContent>
             </Card>
           ))}
@@ -156,32 +189,42 @@ export default function AboutPage() {
       </div>
 
       {/* Key Features */}
-      <div className="space-y-4">
+      <div className="space-y-5">
         <div>
           <h2 className="text-xl font-bold flex items-center gap-2 text-slate-900 dark:text-white">
             <Sparkles className="w-5 h-5 text-primary" />
-            Key Features & Capabilities
+            {t("features.title")}
           </h2>
-          <p className="text-sm text-muted-foreground">Core functionalities designed to streamline construction workflows</p>
+          <p className="text-sm text-muted-foreground">{t("features.subtitle")}</p>
         </div>
 
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {keyFeatures.map((feat, idx) => (
-            <Card key={idx} className="border-slate-200 dark:border-white/10 hover:border-primary/40 transition-colors">
-              <CardHeader className="pb-2">
-                <div className="flex items-center gap-3">
-                  <div className="p-2.5 bg-slate-100 dark:bg-slate-800 text-primary rounded-xl">
-                    <feat.icon className="w-5 h-5" />
-                  </div>
-                  <CardTitle className="text-sm font-bold">{feat.title}</CardTitle>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <p className="text-xs text-slate-600 dark:text-slate-400 leading-normal">{feat.description}</p>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+        {FEATURE_GROUPS.map((group) => (
+          <section key={group.id} className="space-y-3" data-testid={`about-group-${group.id}`}>
+            <h3 className="text-sm font-bold text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-800 pb-2">
+              {t(`features.groups.${group.id}`)}
+            </h3>
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {group.items.map((feat) => (
+                <Card key={feat.id} className="border-slate-200 dark:border-white/10 hover:border-primary/40 transition-colors">
+                  <CardHeader className="pb-2">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2.5 bg-slate-100 dark:bg-slate-800 text-primary rounded-xl shrink-0">
+                        <feat.icon className="w-5 h-5" />
+                      </div>
+                      <CardTitle className="text-sm font-bold leading-normal flex-1 min-w-0">{t(`features.items.${feat.id}.title`)}</CardTitle>
+                      {feat.isNew && (
+                        <Badge className="shrink-0 text-xs font-bold">{t("features.new_badge")}</Badge>
+                      )}
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">{t(`features.items.${feat.id}.description`)}</p>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </section>
+        ))}
       </div>
 
       {/* Ownership & Support */}
@@ -189,45 +232,41 @@ export default function AboutPage() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-xl text-white">
             <Headphones className="w-5 h-5 text-primary" />
-            Technical Support
+            {t("support.title")}
           </CardTitle>
-          <CardDescription className="text-slate-400">
-            Contact information for platform administrators, ownership team, and IT support desk
-          </CardDescription>
+          <CardDescription className="text-slate-400">{t("support.description")}</CardDescription>
         </CardHeader>
         <CardContent className="pt-2 grid md:grid-cols-3 gap-6">
           <div className="space-y-3">
-            <h4 className="text-sm font-bold text-slate-200 uppercase tracking-wider text-[11px]">System Sponsor</h4>
+            <h4 className={`text-xs font-bold text-slate-200 ${EYEBROW}`}>{t("support.sponsor")}</h4>
             <div className="flex items-center gap-3">
-              <img src="/favicon.png" alt="Fursan Al Nama Logo" className="w-12 h-12 object-contain bg-white/10 rounded-xl p-1.5 border border-white/10 shrink-0" />
+              <img src="/favicon.png" alt={t("support.logo_alt")} className="w-12 h-12 object-contain bg-white/10 rounded-xl p-1.5 border border-white/10 shrink-0" />
               <div>
-                <p className="text-sm font-semibold text-white">Project Manager Pro Contracting System (Semat)</p>
-                <p className="text-xs text-slate-400">Fursan Al Nama Company - Makkah, KSA</p>
+                <p className="text-sm font-semibold text-white">{t("support.product_name")}</p>
+                <p className="text-xs text-slate-400">{t("support.company")}</p>
               </div>
             </div>
           </div>
 
           <div className="space-y-3">
-            <h4 className="text-sm font-bold text-slate-200 uppercase tracking-wider text-[11px]">IT Support Channels</h4>
+            <h4 className={`text-xs font-bold text-slate-200 ${EYEBROW}`}>{t("support.channels")}</h4>
             <div className="flex items-center gap-2 text-xs text-slate-300">
               <Mail className="w-4 h-4 text-primary shrink-0" />
-              <span>it@fursan.sa</span>
+              <a href="mailto:it@fursan.sa" dir="ltr" className="hover:text-white">it@fursan.sa</a>
             </div>
             <div className="flex items-center gap-2 text-xs text-slate-300">
               <Phone className="w-4 h-4 text-primary shrink-0" />
-              <span>+966 559152522</span>
+              <a href="tel:+966559152522" dir="ltr" className="hover:text-white">+966 559152522</a>
             </div>
           </div>
 
           <div className="space-y-3">
-            <h4 className="text-sm font-bold text-slate-200 uppercase tracking-wider text-[11px]">Support Hours & SLA</h4>
+            <h4 className={`text-xs font-bold text-slate-200 ${EYEBROW}`}>{t("support.hours_title")}</h4>
             <div className="flex items-center gap-2 text-xs text-slate-300">
               <Clock className="w-4 h-4 text-primary shrink-0" />
-              <span>Sat - Wed: 10:00 AM - 5:00 PM (GMT+3)</span>
+              <span>{t("support.hours")}</span>
             </div>
-            <p className="text-xs text-slate-400">
-              Critical on-site inspection issues receive priority response within 2 hours.
-            </p>
+            <p className="text-xs text-slate-400">{t("support.sla")}</p>
           </div>
         </CardContent>
       </Card>

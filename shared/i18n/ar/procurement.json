@@ -103,7 +103,7 @@
     "cancelled": "ملغي"
   },
   "orders": {
-    "header_title": "أوامر الشراء والموردين",
+    "header_title": "المشتريات",
     "back_to_project": "العودة للمشروع",
     "tabs": {
       "suppliers": "دليل الموردين",

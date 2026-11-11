@@ -1,5 +1,7 @@
 // The translation catalogue, shared so the server can render the same strings when notifications and
 // emails join the scope. Arabic is the source language; English is the translation.
+import arAbout from "./ar/about.json";
+import enAbout from "./en/about.json";
 import arCommon from "./ar/common.json";
 import enCommon from "./en/common.json";
 import arEnums from "./ar/enums.json";
@@ -42,8 +44,8 @@ export const LOCALE_TAG: Record<Language, string> = {
 };
 
 export const resources = {
-  ar: { common: arCommon, enums: arEnums, payments: arPayments, permits: arPermits, procurement: arProcurement, settings: arSettings, projects: arProjects, nav: arNav, notifications: arNotifications, warehouse: arWarehouse, progress: arProgress },
-  en: { common: enCommon, enums: enEnums, payments: enPayments, permits: enPermits, procurement: enProcurement, settings: enSettings, projects: enProjects, nav: enNav, notifications: enNotifications, warehouse: enWarehouse, progress: enProgress },
+  ar: { common: arCommon, enums: arEnums, payments: arPayments, permits: arPermits, procurement: arProcurement, settings: arSettings, projects: arProjects, nav: arNav, notifications: arNotifications, warehouse: arWarehouse, progress: arProgress, about: arAbout },
+  en: { common: enCommon, enums: enEnums, payments: enPayments, permits: enPermits, procurement: enProcurement, settings: enSettings, projects: enProjects, nav: enNav, notifications: enNotifications, warehouse: enWarehouse, progress: enProgress, about: enAbout },
 } as const;
 
 export const defaultNS = "common";
