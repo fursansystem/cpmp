@@ -13,7 +13,7 @@
     "live_progress": "متابعة الإنجاز",
     "overall_progress": "الإنجاز الكلي",
     "supply_chain": "سلاسل الإمداد",
-    "po_requests": "أوامر الشراء",
+    "po_requests": "المشتريات",
     "active_queue": "قائمة الطلبات",
     "project_requests": "طلبات المشروع",
     "timeline": "الجدول الزمني",
@@ -37,8 +37,8 @@
       "description": "إدارة وتتبع كافة طلبات المشروع بما فيها اعتمادات WIR و MIR و MSR."
     },
     "purchase_orders": {
-      "title": "أوامر الشراء",
-      "description": "إدارة سلاسل الإمداد، قوائم المواد، وتتبع المشتريات والتوريد."
+      "title": "المشتريات",
+      "description": "أوامر الشراء، عروض الأسعار، ودليل الموردين."
     },
     "progress_matrix": {
       "title": "مصفوفة الإنجاز",

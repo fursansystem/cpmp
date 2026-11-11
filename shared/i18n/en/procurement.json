@@ -103,7 +103,7 @@
     "cancelled": "Cancelled"
   },
   "orders": {
-    "header_title": "Purchase Orders & Suppliers",
+    "header_title": "Procurement",
     "back_to_project": "Back to Project",
     "tabs": {
       "suppliers": "Supplier Directory",

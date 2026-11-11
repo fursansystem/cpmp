@@ -114,7 +114,7 @@ function NotificationCard({
 }
 
 export default function Notifications() {
-  const [filter, setFilter] = useState<"all" | "unread" | "payments">("all");
+  const [filter, setFilter] = useState<"all" | "unread" | "payments" | "procurement">("all");
   const {
     notifications,
     unreadCount,
@@ -126,7 +126,7 @@ export default function Notifications() {
     isMarkingAllAsRead,
   } = useNotifications();
 
-  const visible = notifications.filter((n) => filter === "unread" ? !n.isRead : filter === "payments" ? (n.link ?? "").startsWith("/payments") : true);
+  const visible = notifications.filter((n) => filter === "unread" ? !n.isRead : filter === "payments" ? (n.link ?? "").startsWith("/payments") : filter === "procurement" ? /^\/projects\/[^/]+\/(purchase-orders|rfqs)(\/|\?|$)/.test(n.link ?? "") : true);
 
   return (
     <div className="p-6 lg:p-8 space-y-6">
@@ -168,7 +168,7 @@ export default function Notifications() {
       </div>
 
       <div className="flex gap-2 flex-wrap">
-        {([["all", "الكل"], ["unread", "غير المقروء"], ["payments", "المدفوعات"]] as const).map(([k, label]) => (
+        {([["all", "الكل"], ["unread", "غير المقروء"], ["payments", "المدفوعات"], ["procurement", "المشتريات"]] as const).map(([k, label]) => (
           <Button key={k} size="sm" variant={filter === k ? "default" : "outline"} onClick={() => setFilter(k)} data-testid={`filter-${k}`}>{label}</Button>
         ))}
       </div>

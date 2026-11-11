@@ -553,6 +553,198 @@ class NotificationService {
       console.error("[notifyLowStock] Failed:", error);
     }
   }
+  // ==================== PROCUREMENT ====================
+
+  // Helper: find project managers (and optionally a specific user) for a project's organisations.
+  private async getProcurementRecipients(projectId: string, excludeUserId?: string): Promise<string[]> {
+    try {
+      const project = await storage.getProject(projectId);
+      if (!project) return [];
+
+      const orgIds = Array.from(
+        new Set([project.organizationId, project.contractorId].filter(Boolean) as string[])
+      );
+      const managerTitles = ["project manager", "مدير مشروع"];
+      const recipients = new Set<string>();
+
+      for (const orgId of orgIds) {
+        const members = await storage.getTeamMembersByOrganization(orgId);
+        for (const tm of members) {
+          const position = (tm.position || "").trim().toLowerCase();
+          if (!managerTitles.some((t) => position.includes(t))) continue;
+          const tmUsers = await storage.getTeamMemberUsers(tm.id);
+          for (const tmUser of tmUsers) {
+            if (!excludeUserId || tmUser.userId !== excludeUserId) recipients.add(tmUser.userId);
+          }
+        }
+      }
+      return Array.from(recipients);
+    } catch (error) {
+      console.error("[getProcurementRecipients] Failed:", error);
+      return [];
+    }
+  }
+
+  async notifyPoCreated(params: {
+    projectId: string;
+    poNumber: string;
+    title: string;
+    supplierName: string;
+    totalAmount: string;
+    poId: string;
+    createdByUserId: string;
+  }) {
+    try {
+      const recipients = await this.getProcurementRecipients(params.projectId, params.createdByUserId);
+      for (const userId of recipients) {
+        await this.createAndSend({
+          userId,
+          type: "info",
+          title: translate("notifications", "procurement.po_created"),
+          message: translate("notifications", "procurement.po_created_message", {
+            poNumber: params.poNumber,
+            supplierName: params.supplierName,
+          }),
+          projectId: params.projectId,
+          link: `/projects/${params.projectId}/purchase-orders/${params.poId}`,
+        });
+      }
+    } catch (error) {
+      console.error("[notifyPoCreated] Failed:", error);
+    }
+  }
+
+  async notifyPoApproved(params: {
+    projectId: string;
+    poNumber: string;
+    approvedByName: string;
+    poId: string;
+    createdByUserId?: string | null;
+    approvedByUserId: string;
+  }) {
+    try {
+      const recipients = new Set<string>();
+      // Always notify the person who created the PO
+      if (params.createdByUserId && params.createdByUserId !== params.approvedByUserId) {
+        recipients.add(params.createdByUserId);
+      }
+      // Also notify project managers
+      const managers = await this.getProcurementRecipients(params.projectId, params.approvedByUserId);
+      for (const id of managers) recipients.add(id);
+
+      for (const userId of Array.from(recipients)) {
+        await this.createAndSend({
+          userId,
+          type: "success",
+          title: translate("notifications", "procurement.po_approved"),
+          message: translate("notifications", "procurement.po_approved_message", {
+            poNumber: params.poNumber,
+            approvedByName: params.approvedByName,
+          }),
+          projectId: params.projectId,
+          link: `/projects/${params.projectId}/purchase-orders/${params.poId}`,
+        });
+      }
+    } catch (error) {
+      console.error("[notifyPoApproved] Failed:", error);
+    }
+  }
+
+  async notifyPoReceived(params: {
+    projectId: string;
+    poNumber: string;
+    receivedByName: string;
+    poId: string;
+    receivedByUserId: string;
+    isPartial: boolean;
+    createdByUserId?: string | null;
+  }) {
+    try {
+      const recipients = new Set<string>();
+      if (params.createdByUserId && params.createdByUserId !== params.receivedByUserId) {
+        recipients.add(params.createdByUserId);
+      }
+      const managers = await this.getProcurementRecipients(params.projectId, params.receivedByUserId);
+      for (const id of managers) recipients.add(id);
+
+      const titleKey = params.isPartial ? "procurement.po_partially_received" : "procurement.po_received";
+      for (const userId of Array.from(recipients)) {
+        await this.createAndSend({
+          userId,
+          type: params.isPartial ? "info" : "success",
+          title: translate("notifications", titleKey),
+          message: translate("notifications", "procurement.po_received_message", {
+            poNumber: params.poNumber,
+            receivedByName: params.receivedByName,
+          }),
+          projectId: params.projectId,
+          link: `/projects/${params.projectId}/purchase-orders/${params.poId}`,
+        });
+      }
+    } catch (error) {
+      console.error("[notifyPoReceived] Failed:", error);
+    }
+  }
+
+  async notifyRfqCreated(params: {
+    projectId: string;
+    rfqNumber: string;
+    rfqId: string;
+    createdByUserId: string;
+  }) {
+    try {
+      const recipients = await this.getProcurementRecipients(params.projectId, params.createdByUserId);
+      for (const userId of recipients) {
+        await this.createAndSend({
+          userId,
+          type: "info",
+          title: translate("notifications", "procurement.rfq_created"),
+          message: translate("notifications", "procurement.rfq_created_message", {
+            rfqNumber: params.rfqNumber,
+          }),
+          projectId: params.projectId,
+          link: `/projects/${params.projectId}/rfqs/${params.rfqId}`,
+        });
+      }
+    } catch (error) {
+      console.error("[notifyRfqCreated] Failed:", error);
+    }
+  }
+
+  async notifyQuotationReceived(params: {
+    projectId: string;
+    rfqNumber: string;
+    supplierName: string;
+    createdByUserId: string;
+    rfqCreatedByUserId?: string | null;
+    rfqId: string;
+  }) {
+    try {
+      const recipients = new Set<string>();
+      // Notify the person who created the RFQ
+      if (params.rfqCreatedByUserId && params.rfqCreatedByUserId !== params.createdByUserId) {
+        recipients.add(params.rfqCreatedByUserId);
+      }
+      const managers = await this.getProcurementRecipients(params.projectId, params.createdByUserId);
+      for (const id of managers) recipients.add(id);
+
+      for (const userId of Array.from(recipients)) {
+        await this.createAndSend({
+          userId,
+          type: "info",
+          title: translate("notifications", "procurement.quotation_received"),
+          message: translate("notifications", "procurement.quotation_received_message", {
+            supplierName: params.supplierName,
+            rfqNumber: params.rfqNumber,
+          }),
+          projectId: params.projectId,
+          link: `/projects/${params.projectId}/rfqs/${params.rfqId}`,
+        });
+      }
+    } catch (error) {
+      console.error("[notifyQuotationReceived] Failed:", error);
+    }
+  }
 }
 
 export const notificationService = new NotificationService();

@@ -32,6 +32,7 @@
       "fines": "Deductions",
       "payments": "Payments",
       "permits": "Permits & Transactions",
+      "procurement": "Procurement",
       "messages": "Messages & Mentions",
       "other": "Other Alerts"
     }
@@ -96,6 +97,19 @@
     "fine_waiver_approved": "Waiver request approved",
     "fine_waiver_rejected": "Waiver request rejected",
     "cb_fine_title": "Chargeback invoice {{invoiceNo}} on {{subcontractorName}}"
+  },
+  "procurement": {
+    "po_created": "New Purchase Order",
+    "po_created_message": "Purchase order {{poNumber}} created for supplier {{supplierName}}",
+    "po_approved": "Purchase Order Approved",
+    "po_approved_message": "{{approvedByName}} approved purchase order {{poNumber}}",
+    "po_received": "Purchase Order Fully Received",
+    "po_partially_received": "Partial Receipt on Purchase Order",
+    "po_received_message": "{{receivedByName}} recorded a shipment receipt on purchase order {{poNumber}}",
+    "rfq_created": "New Request for Quotation",
+    "rfq_created_message": "RFQ {{rfqNumber}} has been created",
+    "quotation_received": "Quotation Received",
+    "quotation_received_message": "Supplier {{supplierName}} submitted a quotation for RFQ {{rfqNumber}}"
   },
   "email": {
     "invitation": {

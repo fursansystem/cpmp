@@ -13,7 +13,7 @@
     "live_progress": "Live Progress",
     "overall_progress": "Overall Progress",
     "supply_chain": "Supply Chain",
-    "po_requests": "PO Requests",
+    "po_requests": "Procurement",
     "active_queue": "Active Queue",
     "project_requests": "Project Requests",
     "timeline": "Timeline",
@@ -37,8 +37,8 @@
       "description": "Manage and track all project requests including WIR, MIR, and MSR approvals."
     },
     "purchase_orders": {
-      "title": "Purchase Orders",
-      "description": "Supply chain management, material lists, and procurement tracking."
+      "title": "Procurement",
+      "description": "Purchase orders, price quotations, and supplier directory."
     },
     "progress_matrix": {
       "title": "Progress Matrix",

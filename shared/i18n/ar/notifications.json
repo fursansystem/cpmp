@@ -32,6 +32,7 @@
       "fines": "الخصومات",
       "payments": "المدفوعات",
       "permits": "الرخص والمعاملات",
+      "procurement": "المشتريات",
       "messages": "الرسائل والإشارات",
       "other": "تنبيهات أخرى"
     }
@@ -96,6 +97,19 @@
     "fine_waiver_approved": "اعتُمد طلب الإعفاء",
     "fine_waiver_rejected": "رُفض طلب الإعفاء",
     "cb_fine_title": "تحميل فاتورة {{invoiceNo}} على {{subcontractorName}}"
+  },
+  "procurement": {
+    "po_created": "أمر شراء جديد",
+    "po_created_message": "أُنشئ أمر الشراء {{poNumber}} للمورد {{supplierName}}",
+    "po_approved": "اعتُمد أمر الشراء",
+    "po_approved_message": "اعتمد {{approvedByName}} أمر الشراء {{poNumber}}",
+    "po_received": "اكتمل استلام أمر الشراء",
+    "po_partially_received": "استلام جزئي على أمر شراء",
+    "po_received_message": "سجّل {{receivedByName}} استلام شحنة على أمر الشراء {{poNumber}}",
+    "rfq_created": "طلب عرض سعر جديد",
+    "rfq_created_message": "أُنشئ طلب عرض الأسعار {{rfqNumber}}",
+    "quotation_received": "ورد عرض سعر",
+    "quotation_received_message": "قدّم المورد {{supplierName}} عرض سعر على الطلب {{rfqNumber}}"
   },
   "email": {
     "invitation": {
