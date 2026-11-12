@@ -41,6 +41,12 @@ export default function ProjectRequests() {
   // Persisting it meant returning to the page left you inside the recycle bin with no
   // visual sign — and with no way out at all for users who cannot see the bin button.
   const [activeTab, setActiveTab] = useState(() => {
+    // A link from the home page names the tab it counted (?tab=wir); that wins over the remembered one
+    const linked = new URLSearchParams(window.location.search).get("tab");
+    if (linked && ["wir", "dsr", "sd", "asd", "request", "approvals", "all"].includes(linked)) {
+      sessionStorage.setItem("project-requests-active-tab", linked);
+      return linked;
+    }
     const stored = sessionStorage.getItem("project-requests-active-tab");
     if (stored === "deleted") {
       // Clear a value stored by the previous build, which would otherwise keep
@@ -80,6 +86,20 @@ export default function ProjectRequests() {
     },
   });
 
+  const isSuperAdmin = user?.role === "super_admin";
+  const isDC = user?.positions?.some(p => p.toLowerCase().includes("document controller")) || false;
+  const canViewDeleted = isSuperAdmin || isDC;
+
+  // The bin is only reachable through a button that this user may not have. Without this
+  // guard, anyone who loses the permission while the view is open stays stuck in it.
+  // Kept above the early returns below: a hook after them runs on some renders and not others,
+  // which crashed the page whenever it was opened before the project had been loaded.
+  useEffect(() => {
+    if (activeTab === "deleted" && !canViewDeleted) {
+      handleTabChange("wir");
+    }
+  }, [activeTab, canViewDeleted]);
+
   if (projectLoading) {
     return (
       <div className="h-screen w-full flex items-center justify-center">
@@ -97,17 +117,6 @@ export default function ProjectRequests() {
   }
 
   const statusInfo = statusConfig[project.status as keyof typeof statusConfig];
-  const isSuperAdmin = user?.role === "super_admin";
-  const isDC = user?.positions?.some(p => p.toLowerCase().includes("document controller")) || false;
-  const canViewDeleted = isSuperAdmin || isDC;
-
-  // The bin is only reachable through a button that this user may not have. Without this
-  // guard, anyone who loses the permission while the view is open stays stuck in it.
-  useEffect(() => {
-    if (activeTab === "deleted" && !canViewDeleted) {
-      handleTabChange("wir");
-    }
-  }, [activeTab, canViewDeleted]);
 
   return (
     <div className="px-6 lg:px-8 pt-1 lg:pt-2 pb-6 space-y-2 w-full animate-in fade-in duration-500">

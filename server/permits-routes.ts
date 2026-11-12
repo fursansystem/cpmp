@@ -397,8 +397,10 @@ export function registerPermitsRoutes(app: Express, deps: Deps) {
   }));
 
   // Steps assigned to the caller that are still open, across projects
-  app.get(`${base}/my-tasks`, route(async (_req, res, ctx) => {
-    const ids = Array.from(ctx.projectIds);
+  // `projectIds` (comma-separated) narrows it to those projects, for the home page's filters.
+  app.get(`${base}/my-tasks`, route(async (req, res, ctx) => {
+    const wanted = typeof req.query.projectIds === "string" ? new Set(req.query.projectIds.split(",").filter(Boolean)) : null;
+    const ids = Array.from(ctx.projectIds).filter((id) => !wanted || wanted.has(id));
     if (ids.length === 0) return res.json({ steps: [], transactions: [] });
     const rows = await db
       .select({ step: permitTransactionSteps, tx: permitTransactions })

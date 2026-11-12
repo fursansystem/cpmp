@@ -5,6 +5,7 @@ import { passport } from "./app";
 import { notificationWss, broadcastActivityUpdate } from "./websocket";
 import { notificationService } from "./notification-service";
 import { getStepAuthorizedTeamMembers } from "./step-authorization";
+import { requestVisibilityClauses } from "./request-visibility";
 import { insertNotificationSchema } from "@shared/schema";
 import {
   insertProjectSchema, updateProjectSchema,
@@ -65,6 +66,7 @@ import { Resend } from "resend";
 import { registerProgressMatrixRoutes } from "./progress-matrix-routes";
 import { registerPaymentsRoutes } from "./payments-routes";
 import { registerPermitsRoutes } from "./permits-routes";
+import { registerHomeRoutes } from "./home-routes";
 import { permitsService } from "./permits-service";
 import { registerWebhookRoutes } from "./webhook-routes";
 import { webhookService } from "./webhook-service";
@@ -582,6 +584,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Licences and government transactions (الرخص والمعاملات), and the hourly expiry / overdue sweep
   registerPermitsRoutes(app, { getCurrentUserWithOrg, handleError });
   permitsService.start();
+  // The home page's summary: health, requests, payments and permits, counted here rather than in the browser
+  registerHomeRoutes(app, { getCurrentUserWithOrg, handleError });
 
   // Outgoing webhooks (ERP integration): endpoint management, and the worker that retries deliveries
   registerWebhookRoutes(app, { getCurrentUserWithOrg, handleError });
@@ -3921,38 +3925,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const { projectId } = req.query;
 
-      // Get user's linked team member and position purpose
-      const allUserTeamMembers = await storage.getAllUserTeamMembers();
-      const userTeamMemberIds = allUserTeamMembers
-        .filter(utm => utm.userId === currentUser.user.id)
-        .map(utm => utm.teamMemberId);
-
-      const teamMembers = await storage.getAllTeamMembers();
-      const userTeamMembersList = teamMembers.filter(tm => userTeamMemberIds.includes(tm.id));
-
-      const allPositions = await storage.getAllPositions();
-      const userPurposeIds = new Set<string>();
-      let userHasNoPurpose = false;
-
-      for (const tm of userTeamMembersList) {
-        if (tm.position) {
-          const position = allPositions.find(p => p.titleEnglish === tm.position);
-          if (position?.purposeId) {
-            userPurposeIds.add(position.purposeId);
-          } else {
-            // Position exists but has no purpose assigned - user can view all
-            userHasNoPurpose = true;
-          }
-        }
-      }
-
-      const isAdmin = currentUser.user.role === "super_admin" ||
-        currentUser.user.role === "developer_admin" ||
-        currentUser.user.role === "org_admin";
-
       const allTypes = await storage.getAllRequestTypes();
-      const ncrTypeId = allTypes.find(t => t.code === "NCR")?.id;
-      const rncrTypeId = allTypes.find(t => t.code === "RNCR")?.id;
 
       // ----------------------------------------------------
       // Pass 1: Filtering and Pagination at Database Level
@@ -4125,55 +4098,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         whereClauses.push(inArray(requestRevisions.approvalStatusCode, apStatuses));
       }
 
-      // Permissions check: Filter based on user purposes
-      if (!isAdmin && !userHasNoPurpose) {
-        const purposeIdsArr = Array.from(userPurposeIds);
-        const matchPurposeCond = purposeIdsArr.length > 0 
-          ? sql`exists (
-              select 1 from ${requestPurposes} rp 
-              where rp.revision_id = ${requestRevisions.id} 
-              and rp.purpose_id in (${sql.join(purposeIdsArr.map(id => sql`${id}`), sql`, `)})
-            )`
-          : sql`false`;
-
-        whereClauses.push(
-          or(
-            eq(requests.createdBy, currentUser.user.id),
-            sql`not exists (
-              select 1 from ${requestPurposes} rp 
-              where rp.revision_id = ${requestRevisions.id}
-            )`,
-            matchPurposeCond
-          )
-        );
-      }
-
-      // Permissions check: NCR/RNCR visibility logic
-      const isGlobalAdmin = currentUser.user.role === "super_admin" || currentUser.user.role === "developer_admin";
-      if (!isGlobalAdmin) {
-        const userOrgId = currentUser.user.organizationId;
-        const userTmOrgIds = userTeamMembersList.map(tm => tm.organizationId).filter((id): id is string => !!id);
-        const contractorConds = [];
-        if (userOrgId) {
-          contractorConds.push(eq(requests.contractorId, userOrgId));
-        }
-        if (userTmOrgIds.length > 0) {
-          contractorConds.push(inArray(requests.contractorId, userTmOrgIds));
-        }
-        const isContractorSql = contractorConds.length > 0 ? or(...contractorConds) : sql`false`;
-
-        if (ncrTypeId) {
-          whereClauses.push(
-            sql`NOT (${requests.requestTypeId} = ${ncrTypeId} AND ${isContractorSql} AND ${requestRevisions.approvalStatusCode} IS NULL)`
-          );
-        }
-
-        if (rncrTypeId) {
-          whereClauses.push(
-            sql`NOT (${requests.requestTypeId} = ${rncrTypeId} AND NOT ${isContractorSql} AND ${requestRevisions.currentStepId} IS NOT NULL AND ${requestRevisions.currentStepId} < 1003)`
-          );
-        }
-      }
+      // Permissions check: purposes and the NCR/RNCR rule (shared with the home summary)
+      whereClauses.push(...await requestVisibilityClauses(currentUser.user, allTypes));
 
       // Count total matches
       const countResult = await db

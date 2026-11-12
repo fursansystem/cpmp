@@ -79,7 +79,7 @@ const fail = (status: number, message: string): never => {
 
 // Only the exact job title "Accountant" counts. "محاسب كميات" (quantity surveyor) contains the
 // word محاسب but is a site role, not the accounting department.
-const ACCOUNTANT_TITLES = new Set(["accountant", "محاسب"]);
+export const ACCOUNTANT_TITLES = new Set(["accountant", "محاسب"]);
 // Project managers approve payment orders and fine waivers for the projects they can see
 const PROJECT_MANAGER_TITLES = new Set(["project manager", "مدير مشروع"]);
 
@@ -556,8 +556,10 @@ export function registerPaymentsRoutes(app: Express, deps: Deps) {
   }));
 
   // What is waiting for the caller right now. The summary shown at sign-in builds its first section from this.
-  app.get(`${base}/inbox`, route(async (_req, res, ctx) => {
-    const ids = Array.from(ctx.projectIds);
+  // `projectIds` (comma-separated) narrows it to those projects, for the home page's filters.
+  app.get(`${base}/inbox`, route(async (req, res, ctx) => {
+    const wanted = typeof req.query.projectIds === "string" ? new Set(req.query.projectIds.split(",").filter(Boolean)) : null;
+    const ids = Array.from(ctx.projectIds).filter((id) => !wanted || wanted.has(id));
     const items: { key: string; label: string; count: number; tab: string; ids: string[]; projectId: string | null }[] = [];
     if (ids.length === 0) return res.json({ items });
     const me = ctx.cu.user.id;
