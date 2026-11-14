@@ -3267,6 +3267,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get("/api/projects/:projectId/stock-insights", async (req, res) => {
+    try {
+      const currentUser = await getCurrentUserWithOrg(req);
+      if (!currentUser) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+      res.json(await storage.getStockInsights(req.params.projectId));
+    } catch (error) {
+      handleError(res, error);
+    }
+  });
+
+  app.get("/api/projects/:projectId/stock-activity", async (req, res) => {
+    try {
+      const currentUser = await getCurrentUserWithOrg(req);
+      if (!currentUser) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+      res.json(await storage.getStockActivity(req.params.projectId));
+    } catch (error) {
+      handleError(res, error);
+    }
+  });
+
   app.get("/api/projects/:projectId/stock-movements", async (req, res) => {
     try {
       const currentUser = await getCurrentUserWithOrg(req);
@@ -8659,6 +8683,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (error instanceof Error && !(error as any).code) {
         return res.status(400).json({ message: error.message });
       }
+      handleError(res, error);
+    }
+  });
+
+  app.get("/api/projects/:projectId/procurement-insights", async (req, res) => {
+    try {
+      const currentUser = await getCurrentUserWithOrg(req);
+      if (!currentUser) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+      res.json(await storage.getProcurementInsights(req.params.projectId));
+    } catch (error) {
       handleError(res, error);
     }
   });

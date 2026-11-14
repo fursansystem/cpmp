@@ -73,7 +73,7 @@ import {
   STOCK_IN_TYPES, stockDirection, normalizeUnit,
   type Warehouse, type InsertWarehouse, type UpdateWarehouse,
   type StockMovement, type InsertStockMovement,
-  type StockBalance, type StockMovementFilters, type EnrichedStockMovement,
+  type StockBalance, type StockInsight, type StockActivity, type ProcurementInsights, type StockMovementFilters, type EnrichedStockMovement,
   type MaterialIssue, type InsertMaterialIssue, type UpdateMaterialIssue,
   type MaterialIssueItem, type InsertMaterialIssueItem,
   type StockTransfer, type InsertStockTransfer,
@@ -279,6 +279,9 @@ export interface IStorage {
   getStockBalances(projectId: string, warehouseId?: string): Promise<StockBalance[]>;
   getStockMovements(projectId: string, filters?: StockMovementFilters): Promise<EnrichedStockMovement[]>;
   getLowStockMaterials(projectId: string): Promise<StockBalance[]>;
+  getStockInsights(projectId: string): Promise<StockInsight[]>;
+  getStockActivity(projectId: string): Promise<StockActivity>;
+  getProcurementInsights(projectId: string): Promise<ProcurementInsights>;
   getLowStockCrossings(projectId: string, changes: { materialId: string; delta: number }[]): Promise<StockBalance[]>;
   getRequestFormsExportData(
     projectId: string,
@@ -2655,6 +2658,241 @@ export class DatabaseStorage implements IStorage {
         hasUnitConflict: r.distinctUnits > 1,
       };
     });
+  }
+
+  private dateDaysAgo(days: number): string {
+    const d = new Date();
+    d.setDate(d.getDate() - days);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  }
+
+  async getProcurementInsights(projectId: string): Promise<ProcurementInsights> {
+    const orders = await db
+      .select({
+        id: purchaseOrders.id,
+        supplierId: purchaseOrders.supplierId,
+        supplierName: suppliers.supplierName,
+        status: purchaseOrders.status,
+        totalAmount: purchaseOrders.totalAmount,
+        expectedDeliveryDate: purchaseOrders.expectedDeliveryDate,
+        rfqId: purchaseOrders.rfqId,
+        approvedAt: purchaseOrders.approvedAt,
+      })
+      .from(purchaseOrders)
+      .innerJoin(suppliers, eq(purchaseOrders.supplierId, suppliers.id))
+      .where(and(eq(purchaseOrders.projectId, projectId), not(inArray(purchaseOrders.status, ["draft", "cancelled"]))));
+
+    if (orders.length === 0) {
+      return { savings: { amount: 0, comparedLines: 0, awardedLines: 0 }, cycle: { avgDays: null, orders: 0 }, suppliers: [] };
+    }
+    const orderIds = orders.map((o) => o.id);
+    const dayDiff = (later: string, earlier: string) => Math.round((Date.parse(later) - Date.parse(earlier)) / 86400000);
+
+    // Delivery: a completed order is judged by its last receipt, an open one only once it is overdue
+    const arrivals = await db
+      .select({ poId: deliveries.purchaseOrderId, last: max(deliveries.arrivalDate) })
+      .from(deliveries)
+      .where(inArray(deliveries.purchaseOrderId, orderIds))
+      .groupBy(deliveries.purchaseOrderId);
+    const lastArrival = new Map(arrivals.map((a) => [a.poId, a.last]));
+    const today = this.dateDaysAgo(0);
+
+    const bySupplier = new Map<string, ProcurementInsights["suppliers"][number] & { delays: number[] }>();
+    for (const o of orders) {
+      let s = bySupplier.get(o.supplierId);
+      if (!s) {
+        s = { supplierId: o.supplierId, supplierName: o.supplierName, committed: 0, orders: 0, measured: 0, onTime: 0, avgDelayDays: null, delays: [] };
+        bySupplier.set(o.supplierId, s);
+      }
+      s.committed += Number(o.totalAmount ?? 0);
+      s.orders += 1;
+
+      if (!o.expectedDeliveryDate) continue;
+      const arrived = lastArrival.get(o.id);
+      const delay =
+        o.status === "completed" && arrived
+          ? dayDiff(arrived, o.expectedDeliveryDate)
+          : o.status !== "completed" && today > o.expectedDeliveryDate
+            ? dayDiff(today, o.expectedDeliveryDate)
+            : null;
+      if (delay === null) continue;
+      s.measured += 1;
+      if (delay <= 0) s.onTime += 1;
+      else s.delays.push(delay);
+    }
+    const supplierRows = Array.from(bySupplier.values())
+      .map(({ delays, ...s }) => ({
+        ...s,
+        avgDelayDays: delays.length ? Math.round(delays.reduce((a, b) => a + b, 0) / delays.length) : null,
+      }))
+      .sort((a, b) => b.committed - a.committed)
+      .slice(0, 5);
+
+    // Cycle time
+    const fromRfq = orders.filter((o) => o.rfqId && o.approvedAt);
+    const rfqRows = fromRfq.length
+      ? await db.select({ id: rfqs.id, createdAt: rfqs.createdAt }).from(rfqs).where(inArray(rfqs.id, fromRfq.map((o) => o.rfqId!)))
+      : [];
+    const rfqCreated = new Map(rfqRows.map((r) => [r.id, r.createdAt]));
+    const cycles = fromRfq
+      .map((o) => {
+        const created = rfqCreated.get(o.rfqId!);
+        return created ? (o.approvedAt!.getTime() - created.getTime()) / 86400000 : null;
+      })
+      .filter((d): d is number => d !== null && d >= 0);
+
+    // Savings
+    const awarded = await db
+      .select({ rfqItemId: poItems.rfqItemId, quantity: poItems.quantity, unitPrice: poItems.unitPrice })
+      .from(poItems)
+      .where(and(inArray(poItems.poId, orderIds), isNotNull(poItems.rfqItemId)));
+    const quoted = awarded.length
+      ? await db
+          .select({
+            rfqItemId: quotationItems.rfqItemId,
+            highest: sql<string>`max(${quotationItems.unitPrice})`,
+            quotes: sql<number>`count(distinct ${quotationItems.quotationId})::int`,
+          })
+          .from(quotationItems)
+          .where(inArray(quotationItems.rfqItemId, awarded.map((a) => a.rfqItemId!)))
+          .groupBy(quotationItems.rfqItemId)
+      : [];
+    const quoteStats = new Map(quoted.map((q) => [q.rfqItemId, q]));
+    let amount = 0;
+    let comparedLines = 0;
+    for (const line of awarded) {
+      const stats = quoteStats.get(line.rfqItemId);
+      if (!stats || stats.quotes < 2) continue;
+      comparedLines += 1;
+      amount += Math.max(0, Number(stats.highest) - Number(line.unitPrice)) * Number(line.quantity);
+    }
+
+    return {
+      savings: { amount, comparedLines, awardedLines: awarded.length },
+      cycle: {
+        avgDays: cycles.length ? Math.round((cycles.reduce((a, b) => a + b, 0) / cycles.length) * 10) / 10 : null,
+        orders: cycles.length,
+      },
+      suppliers: supplierRows,
+    };
+  }
+
+  // A cancelled issue voucher leaves its "out" in the ledger plus a reversing return. Neither
+  // is real consumption or a real receipt, so activity figures leave both out.
+  private notFromCancelledIssue() {
+    return sql`not (${stockMovements.sourceType} = 'issue' and ${stockMovements.sourceId} in (select ${materialIssues.id} from ${materialIssues} where ${materialIssues.status} = 'cancelled'))`;
+  }
+
+  async getStockActivity(projectId: string): Promise<StockActivity> {
+    const windowStart = this.dateDaysAgo(30);
+    const inWindow = and(
+      eq(stockMovements.projectId, projectId),
+      gte(stockMovements.movementDate, windowStart),
+      this.notFromCancelledIssue(),
+    );
+
+    // A transfer moves stock between two warehouses of the same project: nothing came in or went out
+    const days = await db
+      .select({
+        date: stockMovements.movementDate,
+        in: sql<number>`sum(case when ${stockMovements.movementType} in ('in', 'return_from_site', 'adjustment_in', 'opening_balance') then 1 else 0 end)::int`,
+        out: sql<number>`sum(case when ${stockMovements.movementType} in ('out', 'return_to_supplier', 'adjustment_out', 'waste') then 1 else 0 end)::int`,
+      })
+      .from(stockMovements)
+      .where(and(inWindow, not(inArray(stockMovements.movementType, ["transfer_in", "transfer_out"]))))
+      .groupBy(stockMovements.movementDate)
+      .orderBy(stockMovements.movementDate);
+
+    const topIssued = await db
+      .select({
+        materialId: stockMovements.materialId,
+        materialName: materials.materialName,
+        unit: materials.unit,
+        quantity: sql<string>`sum(${stockMovements.quantity})`,
+        count: sql<number>`count(*)::int`,
+      })
+      .from(stockMovements)
+      .innerJoin(materials, eq(stockMovements.materialId, materials.id))
+      .where(and(inWindow, eq(stockMovements.movementType, "out")))
+      .groupBy(stockMovements.materialId, materials.materialName, materials.unit)
+      .orderBy(desc(sql`count(*)`), desc(sql`sum(${stockMovements.quantity})`))
+      .limit(5);
+
+    const recipients = await db
+      .select({
+        name: materialIssues.issuedTo,
+        recipientType: materialIssues.recipientType,
+        vouchers: sql<number>`count(distinct ${materialIssues.id})::int`,
+        lines: sql<number>`count(${materialIssueItems.id})::int`,
+      })
+      .from(materialIssues)
+      .leftJoin(materialIssueItems, eq(materialIssueItems.issueId, materialIssues.id))
+      .where(and(eq(materialIssues.projectId, projectId), eq(materialIssues.status, "issued"), gte(materialIssues.issueDate, windowStart)))
+      .groupBy(materialIssues.issuedTo, materialIssues.recipientType)
+      .orderBy(desc(sql`count(${materialIssueItems.id})`))
+      .limit(6);
+
+    return {
+      days,
+      topIssued: topIssued.map((m) => ({ ...m, quantity: Number(m.quantity ?? 0) })),
+      recipients,
+    };
+  }
+
+  async getStockInsights(projectId: string): Promise<StockInsight[]> {
+    const windowStart = this.dateDaysAgo(30);
+
+    const moved = await db
+      .select({
+        materialId: stockMovements.materialId,
+        lastMovementDate: max(stockMovements.movementDate),
+        issued: sql<string>`coalesce(sum(case when ${stockMovements.movementType} = 'out' and ${stockMovements.movementDate} >= ${windowStart} and ${this.notFromCancelledIssue()} then ${stockMovements.quantity} else 0 end), 0)`,
+      })
+      .from(stockMovements)
+      .where(eq(stockMovements.projectId, projectId))
+      .groupBy(stockMovements.materialId);
+
+    // Newest order first, so the first line seen for a material carries its latest price
+    const priced = await db
+      .select({
+        materialId: poItems.materialId,
+        unitPrice: poItems.unitPrice,
+        orderUnit: poItems.unit,
+        stockUnit: materials.unit,
+      })
+      .from(poItems)
+      .innerJoin(purchaseOrders, eq(poItems.poId, purchaseOrders.id))
+      .innerJoin(materials, eq(poItems.materialId, materials.id))
+      .where(and(eq(purchaseOrders.projectId, projectId), not(inArray(purchaseOrders.status, ["draft", "cancelled"]))))
+      .orderBy(desc(purchaseOrders.orderDate), desc(purchaseOrders.createdAt));
+
+    const insights = new Map<string, StockInsight>();
+    const entry = (materialId: string) => {
+      let e = insights.get(materialId);
+      if (!e) {
+        e = { materialId, lastMovementDate: null, issuedInWindow: 0, unitPrice: null, priceUnitMismatch: false };
+        insights.set(materialId, e);
+      }
+      return e;
+    };
+
+    for (const m of moved) {
+      const e = entry(m.materialId);
+      e.lastMovementDate = m.lastMovementDate ?? null;
+      e.issuedInWindow = Number(m.issued ?? 0);
+    }
+
+    const seen = new Set<string>();
+    for (const p of priced) {
+      if (!p.materialId || seen.has(p.materialId)) continue;
+      seen.add(p.materialId);
+      const e = entry(p.materialId);
+      // A price per ton says nothing about a balance kept in kg
+      if (normalizeUnit(p.orderUnit) === normalizeUnit(p.stockUnit)) e.unitPrice = Number(p.unitPrice);
+      else e.priceUnitMismatch = true;
+    }
+
+    return Array.from(insights.values());
   }
 
   async getLowStockMaterials(projectId: string): Promise<StockBalance[]> {

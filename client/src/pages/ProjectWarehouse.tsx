@@ -42,6 +42,7 @@ import { StockAdjustmentDialog } from "@/components/warehouse/stock-adjustment-d
 import { StockTransferDialog } from "@/components/warehouse/stock-transfer-dialog";
 import { DeliveriesList } from "@/components/warehouse/deliveries-list";
 import { ApproverSettingsDialog } from "@/components/warehouse/approver-settings-dialog";
+import { WarehouseOverview } from "@/components/warehouse/warehouse-overview";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { cn } from "@/lib/utils";
@@ -147,7 +148,7 @@ export default function ProjectWarehouse() {
   );
 
   const refreshAll = () =>
-    ["stock-balances", "stock-movements", "material-issues", "low-stock", "stock-transfers"].forEach((k) =>
+    ["stock-balances", "stock-movements", "stock-insights", "stock-activity", "material-issues", "low-stock", "stock-transfers"].forEach((k) =>
       queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, k] })
     );
 
@@ -184,20 +185,6 @@ export default function ProjectWarehouse() {
       </div>
     );
   }
-
-  const Kpi = ({ icon: Icon, label, value, tone }: any) => (
-    <Card className="rounded-2xl border-border/60">
-      <CardContent className="py-4 flex items-center gap-3">
-        <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center shrink-0", tone)}>
-          <Icon className="w-5 h-5" />
-        </div>
-        <div className="min-w-0">
-          <p className="text-[11px] text-muted-foreground font-bold truncate">{label}</p>
-          <p className="text-xl font-black">{value}</p>
-        </div>
-      </CardContent>
-    </Card>
-  );
 
   return (
     <div className="min-h-screen px-4 lg:px-10 pt-4 pb-12 space-y-4">
@@ -266,13 +253,6 @@ export default function ProjectWarehouse() {
 
         {/* ---------- Overview ---------- */}
         <TabsContent value="overview" className="mt-4 space-y-4">
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-            <Kpi icon={Boxes} label={t("kpis.stocked_materials")} value={balances.length} tone="bg-primary/10 text-primary" />
-            <Kpi icon={AlertTriangle} label={t("kpis.low_stock")} value={lowStock.length} tone="bg-amber-100 text-amber-700 dark:bg-amber-900/30" />
-            <Kpi icon={ShieldCheck} label={t("kpis.pending_issues")} value={pendingIssues.length} tone="bg-blue-100 text-blue-700 dark:bg-blue-900/30" />
-            <Kpi icon={WarehouseIcon} label={t("kpis.warehouses")} value={warehouses.length} tone="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30" />
-          </div>
-
           {conflicts.length > 0 && (
             <div className="rounded-xl border border-amber-500/40 bg-amber-50 dark:bg-amber-900/10 p-3 flex items-start gap-2">
               <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
@@ -287,27 +267,15 @@ export default function ProjectWarehouse() {
             </div>
           )}
 
-          {lowStock.length > 0 && (
-            <Card className="rounded-2xl border-border/60">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm font-black flex items-center gap-2">
-                  <AlertTriangle className="w-4 h-4 text-amber-600" />
-                  {t("low_stock_title")}
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                {lowStock.map((b) => (
-                  <div key={b.materialId} className="flex items-center justify-between gap-3 rounded-xl border border-border/50 p-2.5">
-                    <span className="text-xs font-bold truncate">{b.materialName}</span>
-                    <span className="text-xs whitespace-nowrap">
-                      <span className="font-black text-destructive">{num(b.balance)}</span>
-                      <span className="text-muted-foreground"> / {b.minStockLevel} {b.unit}</span>
-                    </span>
-                  </div>
-                ))}
-              </CardContent>
-            </Card>
-          )}
+          <WarehouseOverview
+            projectId={projectId!}
+            balances={balances}
+            pendingIssues={pendingIssues}
+            canApproveIssue={!!permissions?.canApproveIssue}
+            approving={issueAction.isPending}
+            onApproveIssue={(id) => issueAction.mutate({ id, action: "approve" })}
+            onOpenIssues={() => setTab("issues")}
+          />
         </TabsContent>
 
         {/* ---------- Balances ---------- */}

@@ -2271,6 +2271,42 @@ export type StockBalance = {
   hasUnitConflict: boolean;
 };
 
+// Per-material figures the warehouse overview derives its value, coverage and idle-stock numbers from
+export type StockInsight = {
+  materialId: string;
+  lastMovementDate: string | null;
+  issuedInWindow: number; // quantity issued (movement type "out") in the last 30 days
+  // Unit price of the newest non-draft purchase order line; null when never ordered, or
+  // ordered in a unit other than the one the material is stocked in.
+  unitPrice: number | null;
+  priceUnitMismatch: boolean;
+};
+
+// Procurement performance over a project's approved purchase orders (drafts and cancelled excluded)
+export type ProcurementInsights = {
+  // Against the highest quotation for the same RFQ line; only lines that had two or more quotations can be compared
+  savings: { amount: number; comparedLines: number; awardedLines: number };
+  // RFQ created -> purchase order approved, for orders that came from an RFQ
+  cycle: { avgDays: number | null; orders: number };
+  suppliers: {
+    supplierId: string;
+    supplierName: string;
+    committed: number;
+    orders: number;
+    measured: number; // orders with an expected delivery date that are either complete or already overdue
+    onTime: number;
+    avgDelayDays: number | null; // over the late ones only
+  }[];
+};
+
+// The last 30 days of warehouse activity. Counts are movement lines, not quantities: materials
+// are stocked in different units, so their quantities cannot be added together.
+export type StockActivity = {
+  days: { date: string; in: number; out: number }[]; // only days with movement; transfers between warehouses excluded
+  topIssued: { materialId: string; materialName: string; unit: string; quantity: number; count: number }[];
+  recipients: { name: string; recipientType: string; vouchers: number; lines: number }[];
+};
+
 export type StockMovementFilters = {
   warehouseId?: string;
   materialId?: string;
