@@ -18,6 +18,7 @@ import {
   Plus,
   Search,
   ShoppingCart,
+  LayoutDashboard,
   Users,
   Package,
   ArrowLeft,
@@ -123,6 +124,8 @@ const PO_STATUS_STYLES: Record<string, string> = {
   cancelled: "bg-red-100 text-red-700",
 };
 
+import { ProcurementOverview } from "@/components/procurement/procurement-overview";
+
 export default function ProjectPurchaseOrders() {
   const { t } = useTranslation(["procurement", "common"]);
   const { projectId } = useParams();
@@ -185,11 +188,11 @@ export default function ProjectPurchaseOrders() {
     try {
       const params = new URLSearchParams(window.location.search);
       const t = params.get("tab");
-      if (t && ["suppliers", "rfqs", "quotations", "purchase_orders"].includes(t)) {
+      if (t && ["overview", "suppliers", "rfqs", "quotations", "purchase_orders"].includes(t)) {
         return t;
       }
     } catch (e) {}
-    return "suppliers";
+    return "overview";
   };
   const [activeTab, setActiveTab] = useState<string>(getTabFromUrl);
 
@@ -385,6 +388,10 @@ export default function ProjectPurchaseOrders() {
       >
         <div className="flex items-center justify-between border-b border-border/50 pb-3">
           <TabsList className="bg-muted/40 p-1 rounded-2xl h-11 border border-border/50">
+            <TabsTrigger value="overview" className="rounded-xl px-5 text-xs font-bold gap-2 data-[state=active]:bg-background data-[state=active]:shadow-sm">
+              <LayoutDashboard className="w-4 h-4 text-primary" />
+              {t("orders.tabs.overview")}
+            </TabsTrigger>
             <TabsTrigger value="suppliers" className="rounded-xl px-5 text-xs font-bold gap-2 data-[state=active]:bg-background data-[state=active]:shadow-sm">
               <Building2 className="w-4 h-4 text-blue-600" />
               {t("orders.tabs.suppliers")} ({suppliers.length})
@@ -403,6 +410,18 @@ export default function ProjectPurchaseOrders() {
             </TabsTrigger>
           </TabsList>
         </div>
+
+        <TabsContent value="overview" className="outline-none">
+          <ProcurementOverview
+            projectId={projectId!}
+            rfqs={rfqs}
+            purchaseOrders={purchaseOrders}
+            onOpenTab={(tab) => {
+              setActiveTab(tab);
+              window.history.replaceState(null, "", `/projects/${projectId}/purchase-orders?tab=${tab}`);
+            }}
+          />
+        </TabsContent>
 
         {/* ==================== TAB 1: SUPPLIERS (100% ORIGINAL DESIGN UNTOUCHED) ==================== */}
         <TabsContent value="suppliers" className="space-y-4 outline-none">

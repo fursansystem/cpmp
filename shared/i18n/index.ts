@@ -2,6 +2,8 @@
 // emails join the scope. Arabic is the source language; English is the translation.
 import arAbout from "./ar/about.json";
 import enAbout from "./en/about.json";
+import arHome from "./ar/home.json";
+import enHome from "./en/home.json";
 import arCommon from "./ar/common.json";
 import enCommon from "./en/common.json";
 import arEnums from "./ar/enums.json";
@@ -44,8 +46,8 @@ export const LOCALE_TAG: Record<Language, string> = {
 };
 
 export const resources = {
-  ar: { common: arCommon, enums: arEnums, payments: arPayments, permits: arPermits, procurement: arProcurement, settings: arSettings, projects: arProjects, nav: arNav, notifications: arNotifications, warehouse: arWarehouse, progress: arProgress, about: arAbout },
-  en: { common: enCommon, enums: enEnums, payments: enPayments, permits: enPermits, procurement: enProcurement, settings: enSettings, projects: enProjects, nav: enNav, notifications: enNotifications, warehouse: enWarehouse, progress: enProgress, about: enAbout },
+  ar: { common: arCommon, enums: arEnums, payments: arPayments, permits: arPermits, procurement: arProcurement, settings: arSettings, projects: arProjects, nav: arNav, notifications: arNotifications, warehouse: arWarehouse, progress: arProgress, about: arAbout, home: arHome },
+  en: { common: enCommon, enums: enEnums, payments: enPayments, permits: enPermits, procurement: enProcurement, settings: enSettings, projects: enProjects, nav: enNav, notifications: enNotifications, warehouse: enWarehouse, progress: enProgress, about: enAbout, home: enHome },
 } as const;
 
 export const defaultNS = "common";

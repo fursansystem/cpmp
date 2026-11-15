@@ -26,9 +26,41 @@ function stepOrganizationId(request: Pick<Request, "contractorId" | "consultantI
   return undefined;
 }
 
-// Team members who can act on a request at a given workflow step: the project manager
-// of the organization that owns the step, plus members whose position's purpose matches
-// one of the request's purposes. Steps owned by neither party fall back to purpose only.
+type PositionRef = { purposeId?: string | null };
+
+// The rule itself, on data already in hand: may this team member act on a request at this step?
+// The project manager of the organization that owns the step, plus members whose position's purpose
+// matches one of the request's purposes. Steps owned by neither party fall back to purpose only.
+export function memberCanActAtStep(
+  member: Pick<TeamMember, "position" | "organizationId">,
+  request: Pick<Request, "contractorId" | "consultantId">,
+  step: WorkflowStep,
+  requestPurposeIds: ReadonlySet<string>,
+  positionByTitle: ReadonlyMap<string, PositionRef>,
+): boolean {
+  const position = member.position ? positionByTitle.get(member.position) : undefined;
+  const matchesPurpose = !!position?.purposeId && requestPurposeIds.has(position.purposeId);
+
+  const orgId = stepOrganizationId(request, step);
+  if (orgId === undefined) return matchesPurpose;
+  if (!orgId || member.organizationId !== orgId) return false;
+  return isProjectManagerPosition(member.position) || matchesPurpose;
+}
+
+// The same rule narrowed the way step notifications narrow it: a manager-only step is the project
+// manager's alone. This is what "waiting on me" means on the home page.
+export function memberIsNotifiedAtStep(
+  member: Pick<TeamMember, "position" | "organizationId">,
+  request: Pick<Request, "contractorId" | "consultantId">,
+  step: WorkflowStep,
+  requestPurposeIds: ReadonlySet<string>,
+  positionByTitle: ReadonlyMap<string, PositionRef>,
+): boolean {
+  if (!memberCanActAtStep(member, request, step, requestPurposeIds, positionByTitle)) return false;
+  return !isManagerOnlyStep(step) || isProjectManagerPosition(member.position);
+}
+
+// Team members who can act on a request at a given workflow step (see memberCanActAtStep).
 export async function getStepAuthorizedTeamMembers(
   request: Pick<Request, "contractorId" | "consultantId">,
   step: WorkflowStep,
@@ -40,21 +72,10 @@ export async function getStepAuthorizedTeamMembers(
   const requestPurposes = await storage.getRequestPurposes(revisionId);
   const requestPurposeIds = new Set(requestPurposes.map((rp) => rp.purposeId));
 
-  const matchesPurpose = (tm: TeamMember) => {
-    if (!tm.position) return false;
-    const position = positionByTitle.get(tm.position);
-    return !!position?.purposeId && requestPurposeIds.has(position.purposeId);
-  };
-
   const orgId = stepOrganizationId(request, step);
-  if (orgId === undefined) {
-    const allTeamMembers = await storage.getAllTeamMembers();
-    return allTeamMembers.filter(matchesPurpose);
-  }
-  if (!orgId) return [];
-
-  const members = await storage.getTeamMembersByOrganization(orgId);
-  return members.filter((tm) => isProjectManagerPosition(tm.position) || matchesPurpose(tm));
+  if (orgId !== undefined && !orgId) return [];
+  const candidates = orgId === undefined ? await storage.getAllTeamMembers() : await storage.getTeamMembersByOrganization(orgId);
+  return candidates.filter((tm) => memberCanActAtStep(tm, request, step, requestPurposeIds, positionByTitle));
 }
 
 // Users who should be told a request is waiting for them at this step. Manager-only
