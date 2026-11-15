@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { cn } from "@/lib/utils";
+import { RefLink } from "@/components/procurement/ref-link";
 
 export interface OrderedItem {
   rfqItemId: string;
@@ -20,12 +21,13 @@ interface Props {
   orderedItems: OrderedItem[];
   projectId: string;
   onCreated: (pos: any[]) => void;
+  onViewQuotation?: (quotationId: string) => void;
 }
 
 const money = (n: number) =>
   n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-export function RfqAwardMatrix({ rfq, quotations, orderedItems, projectId, onCreated }: Props) {
+export function RfqAwardMatrix({ rfq, quotations, orderedItems, projectId, onCreated, onViewQuotation }: Props) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   // rfqItemId -> quotationId chosen for that item
@@ -137,7 +139,13 @@ export function RfqAwardMatrix({ rfq, quotations, orderedItems, projectId, onCre
               {quotations.map((q) => (
                 <th key={q.id} className="p-3 min-w-[170px] text-center border-s">
                   <div className="font-bold text-sm">{q.supplierName}</div>
-                  <div className="text-[10px] text-muted-foreground font-normal">{q.quotationNumber || "No number"}</div>
+                  <div className="text-[10px] text-muted-foreground font-normal">
+                    {q.quotationNumber && onViewQuotation ? (
+                      <RefLink onOpen={() => onViewQuotation(q.id)}>{q.quotationNumber}</RefLink>
+                    ) : (
+                      q.quotationNumber || "No number"
+                    )}
+                  </div>
                   <div className="text-[10px] text-muted-foreground font-normal flex items-center justify-center gap-1 mt-0.5">
                     <Clock className="w-3 h-3" />
                     {q.leadTimeDays ? `${q.leadTimeDays} days` : "Lead time n/a"}
@@ -212,7 +220,8 @@ export function RfqAwardMatrix({ rfq, quotations, orderedItems, projectId, onCre
                     {ordered ? (
                       <div className="space-y-0.5">
                         <Badge className="bg-emerald-600 text-white gap-1 text-[10px]">
-                          <Lock className="w-3 h-3" /> {ordered.poNumber}
+                          <Lock className="w-3 h-3" />
+                          <RefLink href={`/projects/${projectId}/purchase-orders/${ordered.poId}`}>{ordered.poNumber}</RefLink>
                         </Badge>
                         <div className="text-[10px] text-muted-foreground">{ordered.supplierName}</div>
                       </div>
