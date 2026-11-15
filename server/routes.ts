@@ -8727,6 +8727,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const projectId = req.params.projectId;
       const { items, ...poData } = req.body;
 
+      if (!poData.expectedDeliveryDate) {
+        return res.status(400).json({ error: "تاريخ التوريد المتوقع مطلوب" });
+      }
+
       const poNumber = poData.poNumber || (await storage.getNextPoNumber(projectId));
 
       const po = await storage.createPurchaseOrder({
@@ -8848,6 +8852,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
         createdByUserId: po.createdBy,
       });
     } catch (error) {
+      handleError(res, error);
+    }
+  });
+
+  // The one way to change a draft order's lines: quantities, prices and the delivery date, totals recomputed.
+  app.patch("/api/purchase-orders/:id/draft", async (req, res) => {
+    try {
+      const currentUser = await getCurrentUserWithOrg(req);
+      if (!currentUser) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+      const changes = z
+        .object({
+          expectedDeliveryDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
+          lines: z
+            .array(z.object({ id: z.string().min(1), quantity: z.coerce.number().positive(), unitPrice: z.coerce.number().min(0) }))
+            .optional(),
+        })
+        .parse(req.body);
+      const po = await storage.reviseDraftPurchaseOrder(req.params.id, changes);
+      res.json(po);
+      webhookService.emit({ event: "purchase_order", action: "updated", projectId: po.projectId, recordId: po.id, actorId: currentUser.user.id });
+    } catch (error) {
+      if (error instanceof Error && !(error instanceof ZodError) && !(error as any).code && !error.message.includes("غير موجود")) {
+        return res.status(400).json({ error: error.message });
+      }
       handleError(res, error);
     }
   });

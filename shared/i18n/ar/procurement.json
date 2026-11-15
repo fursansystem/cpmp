@@ -322,7 +322,9 @@
       "received": "المستلم",
       "remaining": "المتبقي",
       "status": "الحالة",
-      "unlinked_badge": "بلا مادة من الكتالوج"
+      "unlinked_badge": "بلا مادة من الكتالوج",
+      "unit_price": "سعر الوحدة",
+      "line_total": "الإجمالي"
     },
     "item_status": {
       "over": "زيادة",
@@ -348,6 +350,15 @@
       "approve_success_desc": "يمكن الآن تسجيل الاستلام عليه في المستودع.",
       "approve_error_title": "تعذّر الاعتماد",
       "error_generic": "حدث خطأ"
+    },
+    "edit": {
+      "start": "تعديل",
+      "save": "حفظ التعديلات",
+      "cancel": "إلغاء",
+      "saved": "تم حفظ التعديلات",
+      "save_failed": "تعذّر حفظ التعديلات",
+      "invalid_lines": "أدخل كمية أكبر من صفر وسعرًا صحيحًا لكل بند",
+      "date_required": "حدّد تاريخ التوريد المتوقع قبل الاعتماد"
     }
   },
   "create_po": {
@@ -395,7 +406,8 @@
       "supplier_required": "يرجى تحديد المورد",
       "unlinked_materials": "يجب اختيار المادة من الكتالوج لكل بند ({{count}} بند بدون مادة). المواد غير المرتبطة لا يمكن استلامها في المخزون.",
       "items_required": "يرجى إضافة بند واحد على الأقل",
-      "generic_failed": "فشل إنشاء أمر الشراء"
+      "generic_failed": "فشل إنشاء أمر الشراء",
+      "delivery_date_required": "تاريخ التوريد المتوقع مطلوب"
     },
     "toasts": {
       "success_title": "تم إنشاء أمر الشراء بنجاح",

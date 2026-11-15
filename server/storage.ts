@@ -595,6 +595,10 @@ export interface IStorage {
   getPurchaseOrder(id: string): Promise<any | undefined>;
   createPurchaseOrder(data: InsertPurchaseOrder): Promise<PurchaseOrder>;
   approvePurchaseOrder(id: string, userId: string): Promise<PurchaseOrder>;
+  reviseDraftPurchaseOrder(
+    id: string,
+    changes: { expectedDeliveryDate?: string | null; lines?: { id: string; quantity: number; unitPrice: number }[] },
+  ): Promise<PurchaseOrder>;
   createReceiptFromPo(input: CreatePoReceiptInput): Promise<any>;
   updatePurchaseOrder(id: string, data: UpdatePurchaseOrder): Promise<PurchaseOrder>;
   deletePurchaseOrder(id: string): Promise<void>;
@@ -6392,6 +6396,11 @@ export class DatabaseStorage implements IStorage {
         throw new Error(`لا يمكن اعتماد أمر شراء بحالة "${po.status}". الاعتماد متاح للمسودات فقط.`);
       }
 
+      // Late deliveries and supplier reliability are both measured against this date
+      if (!po.expectedDeliveryDate) {
+        throw new Error("حدّد تاريخ التوريد المتوقع قبل اعتماد أمر الشراء.");
+      }
+
       const lines = await tx.select().from(poItems).where(eq(poItems.poId, id));
       if (lines.length === 0) {
         throw new Error("لا يمكن اعتماد أمر شراء بلا بنود.");
@@ -6518,6 +6527,8 @@ export class DatabaseStorage implements IStorage {
             supplierId: quote.supplierId,
             title: `${rfq.rfqNumber} - ${quote.supplierName}`,
             status: "draft",
+            // The supplier's quoted lead time gives a first estimate; it stays editable while the order is a draft
+            expectedDeliveryDate: quote.leadTimeDays != null ? this.dateDaysAgo(-quote.leadTimeDays) : null,
             subtotal: subtotal.toFixed(2),
             taxAmount: tax.toFixed(2),
             discountAmount: discount.toFixed(2),
@@ -6581,18 +6592,81 @@ export class DatabaseStorage implements IStorage {
     }));
   }
 
+  // Approval cannot be undone, so what was approved must not change underneath the approver
+  private async assertPoIsDraft(poId: string): Promise<void> {
+    const [po] = await db.select({ status: purchaseOrders.status }).from(purchaseOrders).where(eq(purchaseOrders.id, poId));
+    if (!po) throw new Error("أمر الشراء غير موجود");
+    if (po.status !== "draft") throw new Error("لا يمكن تعديل بنود أمر شراء بعد اعتماده.");
+  }
+
+  private async assertPoItemIsDraft(itemId: string): Promise<void> {
+    const [item] = await db.select({ poId: poItems.poId }).from(poItems).where(eq(poItems.id, itemId));
+    if (!item) throw new Error("بند أمر الشراء غير موجود");
+    await this.assertPoIsDraft(item.poId);
+  }
+
   async createPoItem(data: InsertPoItem): Promise<PoItem> {
+    await this.assertPoIsDraft(data.poId);
     const [item] = await db.insert(poItems).values(data).returning();
     return item;
   }
 
   async updatePoItem(id: string, data: UpdatePoItem): Promise<PoItem> {
+    await this.assertPoItemIsDraft(id);
     const [item] = await db.update(poItems).set(data).where(eq(poItems.id, id)).returning();
     return item;
   }
 
   async deletePoItem(id: string): Promise<void> {
+    await this.assertPoItemIsDraft(id);
     await db.delete(poItems).where(eq(poItems.id, id));
+  }
+
+  // Edits a draft order's quantities, prices and delivery date, and recomputes its totals the
+  // way the create form does: tax is charged on the subtotal after discount, at the order's own rate.
+  async reviseDraftPurchaseOrder(
+    id: string,
+    changes: { expectedDeliveryDate?: string | null; lines?: { id: string; quantity: number; unitPrice: number }[] },
+  ): Promise<PurchaseOrder> {
+    return await db.transaction(async (tx) => {
+      const [po] = await tx.select().from(purchaseOrders).where(eq(purchaseOrders.id, id));
+      if (!po) throw new Error("أمر الشراء غير موجود");
+      if (po.status !== "draft") throw new Error("لا يمكن تعديل أمر شراء بعد اعتماده.");
+
+      const existing = await tx.select().from(poItems).where(eq(poItems.poId, id));
+      const known = new Set(existing.map((l) => l.id));
+      for (const line of changes.lines ?? []) {
+        if (!known.has(line.id)) throw new Error("أحد البنود لا يتبع هذا الأمر.");
+        await tx
+          .update(poItems)
+          .set({
+            quantity: line.quantity.toFixed(2),
+            unitPrice: line.unitPrice.toFixed(2),
+            totalPrice: (line.quantity * line.unitPrice).toFixed(2),
+          })
+          .where(eq(poItems.id, line.id));
+      }
+
+      const oldTaxable = Number(po.subtotal ?? 0) - Number(po.discountAmount ?? 0);
+      const taxRate = oldTaxable > 0 ? Number(po.taxAmount ?? 0) / oldTaxable : 0;
+      const lines = await tx.select().from(poItems).where(eq(poItems.poId, id));
+      const subtotal = lines.reduce((sum, l) => sum + Number(l.totalPrice ?? 0), 0);
+      const taxable = Math.max(0, subtotal - Number(po.discountAmount ?? 0));
+      const tax = taxable * taxRate;
+
+      const [updated] = await tx
+        .update(purchaseOrders)
+        .set({
+          subtotal: subtotal.toFixed(2),
+          taxAmount: tax.toFixed(2),
+          totalAmount: (taxable + tax).toFixed(2),
+          ...(changes.expectedDeliveryDate !== undefined ? { expectedDeliveryDate: changes.expectedDeliveryDate } : {}),
+          updatedAt: new Date(),
+        })
+        .where(eq(purchaseOrders.id, id))
+        .returning();
+      return updated;
+    });
   }
 }
 

@@ -154,6 +154,7 @@ export default function ProjectCreatePo() {
     mutationFn: async () => {
       if (!title.trim()) throw new Error(t("create_po.errors.title_required"));
       if (!supplierId) throw new Error(t("create_po.errors.supplier_required"));
+      if (!expectedDeliveryDate) throw new Error(t("create_po.errors.delivery_date_required"));
       // A line without a catalog material cannot be received into stock later, which would
       // leave an order that is only half receivable. Reject it here rather than at submit.
       const filledRows = items.filter((i) => i.materialId || i.itemDescription.trim() || Number(i.quantity) > 0);
@@ -320,6 +321,7 @@ export default function ProjectCreatePo() {
             <Label className="font-bold text-sm flex items-center gap-1.5">
               <Calendar className="w-4 h-4 text-muted-foreground" />
               {t("create_po.delivery_date_label")}
+              <span className="text-destructive">*</span>
             </Label>
             <Input
               type="date"

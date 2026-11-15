@@ -322,7 +322,9 @@
       "received": "Received",
       "remaining": "Remaining",
       "status": "Status",
-      "unlinked_badge": "No catalog item"
+      "unlinked_badge": "No catalog item",
+      "unit_price": "Unit price",
+      "line_total": "Total"
     },
     "item_status": {
       "over": "Over",
@@ -348,6 +350,15 @@
       "approve_success_desc": "Shipment receipts can now be recorded in the warehouse.",
       "approve_error_title": "Approval failed",
       "error_generic": "An error occurred"
+    },
+    "edit": {
+      "start": "Edit",
+      "save": "Save changes",
+      "cancel": "Cancel",
+      "saved": "Changes saved",
+      "save_failed": "Could not save changes",
+      "invalid_lines": "Enter a quantity above zero and a valid price for every line",
+      "date_required": "Set the expected delivery date before approving"
     }
   },
   "create_po": {
@@ -395,7 +406,8 @@
       "supplier_required": "Please select a supplier",
       "unlinked_materials": "A catalog material must be selected for every item ({{count}} item(s) unlinked). Unlinked items cannot be received into inventory.",
       "items_required": "Please add at least one item",
-      "generic_failed": "Failed to create purchase order"
+      "generic_failed": "Failed to create purchase order",
+      "delivery_date_required": "Expected delivery date is required"
     },
     "toasts": {
       "success_title": "Purchase order created successfully",
