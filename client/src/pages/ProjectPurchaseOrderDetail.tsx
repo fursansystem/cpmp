@@ -35,6 +35,8 @@ import {
 } from "@/components/ui/alert-dialog";
 import { PoDetailsPrintDialog } from "@/components/procurement/po-details-print-dialog";
 import { ReceivePoDialog } from "@/components/procurement/receive-po-dialog";
+import { QuotationDetailsDialog } from "@/components/procurement/quotation-details-dialog";
+import { RefLink } from "@/components/procurement/ref-link";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { cn } from "@/lib/utils";
@@ -67,6 +69,7 @@ export default function ProjectPurchaseOrderDetail() {
   const [printOpen, setPrintOpen] = useState(false);
   const [approveOpen, setApproveOpen] = useState(false);
   const [receiveOpen, setReceiveOpen] = useState(false);
+  const [viewQuotationId, setViewQuotationId] = useState<string | null>(null);
 
   const { data: po, isLoading } = useQuery<any>({
     queryKey: ["/api/purchase-orders", poId],
@@ -303,12 +306,20 @@ export default function ProjectPurchaseOrderDetail() {
             <div className="flex flex-wrap items-center gap-2 text-[11px]">
               {po.rfqNumber && (
                 <Badge variant="secondary" className="rounded-full font-bold">
-                  {t("detail.rfq_label", { number: po.rfqNumber })}
+                  {po.rfqId ? (
+                    <RefLink href={`/projects/${projectId}/rfqs/${po.rfqId}`}>
+                      {t("detail.rfq_label", { number: po.rfqNumber })}
+                    </RefLink>
+                  ) : (
+                    t("detail.rfq_label", { number: po.rfqNumber })
+                  )}
                 </Badge>
               )}
               {po.quotation?.quotationNumber && (
                 <Badge variant="secondary" className="rounded-full font-bold">
-                  {t("detail.quote_label", { number: po.quotation.quotationNumber })}
+                  <RefLink onOpen={() => setViewQuotationId(po.quotation.id)}>
+                    {t("detail.quote_label", { number: po.quotation.quotationNumber })}
+                  </RefLink>
                 </Badge>
               )}
               {po.quotation?.submissionDate && (
@@ -468,7 +479,9 @@ export default function ProjectPurchaseOrderDetail() {
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div className="flex items-center gap-2">
                       <Badge className="rounded-full border-none bg-primary/10 text-primary text-[11px] font-black">
-                        {r.shipmentNumber}
+                        <RefLink href={`/projects/${projectId}/deliveries?q=${encodeURIComponent(r.shipmentNumber)}`}>
+                          {r.shipmentNumber}
+                        </RefLink>
                       </Badge>
                       <span className="text-xs text-muted-foreground">{r.arrivalDate}</span>
                     </div>
@@ -516,6 +529,8 @@ export default function ProjectPurchaseOrderDetail() {
       </Card>
 
       <PoPaymentsPanel projectId={projectId || ""} poId={po.id} poNumber={po.poNumber} supplierId={po.supplierId} supplierName={po.supplierName} />
+
+      <QuotationDetailsDialog quotationId={viewQuotationId} onOpenChange={(o) => !o && setViewQuotationId(null)} />
 
       <PoDetailsPrintDialog
         open={printOpen}

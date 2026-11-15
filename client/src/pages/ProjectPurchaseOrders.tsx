@@ -60,6 +60,7 @@ import { EditMaterialLinkDialog } from "@/components/edit-material-link-dialog";
 import { RfqFormDialog } from "@/components/procurement/rfq-form-dialog";
 import { QuotationFormDialog } from "@/components/procurement/quotation-form-dialog";
 import { QuotationDetailsDialog } from "@/components/procurement/quotation-details-dialog";
+import { RefLink } from "@/components/procurement/ref-link";
 import { PoDetailsPrintDialog } from "@/components/procurement/po-details-print-dialog";
 
 import {
@@ -722,7 +723,11 @@ export default function ProjectPurchaseOrders() {
                         <span className="font-semibold text-primary">{quote.rfqTitle || t("orders.quotes_table.rfq_fallback")}</span>
                         {quote.rfqNumber && (
                           <span className="text-[10px] text-muted-foreground block font-mono">
-                            {quote.rfqNumber}
+                            {quote.rfqId ? (
+                              <RefLink href={`/projects/${projectId}/rfqs/${quote.rfqId}`}>{quote.rfqNumber}</RefLink>
+                            ) : (
+                              quote.rfqNumber
+                            )}
                           </span>
                         )}
                       </td>
@@ -818,7 +823,7 @@ export default function ProjectPurchaseOrders() {
                     <div className="flex items-start justify-between gap-2">
                       <div>
                         <Badge variant="outline" className="text-[10px] font-mono font-bold text-primary">
-                          {po.poNumber}
+                          <RefLink href={`/projects/${projectId}/purchase-orders/${po.id}`}>{po.poNumber}</RefLink>
                         </Badge>
                         <CardTitle className="text-base font-bold mt-1 text-foreground line-clamp-1">
                           {po.title}

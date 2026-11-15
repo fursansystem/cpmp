@@ -121,7 +121,8 @@ export default function ProjectDeliveries({
   const params = useParams();
   const projectId = projectIdProp ?? params.projectId;
   const [, navigate] = useLocation();
-  const [searchQuery, setSearchQuery] = useState("");
+  // A shipment number linked from another page arrives as ?q= and starts as the search
+  const [searchQuery, setSearchQuery] = useState(() => new URLSearchParams(window.location.search).get("q") ?? "");
   const [formOpen, setFormOpen] = useState(false);
   const [viewingDelivery, setViewingDelivery] = useState<EnrichedDelivery | null>(null);
   const [editingDelivery, setEditingDelivery] = useState<EnrichedDelivery | null>(null);

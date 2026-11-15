@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils";
 import { QuotationFormDialog } from "@/components/procurement/quotation-form-dialog";
 import { QuotationDetailsDialog } from "@/components/procurement/quotation-details-dialog";
 import { RfqAwardMatrix, type OrderedItem } from "@/components/procurement/rfq-award-matrix";
+import { RefLink } from "@/components/procurement/ref-link";
 
 const STATUS_STEPS = [
   { key: "draft", label: "Draft" },
@@ -219,7 +220,13 @@ export default function ProjectRfqDetail() {
                     <TableCell className="text-muted-foreground">{it.notes || "-"}</TableCell>
                     <TableCell>
                       <Badge variant="secondary" className={cn("text-[11px]", itemStatus(it.id).cls)}>
-                        {itemStatus(it.id).label}
+                        {orderedMap.has(it.id) ? (
+                          <RefLink href={`/projects/${projectId}/purchase-orders/${orderedMap.get(it.id)!.poId}`}>
+                            {itemStatus(it.id).label}
+                          </RefLink>
+                        ) : (
+                          itemStatus(it.id).label
+                        )}
                       </Badge>
                       {itemStatus(it.id).sub && (
                         <div className="text-[10px] text-muted-foreground mt-0.5">{itemStatus(it.id).sub}</div>
@@ -239,6 +246,7 @@ export default function ProjectRfqDetail() {
             orderedItems={orderedItems}
             projectId={projectId || ""}
             onCreated={() => navigate(`/projects/${projectId}/purchase-orders?tab=purchase_orders`)}
+            onViewQuotation={setViewQuotationId}
           />
         </TabsContent>
 

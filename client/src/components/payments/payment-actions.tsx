@@ -11,6 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { BILL_REQUEST_LABELS, PAYMENT_ORDER_LABELS } from "@shared/payments";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
+import { RefLink } from "@/components/procurement/ref-link";
 import { CreateBillRequestDialog, type BillRequestPrefill } from "./bill-requests-tab";
 import { CreateOrderDialog } from "./orders-tab";
 import { FineDialog, type DeductionPrefill } from "./clearances-fines-tab";
@@ -309,7 +310,7 @@ export function PoPaymentsPanel({ projectId, poId, poNumber, supplierId, supplie
             <div className="text-sm font-bold">{t("po_payments.bill_requests_title")}</div>
             {bills.map((b) => (
               <div key={b.id} className="flex items-center gap-3 rounded-xl border px-3 py-2 text-sm">
-                <span className="font-mono">{b.requestNo}</span>
+                <RefLink href={`/payments?tab=bills&project=${projectId}`} className="font-mono">{b.requestNo}</RefLink>
                 <StatusBadge status={b.status} group="bill_request" />
                 <span className="text-muted-foreground">{t("po_payments.invoice_count", { count: b.invoices.length })}</span>
                 <span className="ms-auto tabular-nums">{money(b.invoiceTotal > 0 ? b.invoiceTotal : b.amount)}</span>
@@ -322,7 +323,7 @@ export function PoPaymentsPanel({ projectId, poId, poNumber, supplierId, supplie
             <div className="text-sm font-bold">{t("po_payments.orders_title")}</div>
             {orders.map((o) => (
               <div key={o.id} className="flex items-center gap-3 rounded-xl border px-3 py-2 text-sm">
-                <span className="font-mono">{o.orderNo}</span>
+                <RefLink href={`/payments?tab=orders&project=${projectId}`} className="font-mono">{o.orderNo}</RefLink>
                 <StatusBadge status={o.status} group="payment_order" />
                 <span className="text-muted-foreground">{o.purpose === "advance" ? t("orders.purpose_advance") : o.billRequestId ? t("orders.purpose_invoices") : t("orders.purpose_other")}{o.paidDate ? ` · ${fmtDate(o.paidDate)}` : ""}</span>
                 <span className="ms-auto tabular-nums">{money(o.amount)}</span>
