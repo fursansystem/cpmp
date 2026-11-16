@@ -336,12 +336,12 @@ export function ReceivePoDialog({ open, onOpenChange, projectId, po }: ReceivePo
                 <Table>
                   <TableHeader>
                     <TableRow className="bg-muted/30 hover:bg-muted/30">
-                      <TableHead className="text-end text-[11px] font-black">{t("receive_po.table.item")}</TableHead>
-                      <TableHead className="text-end text-[11px] font-black">{t("receive_po.table.unit")}</TableHead>
-                      <TableHead className="text-end text-[11px] font-black">{t("receive_po.table.ordered")}</TableHead>
-                      <TableHead className="text-end text-[11px] font-black">{t("receive_po.table.previously_received")}</TableHead>
-                      <TableHead className="text-end text-[11px] font-black">{t("receive_po.table.remaining")}</TableHead>
-                      <TableHead className="text-end text-[11px] font-black w-[140px]">{t("receive_po.table.arrived_now")}</TableHead>
+                      <TableHead className="text-start text-[11px] font-black">{t("receive_po.table.item")}</TableHead>
+                      <TableHead className="text-start text-[11px] font-black">{t("receive_po.table.unit")}</TableHead>
+                      <TableHead className="text-start text-[11px] font-black">{t("receive_po.table.ordered")}</TableHead>
+                      <TableHead className="text-start text-[11px] font-black">{t("receive_po.table.previously_received")}</TableHead>
+                      <TableHead className="text-start text-[11px] font-black">{t("receive_po.table.remaining")}</TableHead>
+                      <TableHead className="text-start text-[11px] font-black w-[140px]">{t("receive_po.table.arrived_now")}</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>

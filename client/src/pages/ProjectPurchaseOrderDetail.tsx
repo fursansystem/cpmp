@@ -16,8 +16,10 @@ import {
   FileSignature,
   Paperclip,
   Warehouse,
+  Pencil,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -35,6 +37,8 @@ import {
 } from "@/components/ui/alert-dialog";
 import { PoDetailsPrintDialog } from "@/components/procurement/po-details-print-dialog";
 import { ReceivePoDialog } from "@/components/procurement/receive-po-dialog";
+import { QuotationDetailsDialog } from "@/components/procurement/quotation-details-dialog";
+import { RefLink } from "@/components/procurement/ref-link";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { cn } from "@/lib/utils";
@@ -58,6 +62,20 @@ const STATUS_STYLES: Record<string, string> = {
 const num = (v: unknown) =>
   Number(v ?? 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
+// apiRequest throws "400: {json body}"; show the server's own sentence when there is one
+function apiErrorText(e: any): string {
+  const message = String(e?.message ?? "");
+  const start = message.indexOf("{");
+  if (start === -1) return message;
+  try {
+    return JSON.parse(message.slice(start)).error || message;
+  } catch {
+    return message;
+  }
+}
+
+type LineDraft = { quantity: string; unitPrice: string };
+
 export default function ProjectPurchaseOrderDetail() {
   const { t } = useTranslation(["procurement", "common"]);
   const { projectId, poId } = useParams<{ projectId: string; poId: string }>();
@@ -67,6 +85,7 @@ export default function ProjectPurchaseOrderDetail() {
   const [printOpen, setPrintOpen] = useState(false);
   const [approveOpen, setApproveOpen] = useState(false);
   const [receiveOpen, setReceiveOpen] = useState(false);
+  const [viewQuotationId, setViewQuotationId] = useState<string | null>(null);
 
   const { data: po, isLoading } = useQuery<any>({
     queryKey: ["/api/purchase-orders", poId],
@@ -89,6 +108,38 @@ export default function ProjectPurchaseOrderDetail() {
 
   const items: any[] = po?.items ?? [];
   const receipts: any[] = po?.receipts ?? [];
+
+  // Draft-only editing of quantities, prices and the delivery date
+  const [editing, setEditing] = useState(false);
+  const [lineDrafts, setLineDrafts] = useState<Record<string, LineDraft>>({});
+  const [deliveryDraft, setDeliveryDraft] = useState("");
+
+  const startEditing = () => {
+    setLineDrafts(Object.fromEntries(items.map((i) => [i.id, { quantity: String(Number(i.quantity ?? 0)), unitPrice: String(Number(i.unitPrice ?? 0)) }])));
+    setDeliveryDraft(po?.expectedDeliveryDate ?? "");
+    setEditing(true);
+  };
+  const setLine = (id: string, field: keyof LineDraft, value: string) =>
+    setLineDrafts((prev) => ({ ...prev, [id]: { ...prev[id], [field]: value } }));
+
+  const saveMutation = useMutation({
+    mutationFn: async () => {
+      const lines = items.map((i) => ({
+        id: i.id,
+        quantity: parseFloat(lineDrafts[i.id]?.quantity ?? ""),
+        unitPrice: parseFloat(lineDrafts[i.id]?.unitPrice ?? ""),
+      }));
+      if (lines.some((l) => !(l.quantity > 0) || !(l.unitPrice >= 0))) throw new Error(t("detail.edit.invalid_lines"));
+      return apiRequest("PATCH", `/api/purchase-orders/${poId}/draft`, { expectedDeliveryDate: deliveryDraft || null, lines });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/purchase-orders", poId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "purchase-orders"] });
+      setEditing(false);
+      toast({ title: t("detail.edit.saved") });
+    },
+    onError: (e: any) => toast({ title: t("detail.edit.save_failed"), description: apiErrorText(e), variant: "destructive" }),
+  });
 
   const totals = useMemo(() => {
     const ordered = items.reduce((s, i) => s + Number(i.orderedQuantity ?? 0), 0);
@@ -158,11 +209,33 @@ export default function ProjectPurchaseOrderDetail() {
             <Printer className="w-4 h-4" />
             {t("detail.print")}
           </Button>
-          {po.status === "draft" && (
-            <Button onClick={() => setApproveOpen(true)} className="rounded-xl gap-1.5 font-bold">
-              <CheckCircle2 className="w-4 h-4" />
-              {t("detail.approve_btn")}
-            </Button>
+          {po.status === "draft" && editing && (
+            <>
+              <Button variant="outline" onClick={() => setEditing(false)} disabled={saveMutation.isPending} className="rounded-xl font-bold" data-testid="button-cancel-edit-po">
+                {t("detail.edit.cancel")}
+              </Button>
+              <Button onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending} className="rounded-xl gap-1.5 font-bold" data-testid="button-save-po">
+                <CheckCircle2 className="w-4 h-4" />
+                {t("detail.edit.save")}
+              </Button>
+            </>
+          )}
+          {po.status === "draft" && !editing && (
+            <>
+              <Button variant="outline" onClick={startEditing} className="rounded-xl gap-1.5 font-bold" data-testid="button-edit-po">
+                <Pencil className="w-4 h-4" />
+                {t("detail.edit.start")}
+              </Button>
+              <Button
+                onClick={() => setApproveOpen(true)}
+                disabled={!po.expectedDeliveryDate}
+                title={!po.expectedDeliveryDate ? t("detail.edit.date_required") : undefined}
+                className="rounded-xl gap-1.5 font-bold"
+              >
+                <CheckCircle2 className="w-4 h-4" />
+                {t("detail.approve_btn")}
+              </Button>
+            </>
           )}
           {/* Hidden once every line is fully received: a completed order has nothing left
               to receive, and a primary action there is just noise. */}
@@ -220,6 +293,9 @@ export default function ProjectPurchaseOrderDetail() {
               {t("detail.cannot_receive_before_approval")}
             </p>
           )}
+          {po.status === "draft" && !po.expectedDeliveryDate && (
+            <p className="mt-2 text-xs text-destructive font-bold text-center">{t("detail.edit.date_required")}</p>
+          )}
           {po.approvedAt && (
             <p className="mt-4 text-xs text-muted-foreground text-center">
               {t("detail.approved_by", { name: po.approverName || "—" })}
@@ -262,7 +338,17 @@ export default function ProjectPurchaseOrderDetail() {
             </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground">{t("detail.expected_delivery")}</span>
-              <span className="font-bold">{po.expectedDeliveryDate || "—"}</span>
+              {editing ? (
+                <Input
+                  type="date"
+                  value={deliveryDraft}
+                  onChange={(e) => setDeliveryDraft(e.target.value)}
+                  className="h-8 w-40 rounded-lg text-xs"
+                  data-testid="input-po-delivery-date"
+                />
+              ) : (
+                <span className="font-bold">{po.expectedDeliveryDate || "—"}</span>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -303,12 +389,20 @@ export default function ProjectPurchaseOrderDetail() {
             <div className="flex flex-wrap items-center gap-2 text-[11px]">
               {po.rfqNumber && (
                 <Badge variant="secondary" className="rounded-full font-bold">
-                  {t("detail.rfq_label", { number: po.rfqNumber })}
+                  {po.rfqId ? (
+                    <RefLink href={`/projects/${projectId}/rfqs/${po.rfqId}`}>
+                      {t("detail.rfq_label", { number: po.rfqNumber })}
+                    </RefLink>
+                  ) : (
+                    t("detail.rfq_label", { number: po.rfqNumber })
+                  )}
                 </Badge>
               )}
               {po.quotation?.quotationNumber && (
                 <Badge variant="secondary" className="rounded-full font-bold">
-                  {t("detail.quote_label", { number: po.quotation.quotationNumber })}
+                  <RefLink onOpen={() => setViewQuotationId(po.quotation.id)}>
+                    {t("detail.quote_label", { number: po.quotation.quotationNumber })}
+                  </RefLink>
                 </Badge>
               )}
               {po.quotation?.submissionDate && (
@@ -376,13 +470,15 @@ export default function ProjectPurchaseOrderDetail() {
             <Table>
               <TableHeader>
                 <TableRow className="bg-muted/30 hover:bg-muted/30">
-                  <TableHead className="text-end text-[11px] font-black">#</TableHead>
-                  <TableHead className="text-end text-[11px] font-black">{t("detail.items_table.material")}</TableHead>
-                  <TableHead className="text-end text-[11px] font-black">{t("detail.items_table.unit")}</TableHead>
-                  <TableHead className="text-end text-[11px] font-black">{t("detail.items_table.ordered")}</TableHead>
-                  <TableHead className="text-end text-[11px] font-black">{t("detail.items_table.received")}</TableHead>
-                  <TableHead className="text-end text-[11px] font-black">{t("detail.items_table.remaining")}</TableHead>
-                  <TableHead className="text-end text-[11px] font-black">{t("detail.items_table.status")}</TableHead>
+                  <TableHead className="text-start text-[11px] font-black">#</TableHead>
+                  <TableHead className="text-start text-[11px] font-black">{t("detail.items_table.material")}</TableHead>
+                  <TableHead className="text-start text-[11px] font-black">{t("detail.items_table.unit")}</TableHead>
+                  <TableHead className="text-start text-[11px] font-black">{t("detail.items_table.ordered")}</TableHead>
+                  <TableHead className="text-start text-[11px] font-black">{t("detail.items_table.unit_price")}</TableHead>
+                  <TableHead className="text-start text-[11px] font-black">{t("detail.items_table.line_total")}</TableHead>
+                  <TableHead className="text-start text-[11px] font-black">{t("detail.items_table.received")}</TableHead>
+                  <TableHead className="text-start text-[11px] font-black">{t("detail.items_table.remaining")}</TableHead>
+                  <TableHead className="text-start text-[11px] font-black">{t("detail.items_table.status")}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -405,7 +501,41 @@ export default function ProjectPurchaseOrderDetail() {
                       </div>
                     </TableCell>
                     <TableCell className="text-xs">{item.unit}</TableCell>
-                    <TableCell className="text-xs font-bold">{num(item.orderedQuantity)}</TableCell>
+                    {editing ? (
+                      <>
+                        <TableCell>
+                          <Input
+                            type="number"
+                            min="0"
+                            step="any"
+                            value={lineDrafts[item.id]?.quantity ?? ""}
+                            onChange={(e) => setLine(item.id, "quantity", e.target.value)}
+                            className="h-8 w-24 rounded-lg text-xs"
+                            data-testid={`input-po-quantity-${item.id}`}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <Input
+                            type="number"
+                            min="0"
+                            step="any"
+                            value={lineDrafts[item.id]?.unitPrice ?? ""}
+                            onChange={(e) => setLine(item.id, "unitPrice", e.target.value)}
+                            className="h-8 w-24 rounded-lg text-xs"
+                            data-testid={`input-po-price-${item.id}`}
+                          />
+                        </TableCell>
+                        <TableCell className="text-xs font-bold">
+                          {num((parseFloat(lineDrafts[item.id]?.quantity ?? "") || 0) * (parseFloat(lineDrafts[item.id]?.unitPrice ?? "") || 0))}
+                        </TableCell>
+                      </>
+                    ) : (
+                      <>
+                        <TableCell className="text-xs font-bold">{num(item.orderedQuantity)}</TableCell>
+                        <TableCell className="text-xs">{num(item.unitPrice)}</TableCell>
+                        <TableCell className="text-xs font-bold">{num(item.totalPrice)}</TableCell>
+                      </>
+                    )}
                     <TableCell className="text-xs font-bold text-emerald-600">
                       {num(item.receivedQuantity)}
                     </TableCell>
@@ -468,7 +598,9 @@ export default function ProjectPurchaseOrderDetail() {
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div className="flex items-center gap-2">
                       <Badge className="rounded-full border-none bg-primary/10 text-primary text-[11px] font-black">
-                        {r.shipmentNumber}
+                        <RefLink href={`/projects/${projectId}/deliveries?q=${encodeURIComponent(r.shipmentNumber)}`}>
+                          {r.shipmentNumber}
+                        </RefLink>
                       </Badge>
                       <span className="text-xs text-muted-foreground">{r.arrivalDate}</span>
                     </div>
@@ -516,6 +648,8 @@ export default function ProjectPurchaseOrderDetail() {
       </Card>
 
       <PoPaymentsPanel projectId={projectId || ""} poId={po.id} poNumber={po.poNumber} supplierId={po.supplierId} supplierName={po.supplierName} />
+
+      <QuotationDetailsDialog quotationId={viewQuotationId} onOpenChange={(o) => !o && setViewQuotationId(null)} />
 
       <PoDetailsPrintDialog
         open={printOpen}

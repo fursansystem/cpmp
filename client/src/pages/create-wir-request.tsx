@@ -586,8 +586,23 @@ export default function CreateWirRequest() {
 
   const [locationSearch, setLocationSearch] = useState("");
 
+  const compareAlphaNum = (a: unknown, b: unknown) =>
+    String(a ?? "").localeCompare(String(b ?? ""), undefined, { numeric: true, sensitivity: "base" });
+
+  const sortedWorkLocations = useMemo(() => {
+    return [...workLocations].sort((a, b) => {
+      const byBldg = compareAlphaNum(a.buildingNo, b.buildingNo);
+      if (byBldg !== 0) return byBldg;
+      const byUnit = compareAlphaNum(a.unitCustomNumber, b.unitCustomNumber);
+      if (byUnit !== 0) return byUnit;
+      const byFloor = compareAlphaNum(a.floor, b.floor);
+      if (byFloor !== 0) return byFloor;
+      return compareAlphaNum(a.part, b.part);
+    });
+  }, [workLocations]);
+
   const filteredWorkLocations = useMemo(() => {
-    return workLocations.filter((loc: WorkLocation) => {
+    return sortedWorkLocations.filter((loc: WorkLocation) => {
       const matchesBuilding = !buildingFilter || buildingFilter === "all-buildings" || loc.buildingNo === buildingFilter;
       const matchesFloor = !floorFilter || floorFilter === "all-floors" || loc.floor === floorFilter;
       const matchesPart = !partFilter || partFilter === "all-parts" || loc.part === partFilter;
@@ -607,11 +622,11 @@ export default function CreateWirRequest() {
         (loc.part?.toLowerCase().includes(search))
       );
     });
-  }, [workLocations, buildingFilter, floorFilter, partFilter, selectedLocations, locationSearch]);
+  }, [sortedWorkLocations, buildingFilter, floorFilter, partFilter, selectedLocations, locationSearch]);
 
-  const buildings = useMemo(() => Array.from(new Set(workLocations.map((l: WorkLocation) => l.buildingNo).filter(Boolean))), [workLocations]);
-  const floors = useMemo(() => Array.from(new Set(workLocations.map((l: WorkLocation) => l.floor).filter(Boolean))), [workLocations]);
-  const parts = useMemo(() => Array.from(new Set(workLocations.map((l: WorkLocation) => l.part).filter(Boolean))), [workLocations]);
+  const buildings = useMemo(() => Array.from(new Set(sortedWorkLocations.map((l: WorkLocation) => l.buildingNo).filter(Boolean))).sort(compareAlphaNum), [sortedWorkLocations]);
+  const floors = useMemo(() => Array.from(new Set(sortedWorkLocations.map((l: WorkLocation) => l.floor).filter(Boolean))).sort(compareAlphaNum), [sortedWorkLocations]);
+  const parts = useMemo(() => Array.from(new Set(sortedWorkLocations.map((l: WorkLocation) => l.part).filter(Boolean))).sort(compareAlphaNum), [sortedWorkLocations]);
 
   // Fetch work levels for the project
   const { data: workLevels = [] } = useQuery<WorkLevel[]>({
@@ -2379,24 +2394,33 @@ export default function CreateWirRequest() {
                       value={locationSearch}
                       onValueChange={setLocationSearch}
                     />
-                    <CommandList className="max-h-[300px]">
+                    <div className="grid grid-cols-[1fr_1fr_1.4fr_1.2fr_0.8fr_28px] items-center gap-2 px-3 py-2 bg-muted/60 border-b text-[11px] font-bold text-muted-foreground">
+                      <span>Unit</span>
+                      <span>Zone</span>
+                      <span>Floor</span>
+                      <span>Building</span>
+                      <span>Part</span>
+                      <span className="text-center"></span>
+                    </div>
+                    <CommandList className="max-h-[280px]">
                       <CommandEmpty>No locations found.</CommandEmpty>
-                      <CommandGroup>
+                      <CommandGroup className="p-0">
                         {filteredWorkLocations.map((location: WorkLocation) => (
                           <CommandItem
                             key={location.id}
                             value={`${location.unitCustomNumber} ${location.unitZone} ${location.unitBlock} ${location.buildingNo} ${location.floor} ${location.part}`}
                             onSelect={() => handleAddLocationById(location.id)}
-                            className="cursor-pointer"
+                            className="cursor-pointer px-3 py-2 rounded-none border-b border-border/40 last:border-b-0"
                           >
-                            <div className="flex items-center justify-between w-full">
-                              <span>
-                                {location.unitCustomNumber || "N/A"} - {location.unitZone || ""} {location.floor || ""}
-                                <span className="text-xs text-muted-foreground ms-2">
-                                  ({location.buildingNo || "No Bldg"}, {location.part || "No Part"})
-                                </span>
+                            <div className="grid grid-cols-[1fr_1fr_1.4fr_1.2fr_0.8fr_28px] items-center gap-2 w-full text-xs">
+                              <span className="font-semibold tabular-nums">{location.unitCustomNumber || "—"}</span>
+                              <span className="text-muted-foreground tabular-nums">{location.unitZone || "—"}</span>
+                              <span className="truncate">{location.floor || "—"}</span>
+                              <span className="font-medium tabular-nums">{location.buildingNo || "—"}</span>
+                              <span className="text-muted-foreground tabular-nums">{location.part || "—"}</span>
+                              <span className="flex justify-center">
+                                <Plus className="h-4 w-4 opacity-50" />
                               </span>
-                              <Plus className="h-4 w-4 opacity-50" />
                             </div>
                           </CommandItem>
                         ))}
@@ -2405,21 +2429,57 @@ export default function CreateWirRequest() {
                   </Command>
                 </div>
 
-                <div className="flex flex-wrap gap-2 mt-2">
-                  {selectedLocations.map((loc) => (
-                    <Badge key={loc.id} variant="secondary" className="gap-1 pe-1 shadow-sm">
-                      {loc.unit || loc.building}
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-4 w-4 rounded-full p-0 hover:bg-muted"
-                        onClick={() => handleRemoveLocation(loc.id)}
-                      >
-                        <Trash2 className="h-3 w-3" />
-                      </Button>
-                    </Badge>
-                  ))}
-                </div>
+                {selectedLocations.length > 0 && (
+                  <div className="flex flex-wrap gap-2 mt-2 max-h-36 overflow-y-auto p-1">
+                    {Array.from(
+                      selectedLocations.reduce((map, loc) => {
+                        const b = String(loc.building || "No Bldg").trim();
+                        const list = map.get(b) ?? [];
+                        list.push(loc);
+                        map.set(b, list);
+                        return map;
+                      }, new Map<string, typeof selectedLocations>())
+                    )
+                      .sort((a, b) => compareAlphaNum(a[0], b[0]))
+                      .map(([bNo, items]) => (
+                        <div
+                          key={bNo}
+                          className="inline-flex flex-wrap items-center gap-1.5 rounded-2xl border border-primary/30 bg-primary/5 px-2.5 py-1.5 shadow-sm"
+                        >
+                          <span className="inline-flex items-center gap-1 rounded-xl bg-primary text-primary-foreground px-2.5 py-0.5 text-xs font-bold tabular-nums shadow-xs">
+                            <span>{bNo}</span>
+                            <button
+                              type="button"
+                              onClick={() => items.forEach((i) => handleRemoveLocation(i.id))}
+                              className="ms-0.5 rounded-full p-0.5 hover:bg-black/15 transition-colors"
+                              title="Remove building"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                            </button>
+                          </span>
+                          <div className="flex flex-wrap items-center gap-1">
+                            {[...items]
+                              .sort((a, b) => compareAlphaNum(a.unit, b.unit))
+                              .map((loc) => (
+                                <span
+                                  key={loc.id}
+                                  className="inline-flex items-center gap-1 rounded-lg bg-background border border-border/80 px-2 py-0.5 text-xs font-semibold tabular-nums shadow-xs"
+                                >
+                                  <span>{loc.unit || "—"}</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRemoveLocation(loc.id)}
+                                    className="text-muted-foreground hover:text-destructive transition-colors"
+                                  >
+                                    <Trash2 className="w-3 h-3" />
+                                  </button>
+                                </span>
+                              ))}
+                          </div>
+                        </div>
+                      ))}
+                  </div>
+                )}
               </div>
               <DialogFooter className="pt-4 mt-2">
                 <Button variant="default" onClick={() => setAddLocationOpen(false)} className="w-full shadow-md">

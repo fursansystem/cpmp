@@ -115,6 +115,8 @@ async function main() {
   // For databases that already ran an earlier version of this script
   await db.execute(sql`ALTER TABLE payment_orders ADD COLUMN IF NOT EXISTS purpose TEXT;`);
   await db.execute(sql`ALTER TABLE payment_orders ADD COLUMN IF NOT EXISTS supplier_id VARCHAR REFERENCES suppliers(id) ON DELETE SET NULL;`);
+  await db.execute(sql`ALTER TABLE payment_orders ADD COLUMN IF NOT EXISTS subcontractor_id VARCHAR REFERENCES project_subcontractors(id) ON DELETE SET NULL;`);
+  await db.execute(sql`ALTER TABLE payment_orders ADD COLUMN IF NOT EXISTS subcontractor_contract_id VARCHAR REFERENCES subcontractor_contracts(id) ON DELETE SET NULL;`);
   await db.execute(sql`CREATE UNIQUE INDEX IF NOT EXISTS payment_orders_seq_uq ON payment_orders (project_id, seq);`);
   await db.execute(sql`CREATE INDEX IF NOT EXISTS payment_orders_project_idx ON payment_orders (project_id);`);
   console.log("Table 'payment_orders' ready.");
@@ -241,10 +243,12 @@ async function main() {
       contact_person TEXT,
       phone TEXT,
       scope TEXT,
+      work_location_ids TEXT[] NOT NULL DEFAULT '{}'::text[],
       created_by VARCHAR REFERENCES users(id) ON DELETE SET NULL,
       created_at TIMESTAMP NOT NULL DEFAULT NOW()
     );
   `);
+  await db.execute(sql`ALTER TABLE project_subcontractors ADD COLUMN IF NOT EXISTS work_location_ids TEXT[] NOT NULL DEFAULT '{}'::text[];`);
   await db.execute(sql`CREATE INDEX IF NOT EXISTS project_subcontractors_project_idx ON project_subcontractors (project_id);`);
   await db.execute(sql`CREATE UNIQUE INDEX IF NOT EXISTS project_subcontractors_name_uq ON project_subcontractors (project_id, lower(name));`);
   await db.execute(sql`ALTER TABLE payment_subcontractor_certificates ADD COLUMN IF NOT EXISTS subcontractor_id VARCHAR REFERENCES project_subcontractors(id) ON DELETE RESTRICT;`);

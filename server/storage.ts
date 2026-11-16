@@ -69,11 +69,11 @@ import {
   type PurchaseOrder, type InsertPurchaseOrder, type UpdatePurchaseOrder,
   type PoItem, type InsertPoItem, type UpdatePoItem,
   warehouses, stockMovements, stockTransfers, stockTransferItems,
-  materialIssues, materialIssueItems, inventoryApproverPositions, projectSubcontractors,
+  materialIssues, materialIssueItems, inventoryApproverPositions, projectSubcontractors, subcontractorContracts,
   STOCK_IN_TYPES, stockDirection, normalizeUnit,
   type Warehouse, type InsertWarehouse, type UpdateWarehouse,
   type StockMovement, type InsertStockMovement,
-  type StockBalance, type StockMovementFilters, type EnrichedStockMovement,
+  type StockBalance, type StockInsight, type StockActivity, type ProcurementInsights, type StockMovementFilters, type EnrichedStockMovement,
   type MaterialIssue, type InsertMaterialIssue, type UpdateMaterialIssue,
   type MaterialIssueItem, type InsertMaterialIssueItem,
   type StockTransfer, type InsertStockTransfer,
@@ -279,6 +279,9 @@ export interface IStorage {
   getStockBalances(projectId: string, warehouseId?: string): Promise<StockBalance[]>;
   getStockMovements(projectId: string, filters?: StockMovementFilters): Promise<EnrichedStockMovement[]>;
   getLowStockMaterials(projectId: string): Promise<StockBalance[]>;
+  getStockInsights(projectId: string): Promise<StockInsight[]>;
+  getStockActivity(projectId: string): Promise<StockActivity>;
+  getProcurementInsights(projectId: string): Promise<ProcurementInsights>;
   getLowStockCrossings(projectId: string, changes: { materialId: string; delta: number }[]): Promise<StockBalance[]>;
   getRequestFormsExportData(
     projectId: string,
@@ -592,6 +595,10 @@ export interface IStorage {
   getPurchaseOrder(id: string): Promise<any | undefined>;
   createPurchaseOrder(data: InsertPurchaseOrder): Promise<PurchaseOrder>;
   approvePurchaseOrder(id: string, userId: string): Promise<PurchaseOrder>;
+  reviseDraftPurchaseOrder(
+    id: string,
+    changes: { expectedDeliveryDate?: string | null; lines?: { id: string; quantity: number; unitPrice: number }[] },
+  ): Promise<PurchaseOrder>;
   createReceiptFromPo(input: CreatePoReceiptInput): Promise<any>;
   updatePurchaseOrder(id: string, data: UpdatePurchaseOrder): Promise<PurchaseOrder>;
   deletePurchaseOrder(id: string): Promise<void>;
@@ -2655,6 +2662,241 @@ export class DatabaseStorage implements IStorage {
         hasUnitConflict: r.distinctUnits > 1,
       };
     });
+  }
+
+  private dateDaysAgo(days: number): string {
+    const d = new Date();
+    d.setDate(d.getDate() - days);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  }
+
+  async getProcurementInsights(projectId: string): Promise<ProcurementInsights> {
+    const orders = await db
+      .select({
+        id: purchaseOrders.id,
+        supplierId: purchaseOrders.supplierId,
+        supplierName: suppliers.supplierName,
+        status: purchaseOrders.status,
+        totalAmount: purchaseOrders.totalAmount,
+        expectedDeliveryDate: purchaseOrders.expectedDeliveryDate,
+        rfqId: purchaseOrders.rfqId,
+        approvedAt: purchaseOrders.approvedAt,
+      })
+      .from(purchaseOrders)
+      .innerJoin(suppliers, eq(purchaseOrders.supplierId, suppliers.id))
+      .where(and(eq(purchaseOrders.projectId, projectId), not(inArray(purchaseOrders.status, ["draft", "cancelled"]))));
+
+    if (orders.length === 0) {
+      return { savings: { amount: 0, comparedLines: 0, awardedLines: 0 }, cycle: { avgDays: null, orders: 0 }, suppliers: [] };
+    }
+    const orderIds = orders.map((o) => o.id);
+    const dayDiff = (later: string, earlier: string) => Math.round((Date.parse(later) - Date.parse(earlier)) / 86400000);
+
+    // Delivery: a completed order is judged by its last receipt, an open one only once it is overdue
+    const arrivals = await db
+      .select({ poId: deliveries.purchaseOrderId, last: max(deliveries.arrivalDate) })
+      .from(deliveries)
+      .where(inArray(deliveries.purchaseOrderId, orderIds))
+      .groupBy(deliveries.purchaseOrderId);
+    const lastArrival = new Map(arrivals.map((a) => [a.poId, a.last]));
+    const today = this.dateDaysAgo(0);
+
+    const bySupplier = new Map<string, ProcurementInsights["suppliers"][number] & { delays: number[] }>();
+    for (const o of orders) {
+      let s = bySupplier.get(o.supplierId);
+      if (!s) {
+        s = { supplierId: o.supplierId, supplierName: o.supplierName, committed: 0, orders: 0, measured: 0, onTime: 0, avgDelayDays: null, delays: [] };
+        bySupplier.set(o.supplierId, s);
+      }
+      s.committed += Number(o.totalAmount ?? 0);
+      s.orders += 1;
+
+      if (!o.expectedDeliveryDate) continue;
+      const arrived = lastArrival.get(o.id);
+      const delay =
+        o.status === "completed" && arrived
+          ? dayDiff(arrived, o.expectedDeliveryDate)
+          : o.status !== "completed" && today > o.expectedDeliveryDate
+            ? dayDiff(today, o.expectedDeliveryDate)
+            : null;
+      if (delay === null) continue;
+      s.measured += 1;
+      if (delay <= 0) s.onTime += 1;
+      else s.delays.push(delay);
+    }
+    const supplierRows = Array.from(bySupplier.values())
+      .map(({ delays, ...s }) => ({
+        ...s,
+        avgDelayDays: delays.length ? Math.round(delays.reduce((a, b) => a + b, 0) / delays.length) : null,
+      }))
+      .sort((a, b) => b.committed - a.committed)
+      .slice(0, 5);
+
+    // Cycle time
+    const fromRfq = orders.filter((o) => o.rfqId && o.approvedAt);
+    const rfqRows = fromRfq.length
+      ? await db.select({ id: rfqs.id, createdAt: rfqs.createdAt }).from(rfqs).where(inArray(rfqs.id, fromRfq.map((o) => o.rfqId!)))
+      : [];
+    const rfqCreated = new Map(rfqRows.map((r) => [r.id, r.createdAt]));
+    const cycles = fromRfq
+      .map((o) => {
+        const created = rfqCreated.get(o.rfqId!);
+        return created ? (o.approvedAt!.getTime() - created.getTime()) / 86400000 : null;
+      })
+      .filter((d): d is number => d !== null && d >= 0);
+
+    // Savings
+    const awarded = await db
+      .select({ rfqItemId: poItems.rfqItemId, quantity: poItems.quantity, unitPrice: poItems.unitPrice })
+      .from(poItems)
+      .where(and(inArray(poItems.poId, orderIds), isNotNull(poItems.rfqItemId)));
+    const quoted = awarded.length
+      ? await db
+          .select({
+            rfqItemId: quotationItems.rfqItemId,
+            highest: sql<string>`max(${quotationItems.unitPrice})`,
+            quotes: sql<number>`count(distinct ${quotationItems.quotationId})::int`,
+          })
+          .from(quotationItems)
+          .where(inArray(quotationItems.rfqItemId, awarded.map((a) => a.rfqItemId!)))
+          .groupBy(quotationItems.rfqItemId)
+      : [];
+    const quoteStats = new Map(quoted.map((q) => [q.rfqItemId, q]));
+    let amount = 0;
+    let comparedLines = 0;
+    for (const line of awarded) {
+      const stats = quoteStats.get(line.rfqItemId);
+      if (!stats || stats.quotes < 2) continue;
+      comparedLines += 1;
+      amount += Math.max(0, Number(stats.highest) - Number(line.unitPrice)) * Number(line.quantity);
+    }
+
+    return {
+      savings: { amount, comparedLines, awardedLines: awarded.length },
+      cycle: {
+        avgDays: cycles.length ? Math.round((cycles.reduce((a, b) => a + b, 0) / cycles.length) * 10) / 10 : null,
+        orders: cycles.length,
+      },
+      suppliers: supplierRows,
+    };
+  }
+
+  // A cancelled issue voucher leaves its "out" in the ledger plus a reversing return. Neither
+  // is real consumption or a real receipt, so activity figures leave both out.
+  private notFromCancelledIssue() {
+    return sql`not (${stockMovements.sourceType} = 'issue' and ${stockMovements.sourceId} in (select ${materialIssues.id} from ${materialIssues} where ${materialIssues.status} = 'cancelled'))`;
+  }
+
+  async getStockActivity(projectId: string): Promise<StockActivity> {
+    const windowStart = this.dateDaysAgo(30);
+    const inWindow = and(
+      eq(stockMovements.projectId, projectId),
+      gte(stockMovements.movementDate, windowStart),
+      this.notFromCancelledIssue(),
+    );
+
+    // A transfer moves stock between two warehouses of the same project: nothing came in or went out
+    const days = await db
+      .select({
+        date: stockMovements.movementDate,
+        in: sql<number>`sum(case when ${stockMovements.movementType} in ('in', 'return_from_site', 'adjustment_in', 'opening_balance') then 1 else 0 end)::int`,
+        out: sql<number>`sum(case when ${stockMovements.movementType} in ('out', 'return_to_supplier', 'adjustment_out', 'waste') then 1 else 0 end)::int`,
+      })
+      .from(stockMovements)
+      .where(and(inWindow, not(inArray(stockMovements.movementType, ["transfer_in", "transfer_out"]))))
+      .groupBy(stockMovements.movementDate)
+      .orderBy(stockMovements.movementDate);
+
+    const topIssued = await db
+      .select({
+        materialId: stockMovements.materialId,
+        materialName: materials.materialName,
+        unit: materials.unit,
+        quantity: sql<string>`sum(${stockMovements.quantity})`,
+        count: sql<number>`count(*)::int`,
+      })
+      .from(stockMovements)
+      .innerJoin(materials, eq(stockMovements.materialId, materials.id))
+      .where(and(inWindow, eq(stockMovements.movementType, "out")))
+      .groupBy(stockMovements.materialId, materials.materialName, materials.unit)
+      .orderBy(desc(sql`count(*)`), desc(sql`sum(${stockMovements.quantity})`))
+      .limit(5);
+
+    const recipients = await db
+      .select({
+        name: materialIssues.issuedTo,
+        recipientType: materialIssues.recipientType,
+        vouchers: sql<number>`count(distinct ${materialIssues.id})::int`,
+        lines: sql<number>`count(${materialIssueItems.id})::int`,
+      })
+      .from(materialIssues)
+      .leftJoin(materialIssueItems, eq(materialIssueItems.issueId, materialIssues.id))
+      .where(and(eq(materialIssues.projectId, projectId), eq(materialIssues.status, "issued"), gte(materialIssues.issueDate, windowStart)))
+      .groupBy(materialIssues.issuedTo, materialIssues.recipientType)
+      .orderBy(desc(sql`count(${materialIssueItems.id})`))
+      .limit(6);
+
+    return {
+      days,
+      topIssued: topIssued.map((m) => ({ ...m, quantity: Number(m.quantity ?? 0) })),
+      recipients,
+    };
+  }
+
+  async getStockInsights(projectId: string): Promise<StockInsight[]> {
+    const windowStart = this.dateDaysAgo(30);
+
+    const moved = await db
+      .select({
+        materialId: stockMovements.materialId,
+        lastMovementDate: max(stockMovements.movementDate),
+        issued: sql<string>`coalesce(sum(case when ${stockMovements.movementType} = 'out' and ${stockMovements.movementDate} >= ${windowStart} and ${this.notFromCancelledIssue()} then ${stockMovements.quantity} else 0 end), 0)`,
+      })
+      .from(stockMovements)
+      .where(eq(stockMovements.projectId, projectId))
+      .groupBy(stockMovements.materialId);
+
+    // Newest order first, so the first line seen for a material carries its latest price
+    const priced = await db
+      .select({
+        materialId: poItems.materialId,
+        unitPrice: poItems.unitPrice,
+        orderUnit: poItems.unit,
+        stockUnit: materials.unit,
+      })
+      .from(poItems)
+      .innerJoin(purchaseOrders, eq(poItems.poId, purchaseOrders.id))
+      .innerJoin(materials, eq(poItems.materialId, materials.id))
+      .where(and(eq(purchaseOrders.projectId, projectId), not(inArray(purchaseOrders.status, ["draft", "cancelled"]))))
+      .orderBy(desc(purchaseOrders.orderDate), desc(purchaseOrders.createdAt));
+
+    const insights = new Map<string, StockInsight>();
+    const entry = (materialId: string) => {
+      let e = insights.get(materialId);
+      if (!e) {
+        e = { materialId, lastMovementDate: null, issuedInWindow: 0, unitPrice: null, priceUnitMismatch: false };
+        insights.set(materialId, e);
+      }
+      return e;
+    };
+
+    for (const m of moved) {
+      const e = entry(m.materialId);
+      e.lastMovementDate = m.lastMovementDate ?? null;
+      e.issuedInWindow = Number(m.issued ?? 0);
+    }
+
+    const seen = new Set<string>();
+    for (const p of priced) {
+      if (!p.materialId || seen.has(p.materialId)) continue;
+      seen.add(p.materialId);
+      const e = entry(p.materialId);
+      // A price per ton says nothing about a balance kept in kg
+      if (normalizeUnit(p.orderUnit) === normalizeUnit(p.stockUnit)) e.unitPrice = Number(p.unitPrice);
+      else e.priceUnitMismatch = true;
+    }
+
+    return Array.from(insights.values());
   }
 
   async getLowStockMaterials(projectId: string): Promise<StockBalance[]> {
@@ -5820,12 +6062,37 @@ export class DatabaseStorage implements IStorage {
       // A subcontractor recipient is one of this project's registered subcontractors; its name is what the voucher shows
       let issuedTo = input.issuedTo;
       let subcontractorId: string | null = null;
+      let contractId: string | null = null;
+      let requestedLocationIds = Array.from(
+        new Set([
+          ...(Array.isArray(input.workLocationIds) ? input.workLocationIds : []),
+          ...(input.workLocationId ? [input.workLocationId] : []),
+        ].filter(Boolean))
+      );
       if (input.subcontractorId) {
         if (input.recipientType !== "subcontractor") throw new Error("مقاول الباطن يُحدَّد فقط عندما تكون صفة المستلم مقاول باطن");
         const [sub] = await tx.select().from(projectSubcontractors).where(eq(projectSubcontractors.id, input.subcontractorId));
         if (!sub || sub.projectId !== input.projectId) throw new Error("مقاول الباطن لا ينتمي لهذا المشروع");
         issuedTo = sub.name;
         subcontractorId = sub.id;
+
+        if (input.contractId) {
+          const [contract] = await tx.select().from(subcontractorContracts).where(eq(subcontractorContracts.id, input.contractId));
+          if (!contract || contract.projectId !== input.projectId || contract.subcontractorId !== sub.id) {
+            throw new Error("العقد المختار لا ينتمي لهذا المقاول الباطني");
+          }
+          if (contract.status !== "active") {
+            throw new Error("لا يمكن صرف مواد على عقد مقفل أو تمت مخالصته النهائية");
+          }
+          if (Array.isArray(contract.workLocationIds) && contract.workLocationIds.length > 0) {
+            if (requestedLocationIds.length === 0) {
+              requestedLocationIds = [...contract.workLocationIds];
+            } else if (requestedLocationIds.some((id) => !contract.workLocationIds.includes(id))) {
+              throw new Error("المبنى / موقع العمل المختار غير مشمول في هذا العقد");
+            }
+          }
+          contractId = contract.id;
+        }
       }
 
       // Validate every line and work out whether the voucher needs approval before
@@ -5865,7 +6132,9 @@ export class DatabaseStorage implements IStorage {
           issuedTo,
           recipientType: input.recipientType,
           subcontractorId,
-          workLocationId: input.workLocationId ?? null,
+          contractId,
+          workLocationId: requestedLocationIds[0] ?? input.workLocationId ?? null,
+          workLocationIds: requestedLocationIds,
           purpose: input.purpose ?? null,
           // Stock only moves when the voucher reaches 'issued'.
           status: requiresApproval ? "pending_approval" : "issued",
@@ -5987,24 +6256,55 @@ export class DatabaseStorage implements IStorage {
       .select({
         issue: materialIssues,
         warehouseName: warehouses.name,
+        workLocation: workLocations,
       })
       .from(materialIssues)
       .leftJoin(warehouses, eq(materialIssues.warehouseId, warehouses.id))
+      .leftJoin(workLocations, eq(materialIssues.workLocationId, workLocations.id))
       .where(eq(materialIssues.projectId, projectId))
       .orderBy(desc(materialIssues.issueDate), desc(materialIssues.createdAt));
 
     if (rows.length === 0) return [];
     const ids = rows.map((r) => r.issue.id);
-    const allItems = await db
-      .select()
-      .from(materialIssueItems)
-      .where(inArray(materialIssueItems.issueId, ids));
+    const [allItems, projectLocations, projectContracts] = await Promise.all([
+      db.select().from(materialIssueItems).where(inArray(materialIssueItems.issueId, ids)),
+      db.select().from(workLocations).where(eq(workLocations.projectId, projectId)),
+      db.select().from(subcontractorContracts).where(eq(subcontractorContracts.projectId, projectId)).catch(() => []),
+    ]);
+    const locMap = new Map(projectLocations.map((l) => [l.id, l]));
+    const cntMap = new Map(projectContracts.map((c) => [c.id, c]));
+    const formatLoc = (wl: any) =>
+      `${wl.unitCustomNumber || "N/A"} - ${[wl.unitZone, wl.floor].filter(Boolean).join(" ")} (${wl.buildingNo || "No Bldg"}, ${wl.part || "No Part"})`.replace(/\s+/g, " ").trim();
 
-    return rows.map((r) => ({
-      ...r.issue,
-      warehouseName: r.warehouseName,
-      items: allItems.filter((i) => i.issueId === r.issue.id),
-    }));
+    return rows.map((r) => {
+      const locIds = r.issue.workLocationIds?.length
+        ? r.issue.workLocationIds
+        : r.issue.workLocationId
+          ? [r.issue.workLocationId]
+          : [];
+      const picked = locIds.map((id) => locMap.get(id)).filter(Boolean) as any[];
+      let workLocationName: string | null = null;
+      if (picked.length === 1) {
+        workLocationName = formatLoc(picked[0]);
+      } else if (picked.length > 1) {
+        const bldgs = Array.from(new Set(picked.map((l) => l.buildingNo).filter(Boolean)));
+        workLocationName =
+          bldgs.length === 1
+            ? `Building ${bldgs[0]} (${picked.length} units)`
+            : `Buildings ${bldgs.join(", ")} (${picked.length} units)`;
+      } else if (r.workLocation) {
+        workLocationName = formatLoc(r.workLocation);
+      }
+      const cnt = r.issue.contractId ? cntMap.get(r.issue.contractId) : undefined;
+      return {
+        ...r.issue,
+        warehouseName: r.warehouseName,
+        workLocationName,
+        contractNo: cnt?.contractNo ?? null,
+        contractTitle: cnt?.title ?? null,
+        items: allItems.filter((i) => i.issueId === r.issue.id),
+      };
+    });
   }
 
   // Records a shipment against an approved purchase order. Everything happens in one
@@ -6154,6 +6454,11 @@ export class DatabaseStorage implements IStorage {
         throw new Error(`لا يمكن اعتماد أمر شراء بحالة "${po.status}". الاعتماد متاح للمسودات فقط.`);
       }
 
+      // Late deliveries and supplier reliability are both measured against this date
+      if (!po.expectedDeliveryDate) {
+        throw new Error("حدّد تاريخ التوريد المتوقع قبل اعتماد أمر الشراء.");
+      }
+
       const lines = await tx.select().from(poItems).where(eq(poItems.poId, id));
       if (lines.length === 0) {
         throw new Error("لا يمكن اعتماد أمر شراء بلا بنود.");
@@ -6280,6 +6585,8 @@ export class DatabaseStorage implements IStorage {
             supplierId: quote.supplierId,
             title: `${rfq.rfqNumber} - ${quote.supplierName}`,
             status: "draft",
+            // The supplier's quoted lead time gives a first estimate; it stays editable while the order is a draft
+            expectedDeliveryDate: quote.leadTimeDays != null ? this.dateDaysAgo(-quote.leadTimeDays) : null,
             subtotal: subtotal.toFixed(2),
             taxAmount: tax.toFixed(2),
             discountAmount: discount.toFixed(2),
@@ -6343,18 +6650,81 @@ export class DatabaseStorage implements IStorage {
     }));
   }
 
+  // Approval cannot be undone, so what was approved must not change underneath the approver
+  private async assertPoIsDraft(poId: string): Promise<void> {
+    const [po] = await db.select({ status: purchaseOrders.status }).from(purchaseOrders).where(eq(purchaseOrders.id, poId));
+    if (!po) throw new Error("أمر الشراء غير موجود");
+    if (po.status !== "draft") throw new Error("لا يمكن تعديل بنود أمر شراء بعد اعتماده.");
+  }
+
+  private async assertPoItemIsDraft(itemId: string): Promise<void> {
+    const [item] = await db.select({ poId: poItems.poId }).from(poItems).where(eq(poItems.id, itemId));
+    if (!item) throw new Error("بند أمر الشراء غير موجود");
+    await this.assertPoIsDraft(item.poId);
+  }
+
   async createPoItem(data: InsertPoItem): Promise<PoItem> {
+    await this.assertPoIsDraft(data.poId);
     const [item] = await db.insert(poItems).values(data).returning();
     return item;
   }
 
   async updatePoItem(id: string, data: UpdatePoItem): Promise<PoItem> {
+    await this.assertPoItemIsDraft(id);
     const [item] = await db.update(poItems).set(data).where(eq(poItems.id, id)).returning();
     return item;
   }
 
   async deletePoItem(id: string): Promise<void> {
+    await this.assertPoItemIsDraft(id);
     await db.delete(poItems).where(eq(poItems.id, id));
+  }
+
+  // Edits a draft order's quantities, prices and delivery date, and recomputes its totals the
+  // way the create form does: tax is charged on the subtotal after discount, at the order's own rate.
+  async reviseDraftPurchaseOrder(
+    id: string,
+    changes: { expectedDeliveryDate?: string | null; lines?: { id: string; quantity: number; unitPrice: number }[] },
+  ): Promise<PurchaseOrder> {
+    return await db.transaction(async (tx) => {
+      const [po] = await tx.select().from(purchaseOrders).where(eq(purchaseOrders.id, id));
+      if (!po) throw new Error("أمر الشراء غير موجود");
+      if (po.status !== "draft") throw new Error("لا يمكن تعديل أمر شراء بعد اعتماده.");
+
+      const existing = await tx.select().from(poItems).where(eq(poItems.poId, id));
+      const known = new Set(existing.map((l) => l.id));
+      for (const line of changes.lines ?? []) {
+        if (!known.has(line.id)) throw new Error("أحد البنود لا يتبع هذا الأمر.");
+        await tx
+          .update(poItems)
+          .set({
+            quantity: line.quantity.toFixed(2),
+            unitPrice: line.unitPrice.toFixed(2),
+            totalPrice: (line.quantity * line.unitPrice).toFixed(2),
+          })
+          .where(eq(poItems.id, line.id));
+      }
+
+      const oldTaxable = Number(po.subtotal ?? 0) - Number(po.discountAmount ?? 0);
+      const taxRate = oldTaxable > 0 ? Number(po.taxAmount ?? 0) / oldTaxable : 0;
+      const lines = await tx.select().from(poItems).where(eq(poItems.poId, id));
+      const subtotal = lines.reduce((sum, l) => sum + Number(l.totalPrice ?? 0), 0);
+      const taxable = Math.max(0, subtotal - Number(po.discountAmount ?? 0));
+      const tax = taxable * taxRate;
+
+      const [updated] = await tx
+        .update(purchaseOrders)
+        .set({
+          subtotal: subtotal.toFixed(2),
+          taxAmount: tax.toFixed(2),
+          totalAmount: (taxable + tax).toFixed(2),
+          ...(changes.expectedDeliveryDate !== undefined ? { expectedDeliveryDate: changes.expectedDeliveryDate } : {}),
+          updatedAt: new Date(),
+        })
+        .where(eq(purchaseOrders.id, id))
+        .returning();
+      return updated;
+    });
   }
 }
 

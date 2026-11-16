@@ -6887,30 +6887,39 @@ export default function RequestDetail() {
                   )}
                 </div>
               </div>
-              <Command className="border rounded-md" shouldFilter={false}>
+              <Command className="border rounded-md shadow-sm" shouldFilter={false}>
                 <CommandInput
                   placeholder="Search unit, zone, block..."
                   value={editLocationSearch}
                   onValueChange={setEditLocationSearch}
                 />
-                <CommandList className="max-h-[300px]">
+                <div className="grid grid-cols-[1fr_1fr_1.4fr_1.2fr_0.8fr_28px] items-center gap-2 px-3 py-2 bg-muted/60 border-b text-[11px] font-bold text-muted-foreground">
+                  <span>Unit</span>
+                  <span>Zone</span>
+                  <span>Floor</span>
+                  <span>Building</span>
+                  <span>Part</span>
+                  <span className="text-center"></span>
+                </div>
+                <CommandList className="max-h-[280px]">
                   <CommandEmpty>No locations found.</CommandEmpty>
-                  <CommandGroup>
+                  <CommandGroup className="p-0">
                     {editFilteredWorkLocations.map((location: WorkLocation) => (
                       <CommandItem
                         key={location.id}
                         value={`${location.unitCustomNumber} ${location.unitZone} ${location.unitBlock} ${location.buildingNo} ${location.floor} ${location.part}`}
                         onSelect={() => handleEditAddLocationById(location.id)}
-                        className="cursor-pointer"
+                        className="cursor-pointer px-3 py-2 rounded-none border-b border-border/40 last:border-b-0"
                       >
-                        <div className="flex items-center justify-between w-full">
-                          <span>
-                            {location.unitCustomNumber || "N/A"} - {location.unitZone || ""} {location.floor || ""}
-                            <span className="text-xs text-muted-foreground ms-2">
-                              ({location.buildingNo || "No Bldg"}, {location.part || "No Part"})
-                            </span>
+                        <div className="grid grid-cols-[1fr_1fr_1.4fr_1.2fr_0.8fr_28px] items-center gap-2 w-full text-xs">
+                          <span className="font-semibold tabular-nums">{location.unitCustomNumber || "—"}</span>
+                          <span className="text-muted-foreground tabular-nums">{location.unitZone || "—"}</span>
+                          <span className="truncate">{location.floor || "—"}</span>
+                          <span className="font-medium tabular-nums">{location.buildingNo || "—"}</span>
+                          <span className="text-muted-foreground tabular-nums">{location.part || "—"}</span>
+                          <span className="flex justify-center">
+                            <Plus className="h-4 w-4 opacity-50" />
                           </span>
-                          <Plus className="h-4 w-4 opacity-50" />
                         </div>
                       </CommandItem>
                     ))}
@@ -6919,21 +6928,58 @@ export default function RequestDetail() {
               </Command>
             </div>
 
-            <div className="flex flex-wrap gap-2 mt-2">
-              {editSelectedLocations.map((loc) => (
-                <Badge key={loc.id} variant="secondary" className="gap-1 pe-1">
-                  {loc.unit || loc.building}
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-4 w-4 rounded-full p-0 hover:bg-muted"
-                    onClick={() => handleEditRemoveLocation(loc.id)}
-                  >
-                    <Trash2 className="h-3 w-3" />
-                  </Button>
-                </Badge>
-              ))}
-            </div>
+            {editSelectedLocations.length > 0 && (
+              <div className="flex flex-wrap gap-2 mt-2 max-h-36 overflow-y-auto p-1">
+                {Array.from(
+                  editSelectedLocations.reduce((map, loc) => {
+                    const fullLoc = projectWorkLocations.find((p) => p.id === loc.id);
+                    const b = String(fullLoc?.buildingNo || loc.building || "No Bldg").trim();
+                    const list = map.get(b) ?? [];
+                    list.push({ ...loc, cleanUnit: fullLoc?.unitCustomNumber || (loc.unit ? loc.unit.split(" ")[0] : "—") });
+                    map.set(b, list);
+                    return map;
+                  }, new Map<string, Array<SelectedWorkLocation & { cleanUnit: string }>>())
+                )
+                  .sort((a, b) => a[0].localeCompare(b[0], undefined, { numeric: true, sensitivity: "base" }))
+                  .map(([bNo, items]) => (
+                    <div
+                      key={bNo}
+                      className="inline-flex flex-wrap items-center gap-1.5 rounded-2xl border border-primary/30 bg-primary/5 px-2.5 py-1.5 shadow-sm"
+                    >
+                      <span className="inline-flex items-center gap-1 rounded-xl bg-primary text-primary-foreground px-2.5 py-0.5 text-xs font-bold tabular-nums shadow-xs">
+                        <span>{bNo}</span>
+                        <button
+                          type="button"
+                          onClick={() => items.forEach((i) => handleEditRemoveLocation(i.id))}
+                          className="ms-0.5 rounded-full p-0.5 hover:bg-black/15 transition-colors"
+                          title="Remove building"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </button>
+                      </span>
+                      <div className="flex flex-wrap items-center gap-1">
+                        {[...items]
+                          .sort((a, b) => (a.cleanUnit || "").localeCompare(b.cleanUnit || "", undefined, { numeric: true, sensitivity: "base" }))
+                          .map((loc) => (
+                            <span
+                              key={loc.id}
+                              className="inline-flex items-center gap-1 rounded-lg bg-background border border-border/80 px-2 py-0.5 text-xs font-semibold tabular-nums shadow-xs"
+                            >
+                              <span>{loc.cleanUnit}</span>
+                              <button
+                                type="button"
+                                onClick={() => handleEditRemoveLocation(loc.id)}
+                                className="text-muted-foreground hover:text-destructive transition-colors"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                              </button>
+                            </span>
+                          ))}
+                      </div>
+                    </div>
+                  ))}
+              </div>
+            )}
           </div>
           <DialogFooter className="pt-4 mt-2">
             <Button variant="default" onClick={() => setEditAddLocationOpen(false)} className="w-full">

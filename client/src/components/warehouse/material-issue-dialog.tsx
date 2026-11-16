@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation, Trans } from "react-i18next";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Trash2, Warehouse, AlertTriangle, ShieldCheck, Send } from "lucide-react";
+import { Plus, Trash2, Warehouse, AlertTriangle, ShieldCheck, Send, MapPin } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -21,7 +21,13 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { cn } from "@/lib/utils";
 import type { StockBalance } from "@shared/schema";
-import { SubcontractorSelect } from "@/components/payments/subcontractor-select";
+import {
+  SubcontractorSelect,
+  useSubcontractorContracts,
+  SubcontractorContractDialog,
+  WorkLocationPickerDialog,
+  summarizeWorkLocations,
+} from "@/components/payments/subcontractor-select";
 
 interface MaterialIssueDialogProps {
   open: boolean;
@@ -46,8 +52,11 @@ export function MaterialIssueDialog({ open, onOpenChange, projectId, warehouses 
   const [issueDate, setIssueDate] = useState(today());
   const [issuedTo, setIssuedTo] = useState("");
   const [subcontractorId, setSubcontractorId] = useState("");
+  const [contractId, setContractId] = useState("");
+  const [addingContract, setAddingContract] = useState(false);
   const [recipientType, setRecipientType] = useState("subcontractor");
-  const [workLocationId, setWorkLocationId] = useState("");
+  const [workLocationIds, setWorkLocationIds] = useState<string[]>([]);
+  const [locationPickerOpen, setLocationPickerOpen] = useState(false);
   const [purpose, setPurpose] = useState("");
   const [lines, setLines] = useState<Line[]>([]);
   const [picking, setPicking] = useState("");
@@ -68,12 +77,51 @@ export function MaterialIssueDialog({ open, onOpenChange, projectId, warehouses 
     enabled: open,
   });
 
+  const { data: contracts = [] } = useSubcontractorContracts(projectId);
+  const activeSubContracts = useMemo(
+    () =>
+      recipientType === "subcontractor" && subcontractorId
+        ? contracts.filter((c) => c.subcontractorId === subcontractorId && c.status === "active")
+        : [],
+    [recipientType, subcontractorId, contracts]
+  );
+  const selectedContract = useMemo(
+    () => activeSubContracts.find((c) => c.id === contractId),
+    [activeSubContracts, contractId]
+  );
+  const assignedLocationIds = useMemo(
+    () => (selectedContract?.workLocationIds?.length ? selectedContract.workLocationIds : []),
+    [selectedContract]
+  );
+  const availableWorkLocations = useMemo(() => {
+    if (assignedLocationIds.length === 0) return workLocations;
+    const set = new Set(assignedLocationIds);
+    return workLocations.filter((l) => set.has(l.id));
+  }, [workLocations, assignedLocationIds]);
+
+  useEffect(() => {
+    if (activeSubContracts.length === 1) {
+      setContractId(activeSubContracts[0].id);
+    } else if (contractId && !activeSubContracts.some((c) => c.id === contractId)) {
+      setContractId("");
+    }
+  }, [activeSubContracts, contractId]);
+
+  useEffect(() => {
+    if (assignedLocationIds.length > 0) {
+      setWorkLocationIds([...assignedLocationIds]);
+    } else {
+      setWorkLocationIds([]);
+    }
+  }, [assignedLocationIds]);
+
   useEffect(() => {
     if (!open) return;
     setLines([]);
     setIssuedTo("");
     setPurpose("");
-    setWorkLocationId("");
+    setWorkLocationIds([]);
+    setContractId("");
     setIssueDate(today());
     setRecipientType("subcontractor");
     setSubcontractorId("");
@@ -113,6 +161,9 @@ export function MaterialIssueDialog({ open, onOpenChange, projectId, warehouses 
     mutationFn: async () => {
       if (!warehouseId) throw new Error(t("issue_dialog.errors.choose_warehouse"));
       if (!issuedTo.trim()) throw new Error(t("issue_dialog.errors.recipient_required"));
+      if (assignedLocationIds.length > 0 && workLocationIds.length === 0) {
+        throw new Error(t("issue_dialog.errors.work_location_required"));
+      }
       const payload = lines.filter((l) => Number(l.quantity) > 0);
       if (payload.length === 0) throw new Error(t("issue_dialog.errors.enter_at_least_one"));
 
@@ -126,8 +177,10 @@ export function MaterialIssueDialog({ open, onOpenChange, projectId, warehouses 
         issueDate,
         issuedTo: issuedTo.trim(),
         subcontractorId: recipientType === "subcontractor" && subcontractorId ? subcontractorId : null,
+        contractId: recipientType === "subcontractor" && contractId ? contractId : null,
         recipientType,
-        workLocationId: workLocationId || null,
+        workLocationId: workLocationIds[0] || null,
+        workLocationIds,
         purpose: purpose || null,
         items: payload.map((l) => ({
           materialId: l.materialId,
@@ -230,24 +283,91 @@ export function MaterialIssueDialog({ open, onOpenChange, projectId, warehouses 
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label className="text-xs font-bold">{t("issue_dialog.work_location")}</Label>
-              <Select value={workLocationId || "none"} onValueChange={(v) => setWorkLocationId(v === "none" ? "" : v)}>
-                <SelectTrigger className="h-10 rounded-xl">
-                  <SelectValue placeholder={t("issue_dialog.unassigned")} />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">{t("issue_dialog.unassigned")}</SelectItem>
-                  {workLocations.map((l) => (
-                    <SelectItem key={l.id} value={l.id}>
-                      {[l.unitCustomNumber, l.villaType, l.buildingNo, l.flatNo].filter(Boolean).join(" · ") ||
-                        l.unitDescription ||
-                        l.id.slice(0, 8)}
+          <div className={cn("grid grid-cols-1 gap-3", recipientType === "subcontractor" ? "md:grid-cols-3" : "md:grid-cols-2")}>
+            {recipientType === "subcontractor" && (
+              <div className="space-y-1.5">
+                <Label className="text-xs font-bold">{t("issue_dialog.contract_label")}</Label>
+                <Select
+                  value={contractId || "__none__"}
+                  disabled={!subcontractorId}
+                  onValueChange={(v) => {
+                    if (v === "__new__") setAddingContract(true);
+                    else setContractId(v === "__none__" ? "" : v);
+                  }}
+                >
+                  <SelectTrigger className="h-10 rounded-xl text-xs">
+                    <SelectValue placeholder={t("issue_dialog.select_contract_placeholder")} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">{t("issue_dialog.no_contract")}</SelectItem>
+                    {activeSubContracts.map((c) => (
+                      <SelectItem key={c.id} value={c.id}>
+                        {c.contractNo} — {c.title}
+                      </SelectItem>
+                    ))}
+                    <SelectItem value="__new__">
+                      <span className="flex items-center gap-1 font-semibold text-primary">
+                        <Plus className="w-3.5 h-3.5" /> {t("issue_dialog.new_contract_inline")}
+                      </span>
                     </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                  </SelectContent>
+                </Select>
+                {addingContract && (
+                  <SubcontractorContractDialog
+                    projectId={projectId}
+                    onClose={() => setAddingContract(false)}
+                    onSaved={(saved) => {
+                      setAddingContract(false);
+                      setContractId(saved.id);
+                    }}
+                  />
+                )}
+              </div>
+            )}
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between gap-2">
+                <Label className="text-xs font-bold">
+                  {assignedLocationIds.length > 0 ? (
+                    <>
+                      {t("issue_dialog.work_location_required_label")} <span className="text-destructive">*</span>
+                    </>
+                  ) : (
+                    t("issue_dialog.work_location")
+                  )}
+                </Label>
+                {assignedLocationIds.length > 0 && (
+                  <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4 font-bold">
+                    {t("issue_dialog.filtered_by_subcontractor", { count: availableWorkLocations.length })}
+                  </Badge>
+                )}
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full h-10 rounded-xl justify-between font-normal text-xs"
+                onClick={() => setLocationPickerOpen(true)}
+              >
+                <span className={cn("truncate flex items-center gap-1.5", workLocationIds.length === 0 && "text-muted-foreground")}>
+                  <MapPin className="w-3.5 h-3.5 text-primary shrink-0" />
+                  {workLocationIds.length > 0
+                    ? summarizeWorkLocations(workLocations, workLocationIds)
+                    : assignedLocationIds.length > 0
+                      ? t("issue_dialog.select_assigned_building")
+                      : t("issue_dialog.unassigned")}
+                </span>
+                <Badge variant="secondary" className="text-[10px] shrink-0">
+                  {workLocationIds.length > 0 ? `${workLocationIds.length} selected` : "Select"}
+                </Badge>
+              </Button>
+              <WorkLocationPickerDialog
+                open={locationPickerOpen}
+                onOpenChange={setLocationPickerOpen}
+                locations={availableWorkLocations}
+                selectedIds={workLocationIds}
+                onChangeSelectedIds={setWorkLocationIds}
+                multiple={true}
+                title="Add Work Locations"
+              />
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs font-bold">{t("issue_dialog.purpose")}</Label>
@@ -288,10 +408,10 @@ export function MaterialIssueDialog({ open, onOpenChange, projectId, warehouses 
               <Table>
                 <TableHeader>
                   <TableRow className="bg-muted/30 hover:bg-muted/30">
-                    <TableHead className="text-end text-[11px] font-black">{t("issue_dialog.table.material")}</TableHead>
-                    <TableHead className="text-end text-[11px] font-black">{t("issue_dialog.table.available")}</TableHead>
-                    <TableHead className="text-end text-[11px] font-black w-[130px]">{t("issue_dialog.table.quantity")}</TableHead>
-                    <TableHead className="text-end text-[11px] font-black">{t("issue_dialog.table.note")}</TableHead>
+                    <TableHead className="text-start text-[11px] font-black">{t("issue_dialog.table.material")}</TableHead>
+                    <TableHead className="text-start text-[11px] font-black">{t("issue_dialog.table.available")}</TableHead>
+                    <TableHead className="text-start text-[11px] font-black w-[130px]">{t("issue_dialog.table.quantity")}</TableHead>
+                    <TableHead className="text-start text-[11px] font-black">{t("issue_dialog.table.note")}</TableHead>
                     <TableHead className="w-10" />
                   </TableRow>
                 </TableHeader>

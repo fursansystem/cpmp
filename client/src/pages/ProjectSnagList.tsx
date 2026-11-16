@@ -37,7 +37,7 @@ import {
   ClipboardCheck, Plus, ArrowLeft, Filter, AlertTriangle, CheckCircle2,
   Clock, CheckSquare, Image as ImageIcon, MapPin, Layers, User as UserIcon,
   Trash2, Edit, Pencil, AlertCircle, Eye, MoreVertical, LayoutGrid, List, Search,
-  FileText, Building2, Target, RotateCcw, Calendar, Printer, FileDown, Upload, Loader2, Database, X
+  FileText, Building2, Target, RotateCcw, Calendar, Printer, FileDown, Upload, Loader2, Database, X, Check
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "@/lib/date-format";
@@ -3218,9 +3218,17 @@ export default function ProjectSnagList() {
                   value={locationSearch}
                   onValueChange={setLocationSearch}
                 />
-                <CommandList className="max-h-[300px]">
+                <div className="grid grid-cols-[1fr_1fr_1.4fr_1.2fr_0.8fr_28px] items-center gap-2 px-3 py-2 bg-muted/60 border-b text-[11px] font-bold text-muted-foreground">
+                  <span>Unit</span>
+                  <span>Zone</span>
+                  <span>Floor</span>
+                  <span>Building</span>
+                  <span>Part</span>
+                  <span className="text-center"></span>
+                </div>
+                <CommandList className="max-h-[280px]">
                   <CommandEmpty>No locations found.</CommandEmpty>
-                  <CommandGroup>
+                  <CommandGroup className="p-0">
                     {filteredWorkLocations.map((location: WorkLocation) => {
                       const isSelected = itemWorkLocationId === location.id;
                       return (
@@ -3231,18 +3239,23 @@ export default function ProjectSnagList() {
                             setItemWorkLocationId(location.id);
                           }}
                           className={cn(
-                            "cursor-pointer transition-colors",
-                            isSelected ? "bg-primary/10 font-medium text-primary" : ""
+                            "cursor-pointer px-3 py-2 rounded-none border-b border-border/40 last:border-b-0",
+                            isSelected ? "bg-primary/10 font-semibold" : ""
                           )}
                         >
-                          <div className="flex items-center justify-between w-full">
-                            <span>
-                              {location.unitCustomNumber || "N/A"} - {location.unitZone || ""} {location.floor || ""}
-                              <span className="text-xs text-muted-foreground ms-2">
-                                ({location.buildingNo || "No Bldg"}, {location.part || "No Part"})
-                              </span>
+                          <div className="grid grid-cols-[1fr_1fr_1.4fr_1.2fr_0.8fr_28px] items-center gap-2 w-full text-xs">
+                            <span className="font-semibold tabular-nums">{location.unitCustomNumber || "—"}</span>
+                            <span className="text-muted-foreground tabular-nums">{location.unitZone || "—"}</span>
+                            <span className="truncate">{location.floor || "—"}</span>
+                            <span className="font-medium tabular-nums">{location.buildingNo || "—"}</span>
+                            <span className="text-muted-foreground tabular-nums">{location.part || "—"}</span>
+                            <span className="flex justify-center">
+                              {isSelected ? (
+                                <Check className="h-4 w-4 text-primary" />
+                              ) : (
+                                <Plus className="h-4 w-4 opacity-50" />
+                              )}
                             </span>
-                            <Plus className={cn("h-4 w-4 opacity-50", isSelected ? "text-primary opacity-100" : "")} />
                           </div>
                         </CommandItem>
                       );

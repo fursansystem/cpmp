@@ -1,418 +1,253 @@
-import { useQuery } from "@tanstack/react-query";
-import { FileText, TrendingUp, Activity as ActivityIcon, AlertCircle, Package, FolderOpen, ClipboardList } from "lucide-react";
-import { Card, CardContent } from "@/components/ui/card";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Badge } from "@/components/ui/badge";
+// Project Pulse — the home page. Two questions, answered on the first screen: what is waiting on me,
+// and how are my projects doing. Navigation lives in the sidebar, so nothing here is a menu: every
+// figure opens the list behind it.
+//
+// The counting happens on the server (/api/home/summary); this file lays the answer out on a
+// 12-column grid and keeps the three filters in the URL, so a filtered view can be shared or reloaded.
+import { useEffect, useMemo } from "react";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
+import { useLocation, useSearch } from "wouter";
+import { FolderKanban, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { WaitingActionCard } from "@/components/waiting-action-card";
-import { PendingsCard } from "@/components/pendings-card";
-import { CompletedCard } from "@/components/completed-card";
-import { TotalRequestsCard } from "@/components/total-requests-card";
-import type { Project, Task, Request, WorkflowStep, Activity } from "@shared/schema";
-import { useState, useEffect, useMemo } from "react";
-import { format } from "@/lib/date-format";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, LabelList, Cell } from "recharts";
-import { cn } from "@/lib/utils";
+import { Card } from "@/components/ui/card";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useAuth } from "@/lib/auth";
+import { timeAgo } from "@/lib/i18n-format";
+import { localizedName } from "@/lib/localized";
+import { DEFAULT_HOME_PERIOD, HOME_PERIODS, type HomeSummary } from "@shared/home";
+import type { PaymentsReport } from "@shared/payments";
+import type { Notification } from "@shared/schema";
+import { ActivityPanel } from "@/components/home/activity-panel";
+import { FormsPanel } from "@/components/home/forms-panel";
+import { HealthCard } from "@/components/home/health-card";
+import { KpiStrip, KpiStripSkeleton } from "@/components/home/kpi-strip";
+import { MyActions, type InboxItem, type PermitTask } from "@/components/home/my-actions";
+import { EmptyNote, SectionError } from "@/components/home/parts";
+import { ProjectsTable } from "@/components/home/projects-table";
+import { CashPanel, StepsPanel } from "@/components/home/trends";
+
+const ACTIVITY_ROWS = 8;
+
+function PanelSkeleton({ className, height }: { className?: string; height: string }) {
+  return <Skeleton className={`rounded-[1.5rem] ${height} ${className ?? ""}`} />;
+}
 
 export default function Home() {
-  const [selectedProjectId, setSelectedProjectId] = useState<string>("all");
+  const { t } = useTranslation("home");
+  const { user } = useAuth();
+  const [, navigate] = useLocation();
+  const search = useSearch();
 
-  const { data: projects = [], isLoading: projectsLoading } = useQuery<Project[]>({
-    queryKey: ["/api/projects"],
+  // ---- Filters, read from and written to the URL ----
+  const filters = useMemo(() => {
+    const params = new URLSearchParams(search);
+    const days = parseInt(params.get("days") ?? "", 10);
+    return {
+      projectId: params.get("project") || "all",
+      status: params.get("status") || "all",
+      days: (HOME_PERIODS as readonly number[]).includes(days) ? days : DEFAULT_HOME_PERIOD,
+    };
+  }, [search]);
+
+  const setFilter = (patch: Partial<typeof filters>) => {
+    const next = { ...filters, ...patch };
+    const params = new URLSearchParams();
+    if (next.projectId !== "all") params.set("project", next.projectId);
+    if (next.status !== "all") params.set("status", next.status);
+    if (next.days !== DEFAULT_HOME_PERIOD) params.set("days", String(next.days));
+    const qs = params.toString();
+    navigate(qs ? `/?${qs}` : "/", { replace: true });
+  };
+  const filtered = filters.projectId !== "all" || filters.status !== "all" || filters.days !== DEFAULT_HOME_PERIOD;
+
+  // ---- The summary: every section but the two inboxes and the feed reads from it ----
+  const summaryQuery = useQuery<HomeSummary>({
+    queryKey: ["/api/home/summary", { projectId: filters.projectId, status: filters.status, days: filters.days }],
+    // figures stay on screen while a filter change loads, so the layout never jumps
+    placeholderData: keepPreviousData,
+    meta: { persist: false },
   });
+  const summary = summaryQuery.data;
 
+  // A project that was deleted, or a link from someone who can see more: drop the filter rather than show an error
   useEffect(() => {
-    if (projects.length === 1 && selectedProjectId === "all") {
-      setSelectedProjectId(projects[0].id);
+    if (summaryQuery.isError && filters.projectId !== "all" && /^404/.test((summaryQuery.error as Error)?.message ?? "")) {
+      setFilter({ projectId: "all" });
     }
-  }, [projects, selectedProjectId]);
+  }, [summaryQuery.isError, summaryQuery.error, filters.projectId]);
 
-  const { data: tasks = [] } = useQuery<Task[]>({
-    queryKey: ["/api/tasks"],
+  // The same scope for the modules' own inboxes, so one filter moves the whole page
+  const scopedIds = useMemo(() => {
+    if (!summary || !filtered) return "";
+    if (filters.projectId === "all" && filters.status === "all") return "";
+    return summary.filters.projects
+      .filter((p) => (filters.projectId === "all" || p.id === filters.projectId) && (filters.status === "all" || p.status === filters.status))
+      .map((p) => p.id)
+      .join(",") || "none";
+  }, [summary, filtered, filters.projectId, filters.status]);
+  const scopeParams = scopedIds ? { projectIds: scopedIds } : {};
+
+  const inboxQuery = useQuery<{ items: InboxItem[] }>({
+    queryKey: ["/api/payments/inbox", scopeParams],
+    enabled: !!summary,
+    meta: { persist: false },
+  });
+  const tasksQuery = useQuery<{ steps: PermitTask[] }>({
+    queryKey: ["/api/permits/my-tasks", scopeParams],
+    enabled: !!summary,
+    meta: { persist: false },
+  });
+  const activityQuery = useQuery<Notification[]>({
+    queryKey: ["/api/notifications", { limit: 30 }],
+    meta: { persist: false },
+  });
+  // Goods received but not invoiced is worked out by the payments reports; only the purchasing side shows it
+  const wantsGrni = summary?.viewer.kpiSet === "procurement" && summary.viewer.canSeePayments;
+  const reportQuery = useQuery<PaymentsReport>({
+    queryKey: ["/api/payments/reports", filters.projectId !== "all" ? { projectId: filters.projectId } : {}],
+    enabled: !!wantsGrni,
+    meta: { persist: false },
   });
 
-  const { data: documents = [] } = useQuery<any[]>({
-    queryKey: ["/api/documents"],
-  });
+  const activity = useMemo(() => {
+    const rows = activityQuery.data ?? [];
+    const inScope = filters.projectId === "all" ? rows : rows.filter((n) => !n.projectId || n.projectId === filters.projectId);
+    return inScope.slice(0, ACTIVITY_ROWS);
+  }, [activityQuery.data, filters.projectId]);
 
-  const { data: requests = [] } = useQuery<Request[]>({
-    queryKey: ["/api/requests"],
-  });
+  const inbox = inboxQuery.data?.items;
+  const tasks = tasksQuery.data?.steps;
+  const mine = {
+    requests: summary?.requests.mine ?? 0,
+    payments: (inbox ?? []).reduce((s, i) => s + i.count, 0),
+    permits: tasks?.length ?? 0,
+  };
+  const grni = wantsGrni && reportQuery.data ? reportQuery.data.monitoring.goodsReceivedNotInvoiced : null;
 
-  const { data: workflowSteps = [] } = useQuery<WorkflowStep[]>({
-    queryKey: ["/api/workflow-steps"],
-  });
-
-  const { data: allActivities = [] } = useQuery<Activity[]>({
-    queryKey: ["/api/activities"],
-  });
-
-  const { data: requestTypes = [] } = useQuery<any[]>({
-    queryKey: ["/api/request-types"],
-  });
-
-  const selectedProject = selectedProjectId === "all" ? null : projects.find(p => p.id === selectedProjectId);
-  const projectTasks = selectedProject ? tasks.filter(t => t.projectId === selectedProjectId) : [];
-  const projectDocuments = selectedProject ? documents.filter((d: any) => d.projectId === selectedProjectId) : [];
-
-  const projectRequests = useMemo(() => {
-    const filtered = selectedProject
-      ? requests.filter(r => r.projectId === selectedProjectId)
-      : requests;
-
-    const pending = filtered.filter(r => r.currentStatus !== "Closed");
-    const completed = filtered.filter(r => r.currentStatus === "Closed");
-
-    if (pending.length > 0) {
-      return pending.slice(0, 5);
-    }
-    return completed.slice(0, 5);
-  }, [requests, selectedProject, selectedProjectId]);
-
-  const chartsData = useMemo(() => {
-    const filteredRequests = selectedProjectId === "all"
-      ? requests
-      : requests.filter(r => r.projectId === selectedProjectId);
-
-    // Group by request type ID
-    const requestTypeMap: Record<string, number> = {};
-    filteredRequests.forEach(r => {
-      const rType = requestTypes.find(t => t.id === r.requestTypeId);
-      // Fallback to name_english, code, or "Unknown"
-      const typeName = rType ? (rType.code || "Unknown") : "Unknown";
-      requestTypeMap[typeName] = (requestTypeMap[typeName] || 0) + 1;
-    });
-
-    let totalForms = Object.keys(requestTypeMap).map(key => ({
-      name: key,
-      value: requestTypeMap[key],
-      fill: "#86efac"
-    }));
-
-    if (totalForms.length === 0) {
-      totalForms = [{ name: "None", value: 0, fill: "#86efac" }];
-    }
-
-    const pendingRequests = filteredRequests.filter((r) => r.currentStatus !== "Closed");
-    const pendingStepsMap: Record<string, number> = {};
-
-    pendingRequests.forEach(r => {
-      const step = workflowSteps.find(s => s.id === (r as any).currentRevision?.currentStepId);
-      const stepName = step ? step.stepName : r.currentStatus || "Pending";
-      const shortName = stepName?.substring(0, 15) + (stepName?.length > 15 ? '...' : '');
-      pendingStepsMap[shortName] = (pendingStepsMap[shortName] || 0) + 1;
-    });
-
-    let pendingSteps = Object.keys(pendingStepsMap).map(key => ({
-      name: key,
-      value: pendingStepsMap[key],
-      fill: "#38bdf8"
-    }));
-
-    if (pendingSteps.length === 0) {
-      pendingSteps = [{ name: "None", value: 0, fill: "#38bdf8" }];
-    }
-
-    const resubmittedRejectedDeleted = [
-      { name: "Resubmitted", value: filteredRequests.filter((r: any) => r.currentStatus === "Resubmitted" || r.currentRevision?.revisionNo > 0).length, fill: "#f97316" },
-      { name: "Rejected", value: filteredRequests.filter((r) => r.currentStatus === "Rejected").length, fill: "#ef4444" },
-      { name: "Deleted", value: filteredRequests.filter((r) => r.currentStatus === "Deleted").length, fill: "#6b7280" },
-    ];
-
-    return { totalForms, pendingSteps, resubmittedRejectedDeleted };
-  }, [requests, workflowSteps, requestTypes, selectedProjectId]);
+  const firstName = localizedName(user, "");
+  const projectFilter = filters.projectId !== "all" ? filters.projectId : "";
 
   return (
-    <div className="min-h-screen bg-transparent px-6 lg:px-10 py-8 space-y-10 animate-in fade-in duration-700 relative overflow-hidden">
-      {/* Background Decorative Elements */}
-      <div className="absolute top-0 start-0 w-full h-full overflow-hidden pointer-events-none -z-10">
-        <div className="absolute top-[-10%] right-[-10%] w-[40%] h-[40%] bg-primary/5 rounded-full blur-[120px]" />
-        <div className="absolute bottom-[-10%] left-[-10%] w-[40%] h-[40%] bg-blue-500/5 rounded-full blur-[120px]" />
-      </div>
-      
-      {/* Top Header & Project Selector */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-        <div className="space-y-1">
-          <h1 className="text-3xl font-black tracking-tighter text-foreground/90 uppercase">Project Pulse</h1>
-          <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest opacity-60">System-wide Logistics & Engineering Overview</p>
+    <div className="mx-auto w-full max-w-[1600px] px-4 sm:px-6 lg:px-8 py-6 space-y-5" data-testid="page-home">
+      {/* ---- Title and filters ---- */}
+      <header className="flex flex-col xl:flex-row xl:items-end justify-between gap-4">
+        <div className="min-w-0">
+          <h1 className="text-2xl sm:text-3xl font-bold font-display tracking-tight text-foreground">{t("title")}</h1>
+          <p className="text-sm text-muted-foreground/80 dark:text-foreground/70 mt-1">
+            {firstName && <><bdi>{firstName}</bdi> · </>}{t("subtitle")}
+            {summary && <span className="whitespace-nowrap"> · {t("updated", { time: timeAgo(summary.generatedAt) })}</span>}
+          </p>
         </div>
 
-        {projects.length > 1 && (
-          <div className="flex items-center gap-3 bg-white dark:bg-muted/10 p-1.5 rounded-2xl shadow-sm border border-white dark:border-muted/20">
-            <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ms-3">Project Scope:</span>
-            <Select value={selectedProjectId} onValueChange={setSelectedProjectId}>
-              <SelectTrigger className="w-[220px] bg-primary text-primary-foreground border-none rounded-xl h-10 font-bold shadow-lg shadow-primary/20" data-testid="select-project-filter">
-                <SelectValue placeholder="All Projects" />
-              </SelectTrigger>
-              <SelectContent className="rounded-xl border-none shadow-2xl">
-                <SelectItem value="all" className="font-bold">All Active Projects</SelectItem>
-                {projects.map((project) => (
-                  <SelectItem key={project.id} value={project.id} className="font-medium">
-                    {project.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        )}
-      </div>
+        <form className="grid grid-cols-2 sm:flex sm:flex-wrap items-end gap-3" aria-label={t("filters.label")} onSubmit={(e) => e.preventDefault()}>
+          {summary && summary.filters.projects.length > 1 && (
+            <label className="col-span-2 flex flex-col gap-1 min-w-0">
+              <span className="text-xs font-bold text-muted-foreground/80 dark:text-foreground/70">{t("filters.project")}</span>
+              <Select value={filters.projectId} onValueChange={(v) => setFilter({ projectId: v })}>
+                <SelectTrigger className="h-11 w-full sm:w-56 bg-card" data-testid="select-project-filter">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">{t("filters.all_projects")}</SelectItem>
+                  {summary.filters.projects.map((p) => (
+                    <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </label>
+          )}
+          {summary && summary.filters.statuses.length > 1 && (
+            <label className="flex flex-col gap-1 min-w-0">
+              <span className="text-xs font-bold text-muted-foreground/80 dark:text-foreground/70">{t("filters.status")}</span>
+              <Select value={filters.status} onValueChange={(v) => setFilter({ status: v })}>
+                <SelectTrigger className="h-11 w-full sm:w-40 bg-card" data-testid="select-status-filter">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">{t("filters.all_statuses")}</SelectItem>
+                  {summary.filters.statuses.map((s) => (
+                    <SelectItem key={s} value={s}>{t(`project_status.${s}`, { defaultValue: s })}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </label>
+          )}
+{(!summary || summary.filters.projects.length > 0) && (
+            <label className="flex flex-col gap-1 min-w-0">
+              <span className="text-xs font-bold text-muted-foreground/80 dark:text-foreground/70">{t("filters.period")}</span>
+              <Select value={String(filters.days)} onValueChange={(v) => setFilter({ days: Number(v) })}>
+                <SelectTrigger className="h-11 w-full sm:w-40 bg-card" data-testid="select-period-filter">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {HOME_PERIODS.map((d) => (
+                    <SelectItem key={d} value={String(d)}>{t("filters.last_days", { count: d })}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </label>
+          )}
+          {filtered && (
+            <Button type="button" variant="ghost" className="col-span-2 h-11 gap-2" onClick={() => navigate("/", { replace: true })} data-testid="button-reset-filters">
+              <RotateCcw className="w-4 h-4" aria-hidden="true" />
+              {t("filters.reset")}
+            </Button>
+          )}
+        </form>
+      </header>
 
-      {/* Stats Overview */}
-      <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-        <WaitingActionCard projectId={selectedProjectId} />
-        <PendingsCard projectId={selectedProjectId} />
-        <CompletedCard projectId={selectedProjectId} />
-        <TotalRequestsCard projectId={selectedProjectId} />
-      </div>
-
-      {/* Main Content Area */}
-      {selectedProject ? (
-        <div className="space-y-10">
-          
-          {/* Charts Row */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {/* Total Requests Chart */}
-            <Card className="rounded-[1.5rem] border-none shadow-2xl bg-white dark:bg-muted/5 overflow-hidden group hover:scale-[1.01] transition-all duration-500">
-              <div className="p-8 h-full flex flex-col">
-                <div className="flex items-center justify-between mb-8">
-                  <div className="space-y-1">
-                    <h3 className="text-sm font-black text-foreground/80 uppercase tracking-tight">Request Categories</h3>
-                    <p className="text-[10px] font-bold text-emerald-500 uppercase tracking-widest">Distribution by Type</p>
-                  </div>
-                  <div className="w-10 h-10 rounded-xl bg-emerald-500/10 flex items-center justify-center">
-                     <TrendingUp className="w-5 h-5 text-emerald-600" />
-                  </div>
-                </div>
-                <div className="h-64 mt-auto">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={chartsData.totalForms} margin={{ top: 20, right: 0, left: -20, bottom: 0 }}>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} strokeOpacity={0.1} />
-                      <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 800, fill: '#94a3b8' }} height={40} />
-                      <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 700, fill: '#94a3b8' }} />
-                      <Bar dataKey="value" barSize={32} radius={[12, 12, 4, 4]}>
-                        {chartsData.totalForms.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={entry.fill} className="hover:opacity-80 transition-opacity" />
-                        ))}
-                        <LabelList dataKey="value" position="top" fill="#64748b" fontSize={11} fontWeight={900} offset={12} />
-                      </Bar>
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              </div>
-            </Card>
-
-            {/* Pending Steps Chart */}
-            <Card className="rounded-[1.5rem] border-none shadow-2xl bg-white dark:bg-muted/5 overflow-hidden group hover:scale-[1.01] transition-all duration-500">
-              <div className="p-8 h-full flex flex-col">
-                <div className="flex items-center justify-between mb-8">
-                  <div className="space-y-1">
-                    <h3 className="text-sm font-black text-foreground/80 uppercase tracking-tight">Workflow Bottlenecks</h3>
-                    <p className="text-[10px] font-bold text-sky-500 uppercase tracking-widest">Active Stages</p>
-                  </div>
-                  <div className="w-10 h-10 rounded-xl bg-sky-500/10 flex items-center justify-center">
-                     <ActivityIcon className="w-5 h-5 text-sky-600" />
-                  </div>
-                </div>
-                <div className="h-64 mt-auto">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={chartsData.pendingSteps} margin={{ top: 20, right: 0, left: -20, bottom: 0 }}>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} strokeOpacity={0.1} />
-                      <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 9, fontWeight: 800, fill: '#94a3b8' }} height={40} />
-                      <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 700, fill: '#94a3b8' }} />
-                      <Bar dataKey="value" barSize={32} radius={[12, 12, 4, 4]}>
-                        {chartsData.pendingSteps.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={entry.fill} className="hover:opacity-80 transition-opacity" />
-                        ))}
-                        <LabelList dataKey="value" position="top" fill="#64748b" fontSize={11} fontWeight={900} offset={12} />
-                      </Bar>
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              </div>
-            </Card>
-
-            {/* Quality Alerts Chart */}
-            <Card className="rounded-[1.5rem] border-none shadow-2xl bg-white dark:bg-muted/5 overflow-hidden group hover:scale-[1.01] transition-all duration-500">
-              <div className="p-8 h-full flex flex-col">
-                <div className="flex items-center justify-between mb-8">
-                  <div className="space-y-1">
-                    <h3 className="text-sm font-black text-foreground/80 uppercase tracking-tight">Quality Exceptions</h3>
-                    <p className="text-[10px] font-bold text-red-500 uppercase tracking-widest">Rejections & Deletions</p>
-                  </div>
-                  <div className="w-10 h-10 rounded-xl bg-red-500/10 flex items-center justify-center">
-                     <AlertCircle className="w-5 h-5 text-red-600" />
-                  </div>
-                </div>
-                <div className="h-64 mt-auto">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={chartsData.resubmittedRejectedDeleted} margin={{ top: 20, right: 0, left: -20, bottom: 0 }}>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} strokeOpacity={0.1} />
-                      <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 800, fill: '#94a3b8' }} height={40} />
-                      <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 700, fill: '#94a3b8' }} />
-                      <Bar dataKey="value" barSize={40} radius={[12, 12, 4, 4]}>
-                        {chartsData.resubmittedRejectedDeleted.map((entry: any, index: number) => (
-                          <Cell key={`cell-${index}`} fill={entry.fill} className="hover:opacity-80 transition-opacity" />
-                        ))}
-                        <LabelList dataKey="value" position="top" fill="#64748b" fontSize={11} fontWeight={900} offset={12} />
-                      </Bar>
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              </div>
-            </Card>
-          </div>
-
-          {/* Lower Grid: Requests & Files */}
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-            
-            {/* Pending Requests Column */}
-            <div className="lg:col-span-8 space-y-6">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                   <div className="w-8 h-1 bg-primary rounded-full" />
-                   <h2 className="text-xl font-black tracking-tight text-foreground/80 uppercase">Pending Review</h2>
-                </div>
-                <Button variant="ghost" className="text-[10px] font-black uppercase tracking-widest hover:bg-primary/5 text-primary">View All Records</Button>
-              </div>
-
-              <Card className="rounded-[1.5rem] border-none shadow-xl bg-white dark:bg-muted/5 overflow-hidden">
-                <CardContent className="p-0">
-                  {projectRequests.length === 0 ? (
-                    <div className="py-20 text-center flex flex-col items-center gap-3 opacity-30">
-                       <ClipboardList className="w-16 h-16" />
-                       <p className="text-sm font-black uppercase tracking-widest">No Active Requests</p>
-                    </div>
-                  ) : (
-                    <div className="divide-y divide-muted/10">
-                      {projectRequests.map((req: any) => {
-                        const currentStep = workflowSteps.find(s => s.id === req.currentRevision?.currentStepId);
-                        const activity = allActivities.find(a => a.requestId === req.id);
-                        return (
-                          <div 
-                            key={req.id} 
-                            className="group flex items-center gap-6 p-5 hover:bg-primary/5 transition-all cursor-pointer"
-                          >
-                            <div className="w-12 h-12 rounded-2xl bg-muted/30 flex items-center justify-center group-hover:bg-primary/10 transition-colors shrink-0">
-                               <FileText className="w-6 h-6 text-muted-foreground group-hover:text-primary transition-colors" />
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2 mb-0.5">
-                                <span className="text-sm font-black text-foreground tracking-tight">{req.requestNumber}</span>
-                                <span className="text-[9px] font-bold text-muted-foreground/40 uppercase tracking-widest">{req.referenceCode}</span>
-                              </div>
-                              <p className="text-xs text-muted-foreground font-medium truncate opacity-70 italic">
-                                {activity?.description || "Awaiting further engineering feedback..."}
-                              </p>
-                            </div>
-                            <div className="flex flex-col items-end gap-1.5">
-                               <Badge 
-                                 variant={req.currentStatus === "Closed" ? "default" : "outline"} 
-                                 className={cn(
-                                   "text-[9px] font-black uppercase tracking-widest px-2.5 py-0.5 rounded-lg border-none shadow-sm",
-                                   req.currentStatus === "Closed" ? "bg-emerald-500 text-white" : "bg-primary/10 text-primary"
-                                 )}
-                               >
-                                 {currentStep?.stepName || req.currentStatus}
-                               </Badge>
-                               <span className="text-[8px] font-bold text-muted-foreground/40 uppercase tracking-widest">
-                                 {format(new Date(req.createdAt || Date.now()), "MMM dd")}
-                               </span>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            </div>
-
-            {/* Right Column: Files & Approvals */}
-            <div className="lg:col-span-4 space-y-8">
-              
-              {/* Modernized Files List */}
-              <div className="space-y-5">
-                <div className="flex items-center gap-3">
-                   <div className="w-8 h-1 bg-sky-500 rounded-full" />
-                   <h2 className="text-xl font-black tracking-tight text-foreground/80 uppercase">Project Assets</h2>
-                </div>
-                
-                <Card className="rounded-[1.5rem] border-none shadow-xl bg-white dark:bg-muted/5 overflow-hidden">
-                  <CardContent className="p-6">
-                    <div className="space-y-4">
-                      {projectDocuments.slice(0, 5).length === 0 ? (
-                        <div className="py-10 text-center opacity-20 flex flex-col items-center gap-2">
-                           <FolderOpen className="w-10 h-10" />
-                           <p className="text-[10px] font-black uppercase tracking-widest">Vault Empty</p>
-                        </div>
-                      ) : (
-                        projectDocuments.slice(0, 5).map((doc: any) => (
-                          <div key={doc.id} className="group flex items-center gap-4 p-2 rounded-2xl hover:bg-muted/30 transition-all cursor-pointer">
-                            <div className="w-11 h-11 bg-white dark:bg-background rounded-xl shadow-sm border border-muted/20 flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform">
-                              <div className="relative">
-                                <FileText className="w-6 h-6 text-sky-600" />
-                                <div className="absolute -bottom-1 -end-1 w-3 h-3 bg-emerald-500 rounded-full border-2 border-white dark:border-background" />
-                              </div>
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <p className="text-xs font-black text-foreground/90 truncate tracking-tight">{doc.name}</p>
-                              <div className="flex items-center gap-2 mt-0.5">
-                                <span className="text-[9px] font-bold text-muted-foreground uppercase">{doc.size || "1.2 MB"}</span>
-                                <div className="w-1 h-1 rounded-full bg-muted-foreground/30" />
-                                <span className="text-[9px] font-bold text-muted-foreground uppercase">{format(new Date(), "MMM d")}</span>
-                              </div>
-                            </div>
-                          </div>
-                        ))
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-
-              {/* Modernized Approvals */}
-              <div className="space-y-5">
-                <div className="flex items-center gap-3">
-                   <div className="w-8 h-1 bg-amber-500 rounded-full" />
-                   <h2 className="text-xl font-black tracking-tight text-foreground/80 uppercase">Gatekeeper</h2>
-                </div>
-                
-                <Card className="rounded-[1.5rem] border-none shadow-xl bg-white dark:bg-muted/5 overflow-hidden">
-                  <CardContent className="p-6">
-                    <div className="space-y-3">
-                      {projectTasks.slice(0, 5).length === 0 ? (
-                        <div className="py-10 text-center opacity-20">
-                           <p className="text-[10px] font-black uppercase tracking-widest">No Tasks Pending</p>
-                        </div>
-                      ) : (
-                        projectTasks.slice(0, 5).map((task) => (
-                          <div key={task.id} className="flex items-center justify-between p-3 rounded-xl hover:bg-amber-500/5 transition-colors border border-transparent hover:border-amber-500/10">
-                            <div className="flex items-center gap-3">
-                               <div className="w-2 h-2 rounded-full bg-amber-500" />
-                               <span className="text-xs font-black text-foreground/80 truncate max-w-[150px]">{task.title}</span>
-                            </div>
-                            <Badge variant="outline" className="text-[8px] font-black bg-amber-500/10 text-amber-600 border-none px-2 rounded-md">Queue</Badge>
-                          </div>
-                        ))
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-
-            </div>
+      {summaryQuery.isError && !summary ? (
+        <Card className="p-5">
+          <SectionError onRetry={() => summaryQuery.refetch()} />
+        </Card>
+      ) : !summary ? (
+        // placeholders the size of what replaces them
+        <div className="space-y-5" aria-busy="true">
+          <KpiStripSkeleton />
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+            <PanelSkeleton className="lg:col-span-8" height="h-80" />
+            <PanelSkeleton className="lg:col-span-4" height="h-80" />
+            <PanelSkeleton className="lg:col-span-12" height="h-72" />
           </div>
         </div>
+      ) : summary.filters.projects.length === 0 ? (
+        <Card className="p-5">
+          <EmptyNote icon={FolderKanban} title={t("state.no_projects_title")} text={t("state.no_projects_text")} />
+        </Card>
       ) : (
-        /* Project-less View or No Selection */
-        <div className="flex flex-col items-center justify-center py-40 space-y-6">
-           <div className="w-24 h-24 bg-primary/5 rounded-[1.5rem] flex items-center justify-center">
-              <Package className="w-12 h-12 text-primary opacity-30" />
-           </div>
-           <div className="text-center">
-              <h2 className="text-2xl font-black tracking-tighter text-foreground/80 uppercase">Portfolio Pulse</h2>
-              <p className="text-sm font-bold text-muted-foreground uppercase tracking-widest mt-2 max-w-md mx-auto">Select a project to unlock real-time engineering insights and logistics monitoring</p>
-           </div>
+        <div className={summaryQuery.isPlaceholderData ? "space-y-5 opacity-60 transition-opacity" : "space-y-5 transition-opacity"} aria-busy={summaryQuery.isFetching}>
+          <KpiStrip summary={summary} mine={mine} grni={grni} projectId={projectFilter} />
+
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+            <MyActions
+              className="lg:col-span-8"
+              requests={{
+                data: { items: summary.requests.actions, total: summary.requests.mine },
+                isLoading: false,
+                isError: false,
+                refetch: () => summaryQuery.refetch(),
+              }}
+              payments={{ data: inbox, isLoading: inboxQuery.isLoading, isError: inboxQuery.isError, refetch: () => inboxQuery.refetch() }}
+              permits={{ data: tasks, isLoading: tasksQuery.isLoading, isError: tasksQuery.isError, refetch: () => tasksQuery.refetch() }}
+            />
+            <HealthCard className="lg:col-span-4" summary={summary} />
+
+            {summary.viewer.canSeeProjectTable && <ProjectsTable className="lg:col-span-12" summary={summary} />}
+
+            <FormsPanel className="lg:col-span-6" summary={summary} />
+            <StepsPanel className="lg:col-span-6" summary={summary} />
+
+            <CashPanel className="lg:col-span-6" summary={summary} projectId={projectFilter} />
+            <ActivityPanel
+              className={summary.payments ? "lg:col-span-6" : "lg:col-span-12"}
+              items={activityQuery.data ? activity : undefined}
+              isLoading={activityQuery.isLoading}
+              isError={activityQuery.isError}
+              refetch={() => activityQuery.refetch()}
+            />
+          </div>
         </div>
       )}
     </div>

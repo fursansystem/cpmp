@@ -333,7 +333,8 @@ interface AttachmentsPanelProps {
   canRemove: (file: PaymentFile) => boolean;
 }
 
-export function AttachmentsPanel({ entityType, entityId, projectId, files, editable, hint, canRemove }: AttachmentsPanelProps) {
+export function AttachmentsPanel({ entityType, entityId, projectId, files = [], editable, hint, canRemove }: AttachmentsPanelProps) {
+  const safeFiles = files ?? [];
   const { t } = useTranslation("payments");
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -378,7 +379,7 @@ export function AttachmentsPanel({ entityType, entityId, projectId, files, edita
     <div className="space-y-2">
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2 text-sm font-bold">
-          <Paperclip className="w-4 h-4" /> {t("attachments.title")} <span className="text-muted-foreground font-normal">({files.length})</span>
+          <Paperclip className="w-4 h-4" /> {t("attachments.title")} <span className="text-muted-foreground font-normal">({safeFiles.length})</span>
         </div>
         {editable && (
           <>
@@ -391,11 +392,11 @@ export function AttachmentsPanel({ entityType, entityId, projectId, files, edita
         )}
       </div>
       {hint && editable && <p className="text-xs text-muted-foreground">{hint}</p>}
-      {files.length === 0 ? (
+      {safeFiles.length === 0 ? (
         <p className="text-sm text-muted-foreground border border-dashed rounded-xl p-4 text-center">{t("attachments.none")}</p>
       ) : (
         <ul className="space-y-1.5">
-          {files.map((f) => (
+          {safeFiles.map((f) => (
             <li key={f.id} className="flex items-center gap-2 rounded-xl border px-3 py-2 text-sm">
               <FileText className="w-4 h-4 text-muted-foreground shrink-0" />
               <a href={f.objectPath} target="_blank" rel="noreferrer" className="truncate flex-1 text-primary hover:underline">
@@ -540,6 +541,7 @@ export interface PaymentsOverview {
   subcontractorCertificates: any[];
   chargebacks: any[];
   subcontractors: any[];
+  subcontractorContracts?: any[];
   // licence and transaction fees from الرخص والمعاملات
   permits: PermitFeeRow[];
   fines: any[];

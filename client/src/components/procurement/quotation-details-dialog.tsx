@@ -1,4 +1,7 @@
+import type { ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useLocation, useParams } from "wouter";
+import { RefLink } from "@/components/procurement/ref-link";
 import { useTranslation } from "react-i18next";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
@@ -23,6 +26,9 @@ const fmt = (v: any) =>
 
 export function QuotationDetailsDialog({ quotationId, onOpenChange }: QuotationDetailsDialogProps) {
   const { t } = useTranslation(["procurement", "common"]);
+  // Every page that shows this dialog sits under /projects/:projectId
+  const { projectId } = useParams<{ projectId?: string }>();
+  const [, navigate] = useLocation();
   const { data: quote, isLoading } = useQuery<any>({
     queryKey: ["/api/quotations", quotationId],
     enabled: !!quotationId,
@@ -82,7 +88,27 @@ export function QuotationDetailsDialog({ quotationId, onOpenChange }: QuotationD
 
             {/* Meta */}
             <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-xs">
-              <Info label={t("quotation.linked_rfq")} value={[quote.rfqNumber, quote.rfqTitle].filter(Boolean).join(" - ")} />
+              <Info
+                label={t("quotation.linked_rfq")}
+                value={
+                  quote.rfqNumber && quote.rfqId && projectId ? (
+                    <>
+                      <RefLink
+                        className="font-mono text-primary"
+                        onOpen={() => {
+                          onOpenChange(false);
+                          navigate(`/projects/${projectId}/rfqs/${quote.rfqId}`);
+                        }}
+                      >
+                        {quote.rfqNumber}
+                      </RefLink>
+                      {quote.rfqTitle ? ` - ${quote.rfqTitle}` : ""}
+                    </>
+                  ) : (
+                    [quote.rfqNumber, quote.rfqTitle].filter(Boolean).join(" - ")
+                  )
+                }
+              />
               <Info label={t("quotation.valid_until")} value={quote.validUntil} />
               <Info label={t("quotation.lead_time_days")} value={quote.leadTimeDays ? `${quote.leadTimeDays} days` : null} />
               <Info label={t("quotation.payment_terms")} value={quote.paymentTerms} />
@@ -168,7 +194,7 @@ export function QuotationDetailsDialog({ quotationId, onOpenChange }: QuotationD
   );
 }
 
-function Info({ label, value }: { label: string; value?: string | null }) {
+function Info({ label, value }: { label: string; value?: ReactNode }) {
   return (
     <div className="border rounded-lg p-2.5">
       <p className="text-[10px] text-muted-foreground mb-0.5">{label}</p>
