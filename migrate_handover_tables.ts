@@ -98,8 +98,8 @@ async function run() {
 
   // Ensure "Customer Service" / "خدمة العملاء" position exists
   await db.execute(sql`
-    INSERT INTO positions (title_english, title_arabic)
-    SELECT 'Customer Service', 'خدمة العملاء'
+    INSERT INTO positions (title_english, title_arabic, numeric_id)
+    SELECT 'Customer Service', 'خدمة العملاء', (SELECT COALESCE(MAX(numeric_id), 0) + 1 FROM positions)
     WHERE NOT EXISTS (
       SELECT 1 FROM positions WHERE lower(title_english) = 'customer service'
     );
