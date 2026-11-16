@@ -69,7 +69,7 @@ import {
   type PurchaseOrder, type InsertPurchaseOrder, type UpdatePurchaseOrder,
   type PoItem, type InsertPoItem, type UpdatePoItem,
   warehouses, stockMovements, stockTransfers, stockTransferItems,
-  materialIssues, materialIssueItems, inventoryApproverPositions, projectSubcontractors,
+  materialIssues, materialIssueItems, inventoryApproverPositions, projectSubcontractors, subcontractorContracts,
   STOCK_IN_TYPES, stockDirection, normalizeUnit,
   type Warehouse, type InsertWarehouse, type UpdateWarehouse,
   type StockMovement, type InsertStockMovement,
@@ -6062,12 +6062,37 @@ export class DatabaseStorage implements IStorage {
       // A subcontractor recipient is one of this project's registered subcontractors; its name is what the voucher shows
       let issuedTo = input.issuedTo;
       let subcontractorId: string | null = null;
+      let contractId: string | null = null;
+      let requestedLocationIds = Array.from(
+        new Set([
+          ...(Array.isArray(input.workLocationIds) ? input.workLocationIds : []),
+          ...(input.workLocationId ? [input.workLocationId] : []),
+        ].filter(Boolean))
+      );
       if (input.subcontractorId) {
         if (input.recipientType !== "subcontractor") throw new Error("مقاول الباطن يُحدَّد فقط عندما تكون صفة المستلم مقاول باطن");
         const [sub] = await tx.select().from(projectSubcontractors).where(eq(projectSubcontractors.id, input.subcontractorId));
         if (!sub || sub.projectId !== input.projectId) throw new Error("مقاول الباطن لا ينتمي لهذا المشروع");
         issuedTo = sub.name;
         subcontractorId = sub.id;
+
+        if (input.contractId) {
+          const [contract] = await tx.select().from(subcontractorContracts).where(eq(subcontractorContracts.id, input.contractId));
+          if (!contract || contract.projectId !== input.projectId || contract.subcontractorId !== sub.id) {
+            throw new Error("العقد المختار لا ينتمي لهذا المقاول الباطني");
+          }
+          if (contract.status !== "active") {
+            throw new Error("لا يمكن صرف مواد على عقد مقفل أو تمت مخالصته النهائية");
+          }
+          if (Array.isArray(contract.workLocationIds) && contract.workLocationIds.length > 0) {
+            if (requestedLocationIds.length === 0) {
+              requestedLocationIds = [...contract.workLocationIds];
+            } else if (requestedLocationIds.some((id) => !contract.workLocationIds.includes(id))) {
+              throw new Error("المبنى / موقع العمل المختار غير مشمول في هذا العقد");
+            }
+          }
+          contractId = contract.id;
+        }
       }
 
       // Validate every line and work out whether the voucher needs approval before
@@ -6107,7 +6132,9 @@ export class DatabaseStorage implements IStorage {
           issuedTo,
           recipientType: input.recipientType,
           subcontractorId,
-          workLocationId: input.workLocationId ?? null,
+          contractId,
+          workLocationId: requestedLocationIds[0] ?? input.workLocationId ?? null,
+          workLocationIds: requestedLocationIds,
           purpose: input.purpose ?? null,
           // Stock only moves when the voucher reaches 'issued'.
           status: requiresApproval ? "pending_approval" : "issued",
@@ -6229,24 +6256,55 @@ export class DatabaseStorage implements IStorage {
       .select({
         issue: materialIssues,
         warehouseName: warehouses.name,
+        workLocation: workLocations,
       })
       .from(materialIssues)
       .leftJoin(warehouses, eq(materialIssues.warehouseId, warehouses.id))
+      .leftJoin(workLocations, eq(materialIssues.workLocationId, workLocations.id))
       .where(eq(materialIssues.projectId, projectId))
       .orderBy(desc(materialIssues.issueDate), desc(materialIssues.createdAt));
 
     if (rows.length === 0) return [];
     const ids = rows.map((r) => r.issue.id);
-    const allItems = await db
-      .select()
-      .from(materialIssueItems)
-      .where(inArray(materialIssueItems.issueId, ids));
+    const [allItems, projectLocations, projectContracts] = await Promise.all([
+      db.select().from(materialIssueItems).where(inArray(materialIssueItems.issueId, ids)),
+      db.select().from(workLocations).where(eq(workLocations.projectId, projectId)),
+      db.select().from(subcontractorContracts).where(eq(subcontractorContracts.projectId, projectId)).catch(() => []),
+    ]);
+    const locMap = new Map(projectLocations.map((l) => [l.id, l]));
+    const cntMap = new Map(projectContracts.map((c) => [c.id, c]));
+    const formatLoc = (wl: any) =>
+      `${wl.unitCustomNumber || "N/A"} - ${[wl.unitZone, wl.floor].filter(Boolean).join(" ")} (${wl.buildingNo || "No Bldg"}, ${wl.part || "No Part"})`.replace(/\s+/g, " ").trim();
 
-    return rows.map((r) => ({
-      ...r.issue,
-      warehouseName: r.warehouseName,
-      items: allItems.filter((i) => i.issueId === r.issue.id),
-    }));
+    return rows.map((r) => {
+      const locIds = r.issue.workLocationIds?.length
+        ? r.issue.workLocationIds
+        : r.issue.workLocationId
+          ? [r.issue.workLocationId]
+          : [];
+      const picked = locIds.map((id) => locMap.get(id)).filter(Boolean) as any[];
+      let workLocationName: string | null = null;
+      if (picked.length === 1) {
+        workLocationName = formatLoc(picked[0]);
+      } else if (picked.length > 1) {
+        const bldgs = Array.from(new Set(picked.map((l) => l.buildingNo).filter(Boolean)));
+        workLocationName =
+          bldgs.length === 1
+            ? `Building ${bldgs[0]} (${picked.length} units)`
+            : `Buildings ${bldgs.join(", ")} (${picked.length} units)`;
+      } else if (r.workLocation) {
+        workLocationName = formatLoc(r.workLocation);
+      }
+      const cnt = r.issue.contractId ? cntMap.get(r.issue.contractId) : undefined;
+      return {
+        ...r.issue,
+        warehouseName: r.warehouseName,
+        workLocationName,
+        contractNo: cnt?.contractNo ?? null,
+        contractTitle: cnt?.title ?? null,
+        items: allItems.filter((i) => i.issueId === r.issue.id),
+      };
+    });
   }
 
   // Records a shipment against an approved purchase order. Everything happens in one

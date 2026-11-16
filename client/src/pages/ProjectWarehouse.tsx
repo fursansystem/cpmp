@@ -312,13 +312,13 @@ export default function ProjectWarehouse() {
               <Table>
                 <TableHeader>
                   <TableRow className="bg-muted/30 hover:bg-muted/30">
-                    <TableHead className="text-end text-[11px] font-black">{t("balances.table.material")}</TableHead>
-                    <TableHead className="text-end text-[11px] font-black">{t("balances.table.unit")}</TableHead>
-                    <TableHead className="text-end text-[11px] font-black">{t("balances.table.in")}</TableHead>
-                    <TableHead className="text-end text-[11px] font-black">{t("balances.table.out")}</TableHead>
-                    <TableHead className="text-end text-[11px] font-black">{t("balances.table.balance")}</TableHead>
-                    <TableHead className="text-end text-[11px] font-black">{t("balances.table.min_stock")}</TableHead>
-                    <TableHead className="text-end text-[11px] font-black">{t("balances.table.status")}</TableHead>
+                    <TableHead className="text-start text-[11px] font-black">{t("balances.table.material")}</TableHead>
+                    <TableHead className="text-start text-[11px] font-black">{t("balances.table.unit")}</TableHead>
+                    <TableHead className="text-start text-[11px] font-black">{t("balances.table.in")}</TableHead>
+                    <TableHead className="text-start text-[11px] font-black">{t("balances.table.out")}</TableHead>
+                    <TableHead className="text-start text-[11px] font-black">{t("balances.table.balance")}</TableHead>
+                    <TableHead className="text-start text-[11px] font-black">{t("balances.table.min_stock")}</TableHead>
+                    <TableHead className="text-start text-[11px] font-black">{t("balances.table.status")}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -466,6 +466,7 @@ export default function ProjectWarehouse() {
 
                     <div className="flex flex-wrap gap-3 text-[11px] text-muted-foreground">
                       <span>{t("issues.recipient")} <span className="font-bold text-foreground">{issue.issuedTo}</span></span>
+                      {issue.workLocationName && <span>{t("issues.work_location")} <span className="font-bold text-foreground">{issue.workLocationName}</span></span>}
                       {issue.warehouseName && <span>{t("issues.warehouse")} {issue.warehouseName}</span>}
                       {issue.purpose && <span>{t("issues.purpose")} {issue.purpose}</span>}
                     </div>
@@ -571,13 +572,13 @@ export default function ProjectWarehouse() {
               <Table>
                 <TableHeader>
                   <TableRow className="bg-muted/30 hover:bg-muted/30">
-                    <TableHead className="text-end text-[11px] font-black">{t("ledger.table.date")}</TableHead>
-                    <TableHead className="text-end text-[11px] font-black">{t("ledger.table.material")}</TableHead>
-                    <TableHead className="text-end text-[11px] font-black">{t("ledger.table.type")}</TableHead>
-                    <TableHead className="text-end text-[11px] font-black">{t("ledger.table.quantity")}</TableHead>
-                    <TableHead className="text-end text-[11px] font-black">{t("ledger.table.warehouse")}</TableHead>
-                    <TableHead className="text-end text-[11px] font-black">{t("ledger.table.performed_by")}</TableHead>
-                    <TableHead className="text-end text-[11px] font-black">{t("ledger.table.notes")}</TableHead>
+                    <TableHead className="text-start text-[11px] font-black">{t("ledger.table.date")}</TableHead>
+                    <TableHead className="text-start text-[11px] font-black">{t("ledger.table.material")}</TableHead>
+                    <TableHead className="text-start text-[11px] font-black">{t("ledger.table.type")}</TableHead>
+                    <TableHead className="text-start text-[11px] font-black">{t("ledger.table.quantity")}</TableHead>
+                    <TableHead className="text-start text-[11px] font-black">{t("ledger.table.warehouse")}</TableHead>
+                    <TableHead className="text-start text-[11px] font-black">{t("ledger.table.performed_by")}</TableHead>
+                    <TableHead className="text-start text-[11px] font-black">{t("ledger.table.notes")}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>

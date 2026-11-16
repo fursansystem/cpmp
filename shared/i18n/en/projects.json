@@ -48,6 +48,10 @@
       "title": "Payment Certificates",
       "description": "Unit-level payment certificates: due, pending, paid, and remaining amounts."
     },
+    "subcontractors": {
+      "title": "Subcontractors & Contracts",
+      "description": "Subcontractor contracts, assigned buildings, certificates, warehouse material issues, and final clearances."
+    },
     "payments": {
       "title": "Payments",
       "summary": "{{openBills}} original bills needed · {{ordersPending}} orders awaiting approval · {{delayedDecisions}} delayed decisions",

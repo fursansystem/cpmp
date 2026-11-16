@@ -22,11 +22,12 @@ export interface PaymentContext {
   projectId: string;
   purchaseOrderId?: string;
   supplierId?: string;
+  subcontractorId?: string;
   payeeName?: string;
   amount?: number | string;
   description?: string;
   // The page it was started from, so that page can list what came of it
-  sourceType?: "purchase_order" | "delivery" | "snag" | "ncr" | "project";
+  sourceType?: "purchase_order" | "delivery" | "snag" | "ncr" | "project" | "subcontractor";
   sourceId?: string;
 }
 
@@ -139,6 +140,16 @@ function RequestTransferDialog({ ctx, context, onClose }: { ctx: PaymentsContext
   const { t } = useTranslation("payments");
   const { toast } = useToast();
   const queryClient = useQueryClient();
+
+  const initialBeneficiaryType: "supplier" | "subcontractor" | "other" =
+    context.subcontractorId || context.sourceType === "subcontractor"
+      ? "subcontractor"
+      : context.supplierId || context.purchaseOrderId
+        ? "supplier"
+        : "supplier";
+
+  const [beneficiaryType, setBeneficiaryType] = useState<"supplier" | "subcontractor" | "other">(initialBeneficiaryType);
+
   const [form, setForm] = useState({
     purpose: context.purchaseOrderId ? "advance" : "other",
     payeeName: context.payeeName ?? "",
@@ -146,12 +157,21 @@ function RequestTransferDialog({ ctx, context, onClose }: { ctx: PaymentsContext
     reason: context.description ?? "",
     supplierId: context.supplierId ?? "",
     purchaseOrderId: context.purchaseOrderId ?? "",
+    subcontractorId: context.subcontractorId ?? "",
+    subcontractorContractId: "",
+    subcontractorCertificateId: "",
   });
   const set = (k: keyof typeof form) => (v: string) => setForm((f) => ({ ...f, [k]: v }));
   // A page that knows the project fixes it; the Payments page across all projects lets the person pick
   const [projectId, setProjectId] = useState(context.projectId);
 
-  const { data: sources } = useQuery<{ purchaseOrders: any[]; suppliers: { id: string; name: string }[] }>({
+  const { data: sources } = useQuery<{
+    purchaseOrders: any[];
+    suppliers: { id: string; name: string }[];
+    subcontractors?: { id: string; name: string; scope?: string; phone?: string; taxNumber?: string }[];
+    subcontractorContracts?: { id: string; contractNo: string; title: string; subcontractorId: string; contractValue: string; status: string }[];
+    subcontractorCertificates?: { id: string; certNo: string; subcontractorId: string; contractId?: string; netPayable: string; status: string }[];
+  }>({
     queryKey: ["payments", "sources", projectId],
     queryFn: () => getJson(`/api/payments/sources?projectId=${projectId}`),
     enabled: !!projectId,
@@ -163,14 +183,17 @@ function RequestTransferDialog({ ctx, context, onClose }: { ctx: PaymentsContext
     mutationFn: async () =>
       apiRequest("POST", "/api/payments/orders/request", {
         projectId,
-        purpose: form.purpose,
+        purpose: beneficiaryType === "subcontractor" ? "subcontractor" : form.purpose,
         payeeName: form.payeeName,
         amount: form.amount,
         reason: form.reason,
-        supplierId: form.supplierId || null,
-        purchaseOrderId: form.purchaseOrderId || null,
-        sourceType: context.sourceType ?? null,
-        sourceId: context.sourceId ?? null,
+        supplierId: beneficiaryType === "supplier" ? form.supplierId || null : null,
+        purchaseOrderId: beneficiaryType === "supplier" ? form.purchaseOrderId || null : null,
+        subcontractorId: beneficiaryType === "subcontractor" ? form.subcontractorId || null : null,
+        subcontractorContractId: beneficiaryType === "subcontractor" ? form.subcontractorContractId || null : null,
+        subcontractorCertificateId: beneficiaryType === "subcontractor" ? form.subcontractorCertificateId || null : null,
+        sourceType: context.sourceType ?? (beneficiaryType === "subcontractor" ? "subcontractor" : null),
+        sourceId: context.sourceId ?? (beneficiaryType === "subcontractor" ? form.subcontractorId : null),
       }),
     onSuccess: () => {
       invalidatePayments(queryClient);
@@ -207,55 +230,189 @@ function RequestTransferDialog({ ctx, context, onClose }: { ctx: PaymentsContext
         <div className="grid gap-3">
           {!context.projectId && (
             <Field label={t("common.project")}>
-              <Select value={projectId} onValueChange={(v) => { setProjectId(v); setForm((f) => ({ ...f, supplierId: "", purchaseOrderId: "" })); }}>
+              <Select
+                value={projectId}
+                onValueChange={(v) => {
+                  setProjectId(v);
+                  setForm((f) => ({
+                    ...f,
+                    supplierId: "",
+                    purchaseOrderId: "",
+                    subcontractorId: "",
+                    subcontractorContractId: "",
+                    subcontractorCertificateId: "",
+                  }));
+                }}
+              >
                 <SelectTrigger><SelectValue placeholder={t("common.select_project")} /></SelectTrigger>
                 <SelectContent>{ctx.projects.filter((p) => p.canRequest).map((p) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent>
               </Select>
             </Field>
           )}
-          <Field label={t("transfer.request_type")}>
-            <Select value={form.purpose} onValueChange={set("purpose")}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="advance">{t("transfer.advance")}</SelectItem>
-                <SelectItem value="other">{t("transfer.other")}</SelectItem>
-              </SelectContent>
-            </Select>
-          </Field>
-          {(sources?.suppliers.length ?? 0) > 0 && (
-            <Field label={t("bill_requests.supplier_from_register")}>
+
+          <div className="grid sm:grid-cols-2 gap-3">
+            <Field label={t("transfer.request_type")}>
+              <Select value={form.purpose} onValueChange={set("purpose")}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="advance">{t("transfer.advance")}</SelectItem>
+                  <SelectItem value="other">{t("transfer.other")}</SelectItem>
+                </SelectContent>
+              </Select>
+            </Field>
+
+            <Field label={t("transfer.beneficiary_type")}>
               <Select
-                value={form.supplierId || "none"}
-                onValueChange={(v) => {
-                  const s = sources?.suppliers.find((x) => x.id === v);
-                  setForm((f) => ({ ...f, supplierId: v === "none" ? "" : v, payeeName: s && !f.payeeName ? s.name : f.payeeName }));
+                value={beneficiaryType}
+                onValueChange={(v: "supplier" | "subcontractor" | "other") => {
+                  setBeneficiaryType(v);
+                  if (v === "supplier") {
+                    setForm((f) => ({ ...f, subcontractorId: "", subcontractorContractId: "", subcontractorCertificateId: "" }));
+                  } else if (v === "subcontractor") {
+                    setForm((f) => ({ ...f, supplierId: "", purchaseOrderId: "" }));
+                  } else {
+                    setForm((f) => ({ ...f, supplierId: "", purchaseOrderId: "", subcontractorId: "", subcontractorContractId: "", subcontractorCertificateId: "" }));
+                  }
                 }}
               >
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="none">{t("common.unspecified")}</SelectItem>
-                  {sources?.suppliers.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+                  <SelectItem value="supplier">{t("transfer.beneficiary_supplier")}</SelectItem>
+                  <SelectItem value="subcontractor">{t("transfer.beneficiary_subcontractor")}</SelectItem>
+                  <SelectItem value="other">{t("transfer.beneficiary_other")}</SelectItem>
                 </SelectContent>
               </Select>
             </Field>
+          </div>
+
+          {/* Supplier Fields */}
+          {beneficiaryType === "supplier" && (
+            <>
+              {(sources?.suppliers.length ?? 0) > 0 && (
+                <Field label={t("bill_requests.supplier_from_register")}>
+                  <Select
+                    value={form.supplierId || "none"}
+                    onValueChange={(v) => {
+                      const s = sources?.suppliers.find((x) => x.id === v);
+                      setForm((f) => ({ ...f, supplierId: v === "none" ? "" : v, payeeName: s && !f.payeeName ? s.name : f.payeeName }));
+                    }}
+                  >
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">{t("common.unspecified")}</SelectItem>
+                      {sources?.suppliers.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </Field>
+              )}
+              {(sources?.purchaseOrders.length ?? 0) > 0 && (
+                <Field label={t("bill_requests.po_optional")}>
+                  <Select
+                    value={form.purchaseOrderId || "none"}
+                    onValueChange={(v) => {
+                      const p = sources?.purchaseOrders.find((x) => x.id === v);
+                      setForm((f) => ({ ...f, purchaseOrderId: v === "none" ? "" : v, supplierId: p?.supplierId && !f.supplierId ? p.supplierId : f.supplierId, payeeName: p && !f.payeeName ? p.supplierName ?? "" : f.payeeName }));
+                    }}
+                  >
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">—</SelectItem>
+                      {sources?.purchaseOrders.map((p) => <SelectItem key={p.id} value={p.id}>{p.poNumber} · {p.supplierName} · {money(p.totalAmount)}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </Field>
+              )}
+            </>
           )}
-          {(sources?.purchaseOrders.length ?? 0) > 0 && (
-            <Field label={t("bill_requests.po_optional")}>
-              <Select
-                value={form.purchaseOrderId || "none"}
-                onValueChange={(v) => {
-                  const p = sources?.purchaseOrders.find((x) => x.id === v);
-                  setForm((f) => ({ ...f, purchaseOrderId: v === "none" ? "" : v, supplierId: p?.supplierId && !f.supplierId ? p.supplierId : f.supplierId, payeeName: p && !f.payeeName ? p.supplierName ?? "" : f.payeeName }));
-                }}
-              >
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">—</SelectItem>
-                  {sources?.purchaseOrders.map((p) => <SelectItem key={p.id} value={p.id}>{p.poNumber} · {p.supplierName} · {money(p.totalAmount)}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </Field>
+
+          {/* Subcontractor Fields */}
+          {beneficiaryType === "subcontractor" && (
+            <>
+              <Field label={t("transfer.subcontractor_label")}>
+                <Select
+                  value={form.subcontractorId || "none"}
+                  onValueChange={(v) => {
+                    const sub = (sources?.subcontractors ?? []).find((x) => x.id === v);
+                    setForm((f) => ({
+                      ...f,
+                      subcontractorId: v === "none" ? "" : v,
+                      subcontractorContractId: "",
+                      subcontractorCertificateId: "",
+                      payeeName: sub ? sub.name : f.payeeName,
+                    }));
+                  }}
+                >
+                  <SelectTrigger><SelectValue placeholder={t("transfer.subcontractor_placeholder")} /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">{t("common.unspecified")}</SelectItem>
+                    {(sources?.subcontractors ?? []).map((s) => (
+                      <SelectItem key={s.id} value={s.id}>
+                        {s.name} {s.scope ? `— ${s.scope}` : ""}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </Field>
+
+              {form.subcontractorId && (
+                <div className="grid sm:grid-cols-2 gap-3">
+                  <Field label={t("transfer.contract_label")}>
+                    <Select
+                      value={form.subcontractorContractId || "none"}
+                      onValueChange={(v) => {
+                        const cnt = (sources?.subcontractorContracts ?? []).find((c) => c.id === v);
+                        setForm((f) => ({
+                          ...f,
+                          subcontractorContractId: v === "none" ? "" : v,
+                          reason: cnt && !f.reason ? `دفعة لحساب العقد ${cnt.contractNo} — ${cnt.title}` : f.reason,
+                        }));
+                      }}
+                    >
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">—</SelectItem>
+                        {(sources?.subcontractorContracts ?? [])
+                          .filter((c) => c.subcontractorId === form.subcontractorId)
+                          .map((c) => (
+                            <SelectItem key={c.id} value={c.id}>
+                              {c.contractNo} — {c.title} ({money(Number(c.contractValue) || 0)})
+                            </SelectItem>
+                          ))}
+                      </SelectContent>
+                    </Select>
+                  </Field>
+
+                  <Field label={t("transfer.certificate_label")}>
+                    <Select
+                      value={form.subcontractorCertificateId || "none"}
+                      onValueChange={(v) => {
+                        const cert = (sources?.subcontractorCertificates ?? []).find((c) => c.id === v);
+                        setForm((f) => ({
+                          ...f,
+                          subcontractorCertificateId: v === "none" ? "" : v,
+                          amount: cert ? String(cert.netPayable) : f.amount,
+                          reason: cert ? `صرف مستخلص معتمد رقم ${cert.certNo}` : f.reason,
+                        }));
+                      }}
+                    >
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">—</SelectItem>
+                        {(sources?.subcontractorCertificates ?? [])
+                          .filter((c) => c.subcontractorId === form.subcontractorId)
+                          .map((c) => (
+                            <SelectItem key={c.id} value={c.id}>
+                              {c.certNo} · {t("certificates.net_payable")}: {money(Number(c.netPayable) || 0)}
+                            </SelectItem>
+                          ))}
+                      </SelectContent>
+                    </Select>
+                  </Field>
+                </div>
+              )}
+            </>
           )}
+
           <div className="grid sm:grid-cols-2 gap-3">
             <Field label={t("common.payee")}><Input value={form.payeeName} onChange={(e) => set("payeeName")(e.target.value)} /></Field>
             <Field label={t("transfer.requested_amount")}><Input type="number" min="0" step="0.01" value={form.amount} onChange={(e) => set("amount")(e.target.value)} /></Field>

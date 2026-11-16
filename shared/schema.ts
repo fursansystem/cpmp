@@ -795,7 +795,9 @@ export const materialIssues = pgTable("material_issues", {
   recipientType: text("recipient_type").notNull().default("subcontractor"), // subcontractor, internal, other
   // The subcontractor from the project's register when the recipient is one; issuedTo keeps its name as written
   subcontractorId: varchar("subcontractor_id").references(() => projectSubcontractors.id, { onDelete: "set null" }),
+  contractId: varchar("contract_id"), // عقد مقاول الباطن المرتبط بالسند
   workLocationId: varchar("work_location_id").references(() => workLocations.id, { onDelete: "set null" }), // موقع العمل (اختياري)
+  workLocationIds: text("work_location_ids").array().notNull().default(sql`'{}'::text[]`), // مواقع العمل المختارة (يدعم اختيار كامل المبنى أو عدة وحدات)
   purpose: text("purpose"), // الغرض من الصرف
   status: text("status").notNull().default("issued"), // pending_approval, issued, rejected, cancelled
   requiresApproval: boolean("requires_approval").notNull().default(false), // محسوب من مواد السند وقت الإنشاء
@@ -2180,7 +2182,9 @@ export const insertMaterialIssueSchema = createInsertSchema(materialIssues, {
   issueDate: z.string().min(1, "Issue date is required"),
   issuedTo: z.string().min(1, "Recipient is required"),
   recipientType: z.enum(["subcontractor", "internal", "other"]),
+  contractId: z.string().optional().nullable().transform((v) => (v === "" ? null : v)),
   workLocationId: z.string().optional().nullable().transform((v) => (v === "" ? null : v)),
+  workLocationIds: z.array(z.string().min(1)).optional().default([]),
   purpose: z.string().optional().nullable(),
   // status and requiresApproval are derived on the server from the voucher's materials,
   // never accepted from the client.
@@ -2742,10 +2746,42 @@ export const projectSubcontractors = pgTable("project_subcontractors", {
   contactPerson: text("contact_person"),
   phone: text("phone"),
   scope: text("scope"), // trade / work the subcontractor does
+  workLocationIds: text("work_location_ids").array().notNull().default(sql`'{}'::text[]`), // المباني / مواقع العمل المسندة للمقاول
   createdBy: varchar("created_by").references(() => users.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 }, (table) => ({
   projectIdx: index("project_subcontractors_project_idx").on(table.projectId),
+}));
+
+// عقود مقاولي الباطن: links a subcontractor to specific buildings/work locations, scope, value, and lifecycle status (active, settled, terminated)
+export const subcontractorContracts = pgTable("subcontractor_contracts", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  projectId: varchar("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
+  seq: integer("seq").notNull(),
+  contractNo: text("contract_no").notNull(), // CNT-0001, numbered per project
+  subcontractorId: varchar("subcontractor_id").notNull().references(() => projectSubcontractors.id, { onDelete: "restrict" }),
+  subcontractorName: text("subcontractor_name").notNull(),
+  title: text("title").notNull(),
+  scope: text("scope"),
+  contractValue: decimal("contract_value", { precision: 14, scale: 2 }).notNull().default("0"),
+  retentionPercent: decimal("retention_percent", { precision: 5, scale: 2 }).notNull().default("10"),
+  vatPercent: decimal("vat_percent", { precision: 5, scale: 2 }).notNull().default("15"),
+  startDate: date("start_date"),
+  endDate: date("end_date"),
+  workLocationIds: text("work_location_ids").array().notNull().default(sql`'{}'::text[]`),
+  status: text("status").notNull().default("active"), // active | settled | terminated
+  settlementDate: date("settlement_date"),
+  settlementNote: text("settlement_note"),
+  settledBy: varchar("settled_by").references(() => users.id, { onDelete: "set null" }),
+  settledAt: timestamp("settled_at"),
+  notes: text("notes"),
+  createdBy: varchar("created_by").references(() => users.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => ({
+  seqUq: uniqueIndex("subcontractor_contracts_seq_uq").on(table.projectId, table.seq),
+  projectIdx: index("subcontractor_contracts_project_idx").on(table.projectId),
+  subIdx: index("subcontractor_contracts_sub_idx").on(table.subcontractorId),
 }));
 
 // Part or all of a supplier invoice charged to a subcontractor. Leaves the invoice's own workflow untouched.
@@ -2786,6 +2822,8 @@ export const paymentOrders = pgTable("payment_orders", {
   fineId: varchar("fine_id"),
   // The permit/transaction (الرخص والمعاملات) whose fee this order pays
   permitTransactionId: varchar("permit_transaction_id"),
+  subcontractorId: varchar("subcontractor_id").references(() => projectSubcontractors.id, { onDelete: "set null" }),
+  subcontractorContractId: varchar("subcontractor_contract_id"),
   subcontractorCertificateId: varchar("subcontractor_certificate_id"),
   // The page this order was started from (a purchase order, a delivery...)
   sourceType: text("source_type"),
@@ -2823,6 +2861,8 @@ export const paymentSubcontractorCertificates = pgTable("payment_subcontractor_c
   certNo: text("cert_no").notNull(), // SC-0001, numbered per project
   subcontractorId: varchar("subcontractor_id").references(() => projectSubcontractors.id, { onDelete: "restrict" }),
   subcontractorName: text("subcontractor_name").notNull(),
+  contractId: varchar("contract_id").references(() => subcontractorContracts.id, { onDelete: "set null" }),
+  workLocationIds: text("work_location_ids").array().notNull().default(sql`'{}'::text[]`),
   scope: text("scope"), // trade / work covered by the subcontract
   contractValue: decimal("contract_value", { precision: 14, scale: 2 }).notNull().default("0"),
   periodFrom: date("period_from"),
@@ -2922,6 +2962,7 @@ export type PaymentBillRequest = typeof paymentBillRequests.$inferSelect;
 export type PaymentInvoice = typeof paymentInvoices.$inferSelect;
 export type PaymentChargeback = typeof paymentChargebacks.$inferSelect;
 export type ProjectSubcontractor = typeof projectSubcontractors.$inferSelect;
+export type SubcontractorContract = typeof subcontractorContracts.$inferSelect;
 export type PaymentOrder = typeof paymentOrders.$inferSelect;
 export type PaymentSubcontractorCertificate = typeof paymentSubcontractorCertificates.$inferSelect;
 export type PaymentFine = typeof paymentFines.$inferSelect;

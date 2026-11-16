@@ -98,6 +98,7 @@
     "empty": "لا توجد سندات صرف",
     "recipient": "المستلم:",
     "warehouse": "المستودع:",
+    "work_location": "المبنى / الموقع:",
     "purpose": "الغرض:",
     "rejection_reason": "سبب الرفض: {{reason}}",
     "approve": "اعتماد",
@@ -257,6 +258,13 @@
       "other": "أخرى"
     },
     "work_location": "موقع العمل (اختياري)",
+    "work_location_required_label": "المبنى / موقع العمل",
+    "contract_label": "العقد المرتبط",
+    "select_contract_placeholder": "اختر عقد المقاول",
+    "no_contract": "بدون عقد محدد (كل المباني)",
+    "new_contract_inline": "إنشاء عقد جديد للمقاول",
+    "filtered_by_subcontractor": "مقيّد بمباني العقد ({{count}})",
+    "select_assigned_building": "اختر المبنى المشمول بالعقد",
     "unassigned": "بلا تحديد",
     "purpose": "الغرض",
     "optional": "اختياري",
@@ -280,6 +288,7 @@
     "errors": {
       "choose_warehouse": "اختر المستودع",
       "recipient_required": "اسم المستلم مطلوب",
+      "work_location_required": "يجب تحديد المبنى المسند لهذا المقاول الباطني",
       "enter_at_least_one": "أدخل كمية لمادة واحدة على الأقل",
       "quantity_exceeds": "الكمية تتجاوز المتوفر: {{items}}",
       "failed": "تعذّر تسجيل الصرف"

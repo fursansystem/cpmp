@@ -470,15 +470,15 @@ export default function ProjectPurchaseOrderDetail() {
             <Table>
               <TableHeader>
                 <TableRow className="bg-muted/30 hover:bg-muted/30">
-                  <TableHead className="text-end text-[11px] font-black">#</TableHead>
-                  <TableHead className="text-end text-[11px] font-black">{t("detail.items_table.material")}</TableHead>
-                  <TableHead className="text-end text-[11px] font-black">{t("detail.items_table.unit")}</TableHead>
-                  <TableHead className="text-end text-[11px] font-black">{t("detail.items_table.ordered")}</TableHead>
-                  <TableHead className="text-end text-[11px] font-black">{t("detail.items_table.unit_price")}</TableHead>
-                  <TableHead className="text-end text-[11px] font-black">{t("detail.items_table.line_total")}</TableHead>
-                  <TableHead className="text-end text-[11px] font-black">{t("detail.items_table.received")}</TableHead>
-                  <TableHead className="text-end text-[11px] font-black">{t("detail.items_table.remaining")}</TableHead>
-                  <TableHead className="text-end text-[11px] font-black">{t("detail.items_table.status")}</TableHead>
+                  <TableHead className="text-start text-[11px] font-black">#</TableHead>
+                  <TableHead className="text-start text-[11px] font-black">{t("detail.items_table.material")}</TableHead>
+                  <TableHead className="text-start text-[11px] font-black">{t("detail.items_table.unit")}</TableHead>
+                  <TableHead className="text-start text-[11px] font-black">{t("detail.items_table.ordered")}</TableHead>
+                  <TableHead className="text-start text-[11px] font-black">{t("detail.items_table.unit_price")}</TableHead>
+                  <TableHead className="text-start text-[11px] font-black">{t("detail.items_table.line_total")}</TableHead>
+                  <TableHead className="text-start text-[11px] font-black">{t("detail.items_table.received")}</TableHead>
+                  <TableHead className="text-start text-[11px] font-black">{t("detail.items_table.remaining")}</TableHead>
+                  <TableHead className="text-start text-[11px] font-black">{t("detail.items_table.status")}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>

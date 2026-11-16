@@ -1,8 +1,9 @@
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Search, Paperclip, AlertTriangle, Send, CheckCircle2, XCircle, Ban, Banknote, Save, HardHat } from "lucide-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Plus, Search, Paperclip, AlertTriangle, Send, CheckCircle2, XCircle, Ban, Banknote, Save, HardHat, Building2, MapPin } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -14,7 +15,17 @@ import { useAuth } from "@/lib/auth";
 import { apiRequest } from "@/lib/queryClient";
 import { OPEN_PAYMENT_ORDER, SUB_CERT_LABELS, computeSubCert, SUB_CERT_STATUSES } from "@shared/payments";
 import { ChargebacksPanel } from "./chargebacks";
-import { SubcontractorSelect, SubcontractorsPanel, type SubcontractorRow } from "./subcontractor-select";
+import {
+  SubcontractorSelect,
+  SubcontractorsPanel,
+  SubcontractorContractsPanel,
+  SubcontractorContractDialog,
+  WorkLocationPickerDialog,
+  GroupedLocationBadges,
+  useSubcontractorContracts,
+  type SubcontractorRow,
+  type SubcontractorContractRow,
+} from "./subcontractor-select";
 import {
   LatestActivity,
   PaymentDialog,
@@ -39,15 +50,17 @@ interface Props {
   chargebacks: any[];
   fines: any[];
   subcontractors: SubcontractorRow[];
+  contracts?: SubcontractorContractRow[];
   orders: any[];
   onRequestOrder: (certId: string) => void;
+  hidePanels?: boolean;
 }
 
 const num = (v: unknown) => Number(v ?? 0) || 0;
 // Saudi VAT, the starting value for a new certificate; it can be changed per certificate
 const DEFAULT_VAT = "15";
 
-export function SubcontractorCertificatesTab({ ctx, projectId, rows, chargebacks, fines, subcontractors, orders, onRequestOrder }: Props) {
+export function SubcontractorCertificatesTab({ ctx, projectId, rows, chargebacks, fines, subcontractors, contracts = [], orders, onRequestOrder, hidePanels = false }: Props) {
   const { t } = useTranslation("payments");
   const [status, setStatus] = useState("all");
   const [search, setSearch] = useState("");
@@ -112,9 +125,13 @@ export function SubcontractorCertificatesTab({ ctx, projectId, rows, chargebacks
         </CardContent>
       </Card>
 
-      <SubcontractorsPanel ctx={ctx} projectId={projectId} rows={subcontractors} certificates={rows} />
-
-      <ChargebacksPanel ctx={ctx} projectId={projectId} rows={chargebacks} fines={fines} />
+      {!hidePanels && (
+        <>
+          <SubcontractorContractsPanel ctx={ctx} projectId={projectId} contracts={contracts} certificates={rows} />
+          <SubcontractorsPanel ctx={ctx} projectId={projectId} rows={subcontractors} certificates={rows} />
+          <ChargebacksPanel ctx={ctx} projectId={projectId} rows={chargebacks} fines={fines} />
+        </>
+      )}
 
       {editing && (
         <SubCertDialog
@@ -134,59 +151,129 @@ export function SubcontractorCertificatesTab({ ctx, projectId, rows, chargebacks
 }
 
 const emptyForm = (vat = DEFAULT_VAT) => ({
-  subcontractorId: "", scope: "", contractValue: "", periodFrom: "", periodTo: "",
+  subcontractorId: "", contractId: "", workLocationIds: [] as string[], scope: "", contractValue: "", periodFrom: "", periodTo: "",
   grossAmount: "", retentionPercent: "10", advanceRecovery: "", otherDeductions: "", deductionsNote: "", vatPercent: vat, notes: "",
 });
 
-function SubCertDialog({ ctx, defaultProjectId, row, chargebacks, fines, allRows, orders, onClose, onRequestOrder }: {
-  ctx: PaymentsContext; defaultProjectId: string; row: any | null; chargebacks: any[]; fines: any[]; allRows: any[]; orders: any[]; onClose: () => void; onRequestOrder: (id: string) => void;
+export function SubCertDialog({ ctx, defaultProjectId, row, defaultSubcontractorId, chargebacks, fines, allRows, orders, onClose, onRequestOrder }: {
+  ctx: PaymentsContext; defaultProjectId: string; row: any | null; defaultSubcontractorId?: string; chargebacks: any[]; fines: any[]; allRows: any[]; orders: any[]; onClose: () => void; onRequestOrder: (id: string) => void;
 }) {
   const { t } = useTranslation("payments");
   const { toast } = useToast();
   const { user } = useAuth();
   const queryClient = useQueryClient();
-  const [projectId, setProjectId] = useState(row?.projectId ?? (defaultProjectId === "all" ? "" : defaultProjectId));
+  const isEditing = Boolean(row && row.id);
+  const [projectId, setProjectId] = useState(isEditing ? row.projectId : (defaultProjectId === "all" ? "" : defaultProjectId));
   const [rejecting, setRejecting] = useState(false);
   const [note, setNote] = useState("");
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [addingContract, setAddingContract] = useState(false);
   const [form, setForm] = useState(
-    row
+    isEditing
       ? {
-          subcontractorId: row.subcontractorId ?? "", scope: row.scope ?? "", contractValue: String(num(row.contractValue) || ""),
+          subcontractorId: row.subcontractorId ?? "",
+          contractId: row.contractId ?? "",
+          workLocationIds: (row.workLocationIds ?? []) as string[],
+          scope: row.scope ?? "", contractValue: String(num(row.contractValue) || ""),
           periodFrom: row.periodFrom ?? "", periodTo: row.periodTo ?? "", grossAmount: String(num(row.grossAmount) || ""),
           retentionPercent: String(num(row.retentionPercent)), advanceRecovery: String(num(row.advanceRecovery) || ""),
           otherDeductions: String(num(row.otherDeductions) || ""), deductionsNote: row.deductionsNote ?? "",
           vatPercent: String(num(row.vatPercent)), notes: row.notes ?? "",
         }
-      : emptyForm(),
+      : { ...emptyForm(), subcontractorId: defaultSubcontractorId ?? "" },
   );
   const set = (k: keyof typeof form) => (v: string) => setForm((f) => ({ ...f, [k]: v }));
+
+  const { data: contracts = [] } = useSubcontractorContracts(projectId);
+  const { data: workLocations = [] } = useQuery<any[]>({
+    queryKey: ["/api/projects", projectId, "work-locations"],
+    enabled: !!projectId,
+  });
+
+  const subContracts = useMemo(
+    () =>
+      form.subcontractorId
+        ? contracts.filter(
+            (c) =>
+              c.subcontractorId === form.subcontractorId &&
+              (c.status === "active" || c.id === form.contractId)
+          )
+        : [],
+    [contracts, form.subcontractorId, form.contractId]
+  );
+
+  const selectedContract = useMemo(
+    () => subContracts.find((c) => c.id === form.contractId),
+    [subContracts, form.contractId]
+  );
+
+  const availableLocations = useMemo(() => {
+    if (selectedContract?.workLocationIds?.length) {
+      const setIds = new Set(selectedContract.workLocationIds);
+      return workLocations.filter((l) => setIds.has(l.id));
+    }
+    return workLocations;
+  }, [workLocations, selectedContract]);
+
+  const applyContract = (c: SubcontractorContractRow | undefined) => {
+    if (!c) {
+      setForm((f) => ({ ...f, contractId: "" }));
+      return;
+    }
+    setForm((f) => ({
+      ...f,
+      contractId: c.id,
+      scope: c.scope || f.scope,
+      contractValue: String(num(c.contractValue) || ""),
+      retentionPercent: String(num(c.retentionPercent)),
+      vatPercent: String(num(c.vatPercent)),
+      workLocationIds: c.workLocationIds?.length ? [...c.workLocationIds] : f.workLocationIds,
+    }));
+  };
   // Approved invoice charge-backs this certificate can deduct: the subcontractor's own, not taken by another certificate
   const available = useMemo(() => chargebacks.filter((c) =>
-    row && c.projectId === row.projectId
+    (isEditing ? c.projectId === row.projectId : c.projectId === projectId)
     && c.subcontractorId === form.subcontractorId
-    && (c.status === "approved" || (c.status === "applied" && c.certificateId === row.id))), [chargebacks, row, form.subcontractorId]);
-  const [picked, setPicked] = useState<Set<string>>(() => new Set(row ? chargebacks.filter((c) => c.status === "applied" && c.certificateId === row.id).map((c) => c.id) : []));
+    && (c.status === "approved" || (isEditing && c.status === "applied" && c.certificateId === row.id))), [chargebacks, isEditing, row, projectId, form.subcontractorId]);
+  const [picked, setPicked] = useState<Set<string>>(() => new Set(isEditing ? chargebacks.filter((c) => c.status === "applied" && c.certificateId === row.id).map((c) => c.id) : []));
   const pickedTotal = available.filter((c) => picked.has(c.id)).reduce((s, c) => s + num(c.amount), 0);
   // Open deductions on the same subcontractor: taking one here reserves it, and approving the certificate recovers it
   const availableFines = useMemo(() => fines.filter((f) =>
-    row && f.projectId === row.projectId && f.subcontractorId === form.subcontractorId && f.status === "open"
-    && (!f.deductedCertificateId || f.deductedCertificateId === row.id)), [fines, row, form.subcontractorId]);
-  const [pickedFines, setPickedFines] = useState<Set<string>>(() => new Set(row ? fines.filter((f) => f.deductedCertificateId === row.id && f.status === "open").map((f) => f.id) : []));
+    (isEditing ? f.projectId === row.projectId : f.projectId === projectId) && f.subcontractorId === form.subcontractorId && f.status === "open"
+    && (!f.deductedCertificateId || (isEditing && f.deductedCertificateId === row.id))), [fines, isEditing, row, projectId, form.subcontractorId]);
+  const [pickedFines, setPickedFines] = useState<Set<string>>(() => new Set(isEditing ? fines.filter((f) => f.deductedCertificateId === row.id && f.status === "open").map((f) => f.id) : []));
   const fineAmount = (f: any) => Math.max(0, num(f.amount) - num(f.paidAmount));
   const pickedFinesTotal = availableFines.filter((f) => pickedFines.has(f.id)).reduce((s, f) => s + fineAmount(f), 0);
-  const chargebackTotal = row && !["draft", "rejected"].includes(row.status) ? num(row.chargebackDeductions) : pickedTotal + pickedFinesTotal;
+  const chargebackTotal = isEditing && !["draft", "rejected"].includes(row.status) ? num(row.chargebackDeductions) : pickedTotal + pickedFinesTotal;
 
-  const isOwner = !row || row.createdBy === user?.id || ctx.perms.isAccounting;
-  const editable = isOwner && (!row || ["draft", "rejected"].includes(row.status));
+  const isOwner = !isEditing || row.createdBy === user?.id || ctx.perms.isAccounting;
+  const editable = isOwner && (!isEditing || ["draft", "rejected"].includes(row.status));
 
-  // A repeat certificate for the same subcontractor starts from the contract of its latest one
+  // A repeat certificate for the same subcontractor starts from its active contract or latest certificate
   const onSubChange = (id: string, sub?: SubcontractorRow) => {
+    const activeCnts = contracts.filter((c) => c.subcontractorId === id && c.status === "active");
     const match = allRows.find((r) => r.projectId === projectId && r.subcontractorId === id);
     setPicked(new Set());
     setPickedFines(new Set());
+    if (!isEditing && activeCnts.length === 1) {
+      const c = activeCnts[0];
+      setForm((f) => ({
+        ...f,
+        subcontractorId: id,
+        contractId: c.id,
+        scope: c.scope || sub?.scope || f.scope,
+        contractValue: String(num(c.contractValue) || ""),
+        retentionPercent: String(num(c.retentionPercent)),
+        vatPercent: String(num(c.vatPercent)),
+        workLocationIds: c.workLocationIds?.length ? [...c.workLocationIds] : [],
+      }));
+      return;
+    }
     setForm((f) => ({
       ...f,
       subcontractorId: id,
+      contractId: "",
+      workLocationIds: [],
       ...(!row && sub && !match ? { scope: f.scope || (sub.scope ?? "") } : {}),
       ...(match && !row ? { scope: f.scope || (match.scope ?? ""), contractValue: f.contractValue || String(num(match.contractValue) || ""), retentionPercent: String(num(match.retentionPercent)), vatPercent: String(num(match.vatPercent)) } : {}),
     }));
@@ -201,15 +288,24 @@ function SubCertDialog({ ctx, defaultProjectId, row, chargebacks, fines, allRows
     vatPercent: num(form.vatPercent),
   });
 
-  // What this subcontractor has already been certified for, against its contract value
+  // What this subcontractor (and contract, if chosen) has already been certified for, against its contract value
   const previousGross = allRows
-    .filter((r) => r.projectId === projectId && r.id !== row?.id && r.subcontractorId === form.subcontractorId && ["approved", "paid"].includes(r.status))
+    .filter(
+      (r) =>
+        r.projectId === projectId &&
+        r.id !== row?.id &&
+        r.subcontractorId === form.subcontractorId &&
+        (form.contractId ? r.contractId === form.contractId : true) &&
+        ["approved", "paid"].includes(r.status)
+    )
     .reduce((s, r) => s + num(r.grossAmount), 0);
   const cumulative = previousGross + num(form.grossAmount);
   const overContract = num(form.contractValue) > 0 && cumulative > num(form.contractValue) + 0.005;
 
   const body = () => ({
     ...form,
+    contractId: form.contractId || null,
+    workLocationIds: form.workLocationIds ?? [],
     scope: form.scope || null,
     periodFrom: form.periodFrom || null,
     periodTo: form.periodTo || null,
@@ -228,11 +324,11 @@ function SubCertDialog({ ctx, defaultProjectId, row, chargebacks, fines, allRows
 
   const save = useMutation({
     mutationFn: async () => {
-      if (!row) return apiRequest("POST", "/api/payments/subcontractor-certificates", { projectId, ...body() });
+      if (!isEditing) return apiRequest("POST", "/api/payments/subcontractor-certificates", { projectId, ...body() });
       await syncChargebacks();
       return apiRequest("PATCH", `/api/payments/subcontractor-certificates/${row.id}`, body());
     },
-    onSuccess: () => { invalidatePayments(queryClient); toast({ title: row ? t("toasts.saved") : t("toasts.cert_created") }); onClose(); },
+    onSuccess: () => { invalidatePayments(queryClient); toast({ title: isEditing ? t("toasts.saved") : t("toasts.cert_created") }); onClose(); },
     onError: (e) => toast({ title: t("errors.save_failed"), description: errorMessage(e), variant: "destructive" }),
   });
 
@@ -251,6 +347,12 @@ function SubCertDialog({ ctx, defaultProjectId, row, chargebacks, fines, allRows
   const saveAndSubmit = useMutation({
     mutationFn: async () => {
       await syncChargebacks();
+      if (!isEditing) {
+        const res = await apiRequest("POST", "/api/payments/subcontractor-certificates", { projectId, ...body() });
+        const created = await res.json();
+        await apiRequest("POST", `/api/payments/subcontractor-certificates/${created.id}/transition`, { action: "submit" });
+        return;
+      }
       await apiRequest("PATCH", `/api/payments/subcontractor-certificates/${row.id}`, body());
       await apiRequest("POST", `/api/payments/subcontractor-certificates/${row.id}/transition`, { action: "submit" });
     },
@@ -258,8 +360,8 @@ function SubCertDialog({ ctx, defaultProjectId, row, chargebacks, fines, allRows
     onError: (e) => { invalidatePayments(queryClient); toast({ title: t("errors.send_submit_failed"), description: errorMessage(e), variant: "destructive" }); },
   });
 
-  const hasLiveOrder = row ? orders.some((o) => o.subcontractorCertificateId === row.id && ([...OPEN_PAYMENT_ORDER, "paid"] as string[]).includes(o.status)) : false;
-  const ownCert = row?.createdBy === user?.id && user?.role !== "super_admin";
+  const hasLiveOrder = isEditing && row ? orders.some((o) => o.subcontractorCertificateId === row.id && ([...OPEN_PAYMENT_ORDER, "paid"] as string[]).includes(o.status)) : false;
+  const ownCert = isEditing && row?.createdBy === user?.id && user?.role !== "super_admin";
   const L = (label: string, child: React.ReactNode, cls = "") => <div className={`space-y-1.5 ${cls}`}><Label>{label}</Label>{child}</div>;
 
   return (
@@ -267,9 +369,9 @@ function SubCertDialog({ ctx, defaultProjectId, row, chargebacks, fines, allRows
       onClose={onClose}
       icon={HardHat}
       kind={t("certificates.kind")}
-      title={row ? <span className="font-mono">{row.certNo}</span> : t("certificates.new_title")}
-      badge={row ? <StatusBadge status={row.status} group="sub_cert" /> : undefined}
-      description={row ? row.projectName : t("certificates.new_description")}
+      title={isEditing && row ? <span className="font-mono">{row.certNo}</span> : t("certificates.new_title")}
+      badge={isEditing && row ? <StatusBadge status={row.status} group="sub_cert" /> : undefined}
+      description={isEditing && row ? row.projectName : t("certificates.new_description")}
       amount={<span className={figures.netPayable < 0 ? "text-destructive" : undefined}>{money(figures.netPayable)}</span>}
       amountLabel={t("certificates.net_payable")}
       panel={rejecting && (
@@ -321,6 +423,102 @@ function SubCertDialog({ ctx, defaultProjectId, row, chargebacks, fines, allRows
               <SubcontractorSelect projectId={projectId} value={form.subcontractorId} disabled={!editable} onChange={onSubChange} />
             </>
           ))}
+          {L(t("contracts.select_label"), (
+            <>
+              <Select
+                value={form.contractId || "__none__"}
+                disabled={!editable || !form.subcontractorId}
+                onValueChange={(v) => {
+                  if (v === "__new__") setAddingContract(true);
+                  else applyContract(subContracts.find((c) => c.id === v));
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder={t("contracts.select_placeholder")} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">{t("contracts.no_contract")}</SelectItem>
+                  {subContracts.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>
+                      {c.contractNo} — {c.title}
+                    </SelectItem>
+                  ))}
+                  {editable && projectId && (
+                    <SelectItem value="__new__">
+                      <span className="flex items-center gap-1 font-semibold text-primary">
+                        <Plus className="w-3.5 h-3.5" /> {t("contracts.new_inline")}
+                      </span>
+                    </SelectItem>
+                  )}
+                </SelectContent>
+              </Select>
+              {addingContract && (
+                <SubcontractorContractDialog
+                  projectId={projectId}
+                  onClose={() => setAddingContract(false)}
+                  onSaved={(saved) => {
+                    setAddingContract(false);
+                    applyContract(saved);
+                  }}
+                />
+              )}
+            </>
+          ))}
+          <div className="space-y-2 sm:col-span-2 rounded-xl border border-border/60 p-3 bg-muted/10">
+            <div className="flex items-center justify-between gap-2">
+              <Label className="flex items-center gap-1.5 font-bold text-xs">
+                <Building2 className="w-4 h-4 text-primary" />
+                {t("contracts.assigned_buildings")}
+              </Label>
+              {editable && (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="h-8 text-xs gap-1.5 rounded-xl"
+                  onClick={() => setPickerOpen(true)}
+                  disabled={!projectId}
+                >
+                  <MapPin className="w-3.5 h-3.5 text-primary" />
+                  Add Work Locations
+                  <Badge variant="secondary" className="text-[10px]">
+                    {form.workLocationIds.length} selected
+                  </Badge>
+                </Button>
+              )}
+            </div>
+            {form.workLocationIds.length > 0 ? (
+              <GroupedLocationBadges
+                locations={workLocations.filter((l) => form.workLocationIds.includes(l.id))}
+                onRemoveOne={(id) => {
+                  if (!editable) return;
+                  setForm((f) => ({ ...f, workLocationIds: f.workLocationIds.filter((x) => x !== id) }));
+                }}
+                onRemoveMany={
+                  editable
+                    ? (ids) => {
+                        const removeSet = new Set(ids);
+                        setForm((f) => ({
+                          ...f,
+                          workLocationIds: f.workLocationIds.filter((x) => !removeSet.has(x)),
+                        }));
+                      }
+                    : undefined
+                }
+              />
+            ) : (
+              <p className="text-xs text-muted-foreground">{t("subcontractors.all_locations_allowed")}</p>
+            )}
+            <WorkLocationPickerDialog
+              open={pickerOpen}
+              onOpenChange={setPickerOpen}
+              locations={availableLocations}
+              selectedIds={form.workLocationIds}
+              onChangeSelectedIds={(ids) => setForm((f) => ({ ...f, workLocationIds: ids }))}
+              multiple={true}
+              title="Add Work Locations"
+            />
+          </div>
           {L(t("certificates.scope"), <Input value={form.scope} disabled={!editable} onChange={(e) => set("scope")(e.target.value)} placeholder={t("certificates.scope_placeholder")} />)}
           {L(t("certificates.contract_value"), <Input type="number" min="0" step="0.01" value={form.contractValue} disabled={!editable} onChange={(e) => set("contractValue")(e.target.value)} />)}
           {L(t("certificates.work_value"), <Input type="number" min="0" step="0.01" value={form.grossAmount} disabled={!editable} onChange={(e) => set("grossAmount")(e.target.value)} />)}
@@ -403,7 +601,7 @@ function SubCertDialog({ ctx, defaultProjectId, row, chargebacks, fines, allRows
           </Section>
         )}
 
-        {row && (
+        {isEditing && row && (
           <>
             <LatestActivity entityType="subcontractor_certificate" entityId={row.id} group="sub_cert" />
             <div className="rounded-md border border-dashed border-primary/20 bg-primary/5 p-3">
@@ -411,7 +609,7 @@ function SubCertDialog({ ctx, defaultProjectId, row, chargebacks, fines, allRows
                 entityType="subcontractor_certificate"
                 entityId={row.id}
                 projectId={row.projectId}
-                files={row.attachments}
+                files={row.attachments ?? []}
                 editable={!["paid", "cancelled"].includes(row.status)}
                 hint={t("certificates.hint_attachments")}
                 canRemove={(f) => f.uploadedBy === user?.id || ctx.perms.isAccounting}

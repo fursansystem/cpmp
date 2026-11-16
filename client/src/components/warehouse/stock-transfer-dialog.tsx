@@ -210,9 +210,9 @@ export function StockTransferDialog({ open, onOpenChange, projectId, warehouses 
               <Table>
                 <TableHeader>
                   <TableRow className="bg-muted/30 hover:bg-muted/30">
-                    <TableHead className="text-end text-[11px] font-black">{t("transfer_dialog.table.material")}</TableHead>
-                    <TableHead className="text-end text-[11px] font-black">{t("transfer_dialog.table.available")}</TableHead>
-                    <TableHead className="text-end text-[11px] font-black w-[130px]">{t("transfer_dialog.table.quantity")}</TableHead>
+                    <TableHead className="text-start text-[11px] font-black">{t("transfer_dialog.table.material")}</TableHead>
+                    <TableHead className="text-start text-[11px] font-black">{t("transfer_dialog.table.available")}</TableHead>
+                    <TableHead className="text-start text-[11px] font-black w-[130px]">{t("transfer_dialog.table.quantity")}</TableHead>
                     <TableHead className="w-10" />
                   </TableRow>
                 </TableHeader>

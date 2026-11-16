@@ -30,6 +30,7 @@ import {
   Receipt,
   Wallet,
   Landmark,
+  HardHat,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { format, differenceInDays, startOfDay } from "@/lib/date-format";
@@ -166,6 +167,16 @@ export default function ProjectDetail() {
       link: `/projects/${projectId}/progress-matrix?tab=certificates`,
       color: "text-emerald-600",
       bg: "bg-emerald-50 dark:bg-emerald-900/10",
+      active: true
+    },
+    {
+      title: t("cards.subcontractors.title"),
+      description: t("cards.subcontractors.description"),
+      icon: HardHat,
+      count: paymentsReport?.totals?.subCertsPendingCount ?? "—",
+      link: `/projects/${projectId}/subcontractors`,
+      color: "text-amber-600",
+      bg: "bg-amber-50 dark:bg-amber-900/10",
       active: true
     },
     {

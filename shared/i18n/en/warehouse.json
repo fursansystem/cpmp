@@ -98,6 +98,7 @@
     "empty": "No material issue notes",
     "recipient": "Recipient:",
     "warehouse": "Warehouse:",
+    "work_location": "Building / Location:",
     "purpose": "Purpose:",
     "rejection_reason": "Rejection reason: {{reason}}",
     "approve": "Approve",
@@ -257,6 +258,13 @@
       "other": "Other"
     },
     "work_location": "Work Location (Optional)",
+    "work_location_required_label": "Building / Work Location",
+    "contract_label": "Linked Contract",
+    "select_contract_placeholder": "Select subcontractor contract",
+    "no_contract": "No specific contract (All buildings)",
+    "new_contract_inline": "Create new contract",
+    "filtered_by_subcontractor": "Restricted to contract's buildings ({{count}})",
+    "select_assigned_building": "Select building covered by contract",
     "unassigned": "Unassigned",
     "purpose": "Purpose",
     "optional": "Optional",
@@ -280,6 +288,7 @@
     "errors": {
       "choose_warehouse": "Select warehouse",
       "recipient_required": "Recipient name is required",
+      "work_location_required": "Please select the building assigned to this subcontractor",
       "enter_at_least_one": "Enter quantity for at least one material",
       "quantity_exceeds": "Quantity exceeds available: {{items}}",
       "failed": "Could not record material issue"

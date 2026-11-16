@@ -21,8 +21,10 @@ import {
   paymentInvoices,
   paymentChargebacks,
   projectSubcontractors,
+  subcontractorContracts,
   paymentOrders,
   paymentSubcontractorCertificates,
+  materialIssues,
   permitTransactions,
   paymentFines,
   paymentAttachments,
@@ -165,6 +167,8 @@ const invoiceSchema = z.object({
 
 const subCertBase = {
   subcontractorId: z.string().min(1, "Subcontractor is required"),
+  contractId: z.string().nullish().transform((v) => v || null),
+  workLocationIds: z.array(z.string().min(1)).max(500).optional().default([]),
   scope: optText(1000),
   contractValue: money.default(0),
   periodFrom: optDate,
@@ -180,6 +184,26 @@ const subCertBase = {
 const subCertCreateSchema = z.object({ projectId: z.string().min(1), ...subCertBase });
 const subCertUpdateSchema = z.object(subCertBase);
 
+const subContractBase = {
+  subcontractorId: z.string().min(1, "Subcontractor is required"),
+  title: z.string().trim().min(1, "Contract title is required").max(300),
+  scope: optText(1000),
+  contractValue: money.default(0),
+  retentionPercent: z.coerce.number().min(0).max(100).default(10),
+  vatPercent: z.coerce.number().min(0).max(100).default(15),
+  startDate: optDate,
+  endDate: optDate,
+  workLocationIds: z.array(z.string().min(1)).max(500).optional().default([]),
+  notes: optText(),
+};
+const subContractCreateSchema = z.object({ projectId: z.string().min(1), ...subContractBase });
+const subContractUpdateSchema = z.object(subContractBase);
+const subContractTransitionSchema = z.object({
+  action: z.enum(["settle", "terminate", "reopen"]),
+  settlementDate: optDate,
+  note: optText(),
+});
+
 const subCertTransitionSchema = z.object({
   action: z.enum(["submit", "approve", "reject", "cancel"]),
   note: optText(),
@@ -191,6 +215,7 @@ const subcontractorSchema = z.object({
   contactPerson: optText(200),
   phone: optText(50),
   scope: optText(300),
+  workLocationIds: z.array(z.string().min(1)).max(500).optional().default([]),
 });
 
 const chargebackCreateSchema = z.object({
@@ -228,10 +253,13 @@ const transferRequestSchema = z.object({
   projectId: z.string().min(1),
   payeeName: z.string().trim().min(1, "Payee is required").max(300),
   amount: z.coerce.number().gt(0, "Amount must be greater than zero").max(1e12),
-  purpose: z.enum(["advance", "other"]).default("other"),
+  purpose: z.enum(["advance", "other", "subcontractor"]).default("other"),
   reason: z.string().trim().min(1, "State what the transfer is for").max(2000),
   supplierId: z.string().nullish().transform((v) => v || null),
   purchaseOrderId: z.string().nullish().transform((v) => v || null),
+  subcontractorId: z.string().nullish().transform((v) => v || null),
+  subcontractorContractId: z.string().nullish().transform((v) => v || null),
+  subcontractorCertificateId: z.string().nullish().transform((v) => v || null),
   // asking for a licence / transaction fee to be paid (الرخص والمعاملات)
   permitTransactionId: z.string().nullish().transform((v) => v || null),
   ...sourceFields,
@@ -261,6 +289,51 @@ const daysBetween = (fromIso: string, to = new Date()) =>
 
 export function registerPaymentsRoutes(app: Express, deps: Deps) {
   const base = "/api/payments";
+
+  db.execute(sql`ALTER TABLE project_subcontractors ADD COLUMN IF NOT EXISTS work_location_ids TEXT[] NOT NULL DEFAULT '{}'::text[];`).catch((err) => {
+    console.error("[Payments] Could not ensure work_location_ids column:", err?.message);
+  });
+  db.execute(sql`ALTER TABLE IF EXISTS material_issues ADD COLUMN IF NOT EXISTS work_location_ids TEXT[] NOT NULL DEFAULT '{}'::text[];`).catch((err) => {
+    console.error("[Payments] Could not ensure material_issues.work_location_ids column:", err?.message);
+  });
+  db.execute(sql`ALTER TABLE IF EXISTS material_issues ADD COLUMN IF NOT EXISTS contract_id VARCHAR;`).catch((err) => {
+    console.error("[Payments] Could not ensure material_issues.contract_id column:", err?.message);
+  });
+  db.execute(sql`
+    CREATE TABLE IF NOT EXISTS subcontractor_contracts (
+      id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+      project_id VARCHAR NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+      seq INTEGER NOT NULL,
+      contract_no TEXT NOT NULL,
+      subcontractor_id VARCHAR NOT NULL REFERENCES project_subcontractors(id) ON DELETE RESTRICT,
+      subcontractor_name TEXT NOT NULL,
+      title TEXT NOT NULL,
+      scope TEXT,
+      contract_value DECIMAL(14, 2) NOT NULL DEFAULT 0,
+      retention_percent DECIMAL(5, 2) NOT NULL DEFAULT 10,
+      vat_percent DECIMAL(5, 2) NOT NULL DEFAULT 15,
+      start_date DATE,
+      end_date DATE,
+      work_location_ids TEXT[] NOT NULL DEFAULT '{}'::text[],
+      status TEXT NOT NULL DEFAULT 'active',
+      settlement_date DATE,
+      settlement_note TEXT,
+      settled_by VARCHAR REFERENCES users(id) ON DELETE SET NULL,
+      settled_at TIMESTAMP,
+      notes TEXT,
+      created_by VARCHAR REFERENCES users(id) ON DELETE SET NULL,
+      created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+      UNIQUE(project_id, seq)
+    );
+  `).then(() => {
+    return db.execute(sql`
+      ALTER TABLE payment_subcontractor_certificates ADD COLUMN IF NOT EXISTS contract_id VARCHAR REFERENCES subcontractor_contracts(id) ON DELETE SET NULL;
+      ALTER TABLE payment_subcontractor_certificates ADD COLUMN IF NOT EXISTS work_location_ids TEXT[] NOT NULL DEFAULT '{}'::text[];
+    `);
+  }).catch((err) => {
+    console.error("[Payments] Could not ensure subcontractor_contracts table:", err?.message);
+  });
 
   type Ctx = {
     cu: CurrentUser;
@@ -346,7 +419,7 @@ export function registerPaymentsRoutes(app: Express, deps: Deps) {
   // Numbers are per project. The unique index on (project_id, seq) is the real guard, so a
   // concurrent insert that picks the same number is retried rather than trusted.
   async function insertNumbered<T>(
-    table: typeof paymentBillRequests | typeof paymentOrders | typeof paymentSubcontractorCertificates | typeof paymentChargebacks,
+    table: typeof paymentBillRequests | typeof paymentOrders | typeof paymentSubcontractorCertificates | typeof paymentChargebacks | typeof subcontractorContracts,
     projectId: string,
     make: (seq: number) => Promise<T>,
   ): Promise<T> {
@@ -604,7 +677,7 @@ export function registerPaymentsRoutes(app: Express, deps: Deps) {
   app.get(`${base}/sources`, route(async (req, res, ctx) => {
     const projectId = String(req.query.projectId || "");
     requireProject(ctx, projectId);
-    const [pos, certs] = await Promise.all([
+    const [pos, certs, projectSuppliers, projectSubs, projectContracts, projectSubCerts] = await Promise.all([
       db
         .select({
           id: purchaseOrders.id,
@@ -629,25 +702,67 @@ export function registerPaymentsRoutes(app: Express, deps: Deps) {
         .from(progressPaymentCertificates)
         .where(eq(progressPaymentCertificates.projectId, projectId))
         .orderBy(desc(progressPaymentCertificates.certNo)),
+      db
+        .select({ id: suppliers.id, name: suppliers.supplierName, taxNumber: suppliers.taxNumber })
+        .from(suppliers)
+        .where(eq(suppliers.projectId, projectId))
+        .orderBy(suppliers.supplierName),
+      db
+        .select({
+          id: projectSubcontractors.id,
+          name: projectSubcontractors.name,
+          scope: projectSubcontractors.scope,
+          phone: projectSubcontractors.phone,
+          taxNumber: projectSubcontractors.taxNumber,
+        })
+        .from(projectSubcontractors)
+        .where(eq(projectSubcontractors.projectId, projectId))
+        .orderBy(projectSubcontractors.name),
+      db
+        .select({
+          id: subcontractorContracts.id,
+          contractNo: subcontractorContracts.contractNo,
+          title: subcontractorContracts.title,
+          subcontractorId: subcontractorContracts.subcontractorId,
+          contractValue: subcontractorContracts.contractValue,
+          status: subcontractorContracts.status,
+        })
+        .from(subcontractorContracts)
+        .where(eq(subcontractorContracts.projectId, projectId))
+        .orderBy(desc(subcontractorContracts.createdAt)),
+      db
+        .select({
+          id: paymentSubcontractorCertificates.id,
+          certNo: paymentSubcontractorCertificates.certNo,
+          subcontractorId: paymentSubcontractorCertificates.subcontractorId,
+          contractId: paymentSubcontractorCertificates.contractId,
+          netPayable: paymentSubcontractorCertificates.netPayable,
+          status: paymentSubcontractorCertificates.status,
+        })
+        .from(paymentSubcontractorCertificates)
+        .where(and(eq(paymentSubcontractorCertificates.projectId, projectId), eq(paymentSubcontractorCertificates.status, "approved")))
+        .orderBy(desc(paymentSubcontractorCertificates.createdAt)),
     ]);
-    const projectSuppliers = await db
-      .select({ id: suppliers.id, name: suppliers.supplierName, taxNumber: suppliers.taxNumber })
-      .from(suppliers)
-      .where(eq(suppliers.projectId, projectId))
-      .orderBy(suppliers.supplierName);
-    res.json({ purchaseOrders: pos, certificates: certs, suppliers: projectSuppliers });
+    res.json({
+      purchaseOrders: pos,
+      certificates: certs,
+      suppliers: projectSuppliers,
+      subcontractors: projectSubs,
+      subcontractorContracts: projectContracts,
+      subcontractorCertificates: projectSubCerts,
+    });
   }));
 
   // ---- Everything the page shows, in one round trip ----
   app.get(`${base}/overview`, route(async (req, res, ctx) => {
     const ids = scopedIds(ctx, req.query.projectId);
-    if (ids.length === 0) return res.json({ billRequests: [], orders: [], subcontractorCertificates: [], subcontractors: [], chargebacks: [], permits: [], fines: [], purchaseOrders: [], suppliers: [] });
+    if (ids.length === 0) return res.json({ billRequests: [], orders: [], subcontractorCertificates: [], subcontractors: [], subcontractorContracts: [], chargebacks: [], permits: [], fines: [], purchaseOrders: [], suppliers: [] });
 
     const supplierRows = await db
       .select({ id: suppliers.id, projectId: suppliers.projectId, name: suppliers.supplierName, taxNumber: suppliers.taxNumber })
       .from(suppliers)
       .where(inArray(suppliers.projectId, ids));
-    const [bills, allOrders, allSubCerts, permitRows, fines, userRows, chargebackRows, subcontractorRows] = await Promise.all([
+    const [bills, allOrders, allSubCerts, permitRows, fines, userRows, chargebackRows, subcontractorRows, contractRows] = await Promise.all([
       db.select().from(paymentBillRequests).where(inArray(paymentBillRequests.projectId, ids)).orderBy(desc(paymentBillRequests.createdAt)),
       db.select().from(paymentOrders).where(inArray(paymentOrders.projectId, ids)).orderBy(desc(paymentOrders.createdAt)),
       db.select().from(paymentSubcontractorCertificates).where(inArray(paymentSubcontractorCertificates.projectId, ids)).orderBy(desc(paymentSubcontractorCertificates.createdAt)),
@@ -656,6 +771,7 @@ export function registerPaymentsRoutes(app: Express, deps: Deps) {
       db.select({ id: users.id, name: users.username }).from(users),
       db.select().from(paymentChargebacks).where(inArray(paymentChargebacks.projectId, ids)).orderBy(desc(paymentChargebacks.createdAt)),
       db.select().from(projectSubcontractors).where(inArray(projectSubcontractors.projectId, ids)).orderBy(projectSubcontractors.name),
+      db.select().from(subcontractorContracts).where(inArray(subcontractorContracts.projectId, ids)).orderBy(desc(subcontractorContracts.createdAt)).catch(() => []),
     ]);
     // A project manager decides on what has been sent to them. Drafts are still being prepared, so they stay with their
     // authors (and accounting); a certificate the manager prepared themselves remains visible to them.
@@ -694,6 +810,7 @@ export function registerPaymentsRoutes(app: Express, deps: Deps) {
         approvedByName: userName.get(c.approvedBy ?? "") ?? null,
       })),
       subcontractors: decorate(subcontractorRows),
+      subcontractorContracts: decorate(contractRows),
       chargebacks: (await withAttachments("chargeback", decorate(chargebackRows))).map((c) => {
         const invoice = invoiceRows.find((i) => i.id === c.invoiceId);
         const bill = bills.find((b) => b.id === c.billRequestId);
@@ -1083,6 +1200,19 @@ export function registerPaymentsRoutes(app: Express, deps: Deps) {
 
     if (data.permitTransactionId) await requirePayablePermit(data.projectId, data.permitTransactionId);
 
+    if (data.subcontractorId) {
+      const [sub] = await db.select({ id: projectSubcontractors.id }).from(projectSubcontractors).where(and(eq(projectSubcontractors.id, data.subcontractorId), eq(projectSubcontractors.projectId, data.projectId)));
+      if (!sub) return fail(400, "Subcontractor does not belong to this project");
+    }
+    if (data.subcontractorContractId) {
+      const [cnt] = await db.select({ id: subcontractorContracts.id }).from(subcontractorContracts).where(and(eq(subcontractorContracts.id, data.subcontractorContractId), eq(subcontractorContracts.projectId, data.projectId)));
+      if (!cnt) return fail(400, "Subcontractor contract does not belong to this project");
+    }
+    if (data.subcontractorCertificateId) {
+      const [cert] = await db.select({ id: paymentSubcontractorCertificates.id }).from(paymentSubcontractorCertificates).where(and(eq(paymentSubcontractorCertificates.id, data.subcontractorCertificateId), eq(paymentSubcontractorCertificates.projectId, data.projectId)));
+      if (!cert) return fail(400, "Subcontractor certificate does not belong to this project");
+    }
+
     // A project manager's own request has already had a manager's eyes on it
     const status = ctx.perms.canApprove ? "request_approved" : "requested";
     const created = await insertNumbered(paymentOrders, data.projectId, async (seq) => {
@@ -1092,14 +1222,21 @@ export function registerPaymentsRoutes(app: Express, deps: Deps) {
         orderNo: pad("PAY", seq),
         supplierId,
         purchaseOrderId: data.purchaseOrderId,
+        subcontractorId: data.subcontractorId,
+        subcontractorContractId: data.subcontractorContractId,
+        subcontractorCertificateId: data.subcontractorCertificateId,
         payeeName: data.payeeName,
-        purpose: data.permitTransactionId ? "clearance" : data.purpose,
+        purpose: data.permitTransactionId
+          ? "clearance"
+          : (data.subcontractorId || data.subcontractorCertificateId)
+            ? "subcontractor"
+            : data.purpose,
         permitTransactionId: data.permitTransactionId,
         reason: data.reason,
         amount: String(data.amount),
         status,
-        sourceType: data.sourceType,
-        sourceId: data.sourceId,
+        sourceType: data.sourceType ?? (data.subcontractorId ? "subcontractor" : null),
+        sourceId: data.sourceId ?? data.subcontractorId ?? data.subcontractorCertificateId,
         createdBy: ctx.cu.user.id,
       }).returning();
       return row;
@@ -1358,6 +1495,7 @@ export function registerPaymentsRoutes(app: Express, deps: Deps) {
     if (data.name !== row.name) {
       await db.update(paymentSubcontractorCertificates).set({ subcontractorName: data.name }).where(eq(paymentSubcontractorCertificates.subcontractorId, row.id));
       await db.update(paymentChargebacks).set({ subcontractorName: data.name }).where(eq(paymentChargebacks.subcontractorId, row.id));
+      await db.update(subcontractorContracts).set({ subcontractorName: data.name }).where(eq(subcontractorContracts.subcontractorId, row.id));
     }
     broadcast(row.projectId, ctx);
     res.json({ ok: true });
@@ -1369,8 +1507,125 @@ export function registerPaymentsRoutes(app: Express, deps: Deps) {
     const [cert] = await db.select({ id: paymentSubcontractorCertificates.id }).from(paymentSubcontractorCertificates).where(eq(paymentSubcontractorCertificates.subcontractorId, row.id)).limit(1);
     const [cb] = await db.select({ id: paymentChargebacks.id }).from(paymentChargebacks).where(eq(paymentChargebacks.subcontractorId, row.id)).limit(1);
     const [fine] = await db.select({ id: paymentFines.id }).from(paymentFines).where(eq(paymentFines.subcontractorId, row.id)).limit(1);
-    if (cert || cb || fine) return fail(409, "This subcontractor has certificates, charge-backs or deductions and cannot be deleted");
+    const [cnt] = await db.select({ id: subcontractorContracts.id }).from(subcontractorContracts).where(eq(subcontractorContracts.subcontractorId, row.id)).limit(1);
+    if (cert || cb || fine || cnt) return fail(409, "This subcontractor has contracts, certificates, charge-backs or deductions and cannot be deleted");
     await db.delete(projectSubcontractors).where(eq(projectSubcontractors.id, row.id));
+    broadcast(row.projectId, ctx);
+    res.status(204).send();
+  }));
+
+  // ---- Subcontractor Contracts (عقود مقاولي الباطن) ----
+  const loadSubContract = async (ctx: Ctx, id: string) => {
+    const [row] = await db.select().from(subcontractorContracts).where(eq(subcontractorContracts.id, id));
+    if (!row || !ctx.projectIds.has(row.projectId)) return fail(404, "Subcontractor contract not found");
+    return row;
+  };
+
+  app.get(`${base}/subcontractor-contracts`, route(async (req, res, ctx) => {
+    const ids = scopedIds(ctx, req.query.projectId);
+    if (ids.length === 0) return res.json([]);
+    res.json(
+      await db
+        .select()
+        .from(subcontractorContracts)
+        .where(inArray(subcontractorContracts.projectId, ids))
+        .orderBy(desc(subcontractorContracts.createdAt))
+    );
+  }));
+
+  app.post(`${base}/subcontractor-contracts`, route(async (req, res, ctx) => {
+    const data = subContractCreateSchema.parse(req.body);
+    requireProject(ctx, data.projectId);
+    const { projectId, ...rest } = data;
+    const sub = await resolveSubcontractor(projectId, rest.subcontractorId);
+    const created = await insertNumbered(subcontractorContracts, projectId, async (seq) => {
+      const [row] = await db.insert(subcontractorContracts).values({
+        projectId,
+        seq,
+        contractNo: pad("CNT", seq),
+        subcontractorId: sub.id,
+        subcontractorName: sub.name,
+        title: rest.title,
+        scope: rest.scope,
+        contractValue: String(rest.contractValue),
+        retentionPercent: String(rest.retentionPercent),
+        vatPercent: String(rest.vatPercent),
+        startDate: rest.startDate,
+        endDate: rest.endDate,
+        workLocationIds: rest.workLocationIds ?? [],
+        notes: rest.notes,
+        status: "active",
+        createdBy: ctx.cu.user.id,
+      }).returning();
+      return row;
+    });
+    broadcast(projectId, ctx);
+    res.status(201).json(created);
+  }));
+
+  app.patch(`${base}/subcontractor-contracts/:id`, route(async (req, res, ctx) => {
+    const row = await loadSubContract(ctx, req.params.id);
+    if (row.status !== "active") return fail(409, "A settled or terminated contract cannot be edited");
+    const d = subContractUpdateSchema.parse(req.body);
+    const sub = await resolveSubcontractor(row.projectId, d.subcontractorId);
+    await db.update(subcontractorContracts).set({
+      subcontractorId: sub.id,
+      subcontractorName: sub.name,
+      title: d.title,
+      scope: d.scope,
+      contractValue: String(d.contractValue),
+      retentionPercent: String(d.retentionPercent),
+      vatPercent: String(d.vatPercent),
+      startDate: d.startDate,
+      endDate: d.endDate,
+      workLocationIds: d.workLocationIds ?? [],
+      notes: d.notes,
+      updatedAt: new Date(),
+    }).where(eq(subcontractorContracts.id, row.id));
+    broadcast(row.projectId, ctx);
+    res.json({ ok: true });
+  }));
+
+  app.post(`${base}/subcontractor-contracts/:id/transition`, route(async (req, res, ctx) => {
+    const { action, settlementDate, note } = subContractTransitionSchema.parse(req.body);
+    const row = await loadSubContract(ctx, req.params.id);
+    const now = new Date();
+    if (action === "settle" || action === "terminate") {
+      if (row.status !== "active") return fail(409, "Only an active contract can be settled or terminated");
+      const nextStatus = action === "settle" ? "settled" : "terminated";
+      await db.update(subcontractorContracts).set({
+        status: nextStatus,
+        settlementDate: settlementDate || today(),
+        settlementNote: note ?? null,
+        settledBy: ctx.cu.user.id,
+        settledAt: now,
+        updatedAt: now,
+      }).where(eq(subcontractorContracts.id, row.id));
+      broadcast(row.projectId, ctx);
+      return res.json({ ok: true, status: nextStatus });
+    }
+    if (action === "reopen") {
+      if (!ctx.perms.isAccounting && !ctx.perms.canApprove) return fail(403, "Only accounting or a project manager can reopen a contract");
+      await db.update(subcontractorContracts).set({
+        status: "active",
+        settlementDate: null,
+        settlementNote: null,
+        settledBy: null,
+        settledAt: null,
+        updatedAt: now,
+      }).where(eq(subcontractorContracts.id, row.id));
+      broadcast(row.projectId, ctx);
+      return res.json({ ok: true, status: "active" });
+    }
+  }));
+
+  app.delete(`${base}/subcontractor-contracts/:id`, route(async (req, res, ctx) => {
+    if (!ctx.perms.isAccounting && !ctx.perms.canApprove) return fail(403, "Only accounting or a project manager can delete a contract");
+    const row = await loadSubContract(ctx, req.params.id);
+    const [cert] = await db.select({ id: paymentSubcontractorCertificates.id }).from(paymentSubcontractorCertificates).where(eq(paymentSubcontractorCertificates.contractId, row.id)).limit(1);
+    const [issue] = await db.select({ id: materialIssues.id }).from(materialIssues).where(eq(materialIssues.contractId, row.id)).limit(1);
+    if (cert || issue) return fail(409, "This contract has certificates or material issues linked to it and cannot be deleted");
+    await db.delete(subcontractorContracts).where(eq(subcontractorContracts.id, row.id));
     broadcast(row.projectId, ctx);
     res.status(204).send();
   }));
@@ -1394,6 +1649,8 @@ export function registerPaymentsRoutes(app: Express, deps: Deps) {
   // The inputs a certificate's figures are computed from
   const subCertInputOf = (c: typeof paymentSubcontractorCertificates.$inferSelect) => ({
     subcontractorId: c.subcontractorId ?? "",
+    contractId: c.contractId ?? null,
+    workLocationIds: c.workLocationIds ?? [],
     scope: c.scope, contractValue: n(c.contractValue), periodFrom: c.periodFrom, periodTo: c.periodTo,
     grossAmount: n(c.grossAmount), retentionPercent: n(c.retentionPercent), advanceRecovery: n(c.advanceRecovery),
     otherDeductions: n(c.otherDeductions), deductionsNote: c.deductionsNote, vatPercent: n(c.vatPercent), notes: c.notes,
@@ -1411,6 +1668,17 @@ export function registerPaymentsRoutes(app: Express, deps: Deps) {
     requireProject(ctx, data.projectId);
     const { projectId, ...rest } = data;
     const sub = await resolveSubcontractor(projectId, rest.subcontractorId);
+    let contractId: string | null = null;
+    if (rest.contractId) {
+      const [cnt] = await db.select().from(subcontractorContracts).where(eq(subcontractorContracts.id, rest.contractId));
+      if (!cnt || cnt.projectId !== projectId || cnt.subcontractorId !== sub.id) {
+        return fail(400, "Selected contract does not belong to this subcontractor");
+      }
+      if (cnt.status !== "active") {
+        return fail(409, "Cannot raise a new certificate on a settled or terminated contract");
+      }
+      contractId = cnt.id;
+    }
     const created = await insertNumbered(paymentSubcontractorCertificates, projectId, async (seq) => {
       const [row] = await db.insert(paymentSubcontractorCertificates).values({
         projectId,
@@ -1418,6 +1686,8 @@ export function registerPaymentsRoutes(app: Express, deps: Deps) {
         certNo: pad("SC", seq),
         subcontractorId: sub.id,
         subcontractorName: sub.name,
+        contractId,
+        workLocationIds: rest.workLocationIds ?? [],
         scope: rest.scope,
         contractValue: String(rest.contractValue),
         periodFrom: rest.periodFrom,
@@ -1441,9 +1711,19 @@ export function registerPaymentsRoutes(app: Express, deps: Deps) {
     const d = subCertUpdateSchema.parse(req.body);
     const sub = await resolveSubcontractor(row.projectId, d.subcontractorId);
     if (sub.id !== row.subcontractorId && n(row.chargebackDeductions) > 0) return fail(409, "Remove the invoice charge-backs deducted on this certificate before changing the subcontractor");
+    let contractId: string | null = null;
+    if (d.contractId) {
+      const [cnt] = await db.select().from(subcontractorContracts).where(eq(subcontractorContracts.id, d.contractId));
+      if (!cnt || cnt.projectId !== row.projectId || cnt.subcontractorId !== sub.id) {
+        return fail(400, "Selected contract does not belong to this subcontractor");
+      }
+      contractId = cnt.id;
+    }
     await db.update(paymentSubcontractorCertificates).set({
       subcontractorId: sub.id,
       subcontractorName: sub.name,
+      contractId,
+      workLocationIds: d.workLocationIds ?? [],
       scope: d.scope,
       contractValue: String(d.contractValue),
       periodFrom: d.periodFrom,
