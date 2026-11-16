@@ -1,0 +1,60 @@
+{
+  "title": "Unit Handover",
+  "subtitle": "Manage unit handovers to clients, snag inspections, and electricity meter account transfers",
+  "tabs": {
+    "units": "Handover Files",
+    "clients": "Clients"
+  },
+  "stats": {
+    "total": "Total Handovers",
+    "snagging": "In Snagging",
+    "meter_pending": "Pending Meter Transfer",
+    "handed_over": "Handed Over"
+  },
+  "actions": {
+    "new_handover": "Start Unit Handover",
+    "new_client": "Add Client",
+    "edit_client": "Edit Client",
+    "add_snag": "Add Snag",
+    "save_meter": "Save Meter Transfer",
+    "complete_handover": "Approve & Complete Handover",
+    "print_protocol": "Print Handover Protocol",
+    "open_sec_portal": "Saudi Electricity Portal",
+    "back_to_list": "Back to Unit Handover"
+  },
+  "fields": {
+    "handover_no": "Handover No.",
+    "project": "Project",
+    "unit": "Unit",
+    "client": "Client",
+    "national_id": "National ID / Iqama",
+    "phone": "Mobile Phone",
+    "email": "Email",
+    "sec_account": "SEC Account Number",
+    "deed_number": "Deed Number",
+    "contract_number": "Contract Number",
+    "inspection_date": "Inspection Date",
+    "handover_date": "Handover Date",
+    "status": "Status",
+    "snags": "Snags",
+    "meter_number": "Meter Number",
+    "electricity_account_no": "Subscription Account No.",
+    "meter_reading": "Meter Reading at Handover",
+    "sec_request_no": "SEC Request Number",
+    "previous_bills_cleared": "Previous electricity bills cleared up to handover date",
+    "meter_transfer_status": "Meter Transfer Status",
+    "meter_transfer_date": "Transfer Completion Date",
+    "notes": "Notes"
+  },
+  "meter_section": {
+    "title": "Electricity Meter Transfer (Saudi Electricity Company)",
+    "subtitle": "Mandatory step to complete handover: clear previous bills, submit account transfer, and confirm client acceptance."
+  },
+  "gate": {
+    "title": "Mandatory Handover Completion Requirements",
+    "snags_ok": "All unit snags are closed",
+    "snags_blocked": "{{count}} open snag(s) remaining — all snags must be closed before completing handover",
+    "meter_ok": "Electricity meter transfer is completed",
+    "meter_blocked": "Electricity meter transfer must be completed (or marked Not Applicable) before completing handover"
+  }
+}

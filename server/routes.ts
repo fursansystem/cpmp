@@ -65,6 +65,7 @@ import { Resend } from "resend";
 import { registerProgressMatrixRoutes } from "./progress-matrix-routes";
 import { registerPaymentsRoutes } from "./payments-routes";
 import { registerPermitsRoutes } from "./permits-routes";
+import { registerHandoverRoutes } from "./handover-routes";
 import { permitsService } from "./permits-service";
 import { registerWebhookRoutes } from "./webhook-routes";
 import { webhookService } from "./webhook-service";
@@ -581,6 +582,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const { markOrderPaidFromErp } = registerPaymentsRoutes(app, { getCurrentUserWithOrg, handleError });
   // Licences and government transactions (الرخص والمعاملات), and the hourly expiry / overdue sweep
   registerPermitsRoutes(app, { getCurrentUserWithOrg, handleError });
+  registerHandoverRoutes(app, { getCurrentUserWithOrg, handleError });
   permitsService.start();
 
   // Outgoing webhooks (ERP integration): endpoint management, and the worker that retries deliveries

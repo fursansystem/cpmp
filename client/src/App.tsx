@@ -50,6 +50,8 @@ import Payments from "@/pages/Payments";
 import Permits from "@/pages/Permits";
 import Services from "@/pages/Services";
 import PermitDetail from "@/pages/PermitDetail";
+import UnitHandover from "@/pages/UnitHandover";
+import UnitHandoverDetail from "@/pages/UnitHandoverDetail";
 import Reports from "@/pages/Reports";
 import Login from "@/pages/login";
 import ForgotPassword from "@/pages/forgot-password";
@@ -115,6 +117,8 @@ function ProtectedRoutes() {
       <Route path="/payments" component={Payments} />
       <Route path="/permits/:id" component={PermitDetail} />
       <Route path="/permits" component={Permits} />
+      <Route path="/handover/:id" component={UnitHandoverDetail} />
+      <Route path="/handover" component={UnitHandover} />
       <Route path="/services" component={Services} />
       <Route path="/reports" component={Reports} />
       <Route path="/tasks" component={Tasks} />

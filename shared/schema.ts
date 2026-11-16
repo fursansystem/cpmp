@@ -2313,6 +2313,7 @@ export const snagLists = pgTable("snag_lists", {
   currentStepId: integer("current_step_id").references(() => workflowSteps.id, { onDelete: "set null" }),
   buildingNo: text("building_no"),
   zoneType: text("zone_type"), // INTERIOR, EXTERIOR
+  handoverId: varchar("handover_id"),
   createdBy: varchar("created_by").references(() => users.id, { onDelete: "set null" }),
   listDate: date("list_date").default(sql`CURRENT_DATE`),
   serialNumber: integer("serial_number"),
@@ -3171,3 +3172,95 @@ export const erpInboundLog = pgTable("erp_inbound_log", {
 export type ErpConnection = typeof erpConnections.$inferSelect;
 export type ErpSupplier = typeof erpSuppliers.$inferSelect;
 export type ErpInboundLog = typeof erpInboundLog.$inferSelect;
+
+// ==================== UNIT HANDOVER (تسليم الوحدات) ====================
+export const clients = pgTable("clients", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  organizationId: varchar("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  fullName: text("full_name").notNull(),
+  fullNameEn: text("full_name_en"),
+  nationalId: text("national_id").notNull(), // رقم الهوية الوطنية / الإقامة
+  phone: text("phone").notNull(), // رقم الجوال (المربوط بنفاذ / الكهرباء)
+  email: text("email"),
+  secAccountNumber: text("sec_account_number"), // رقم حساب العميل في الشركة السعودية للكهرباء (إن وجد)
+  notes: text("notes"),
+  createdBy: varchar("created_by").references(() => users.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => ({
+  orgIdx: index("clients_org_idx").on(table.organizationId),
+  nationalIdIdx: index("clients_national_id_idx").on(table.organizationId, table.nationalId),
+}));
+
+export const unitHandovers = pgTable("unit_handovers", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  projectId: varchar("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
+  workLocationId: varchar("work_location_id").notNull().references(() => workLocations.id, { onDelete: "cascade" }),
+  clientId: varchar("client_id").notNull().references(() => clients.id, { onDelete: "restrict" }),
+  snagListId: varchar("snag_list_id").references(() => snagLists.id, { onDelete: "set null" }),
+  seq: integer("seq").notNull(),
+  handoverNo: text("handover_no").notNull(), // HO-0001
+  status: text("status").notNull().default("draft"), // draft | snagging | ready_for_handover | meter_transfer | handed_over | cancelled
+  deedNumber: text("deed_number"), // رقم الصك
+  contractNumber: text("contract_number"), // رقم عقد البيع / الحجز
+  inspectionDate: date("inspection_date"), // موعد المعاينة الفنية
+  handoverDate: date("handover_date"), // تاريخ التسليم الفعلي
+
+  // إجراء نقل حساب عداد الكهرباء - الشركة السعودية للكهرباء
+  meterNumber: text("meter_number"), // رقم العداد
+  electricityAccountNo: text("electricity_account_no"), // رقم حساب الاشتراك
+  meterReadingAtHandover: text("meter_reading_at_handover"), // قراءة العداد عند التسليم
+  meterTransferStatus: text("meter_transfer_status").notNull().default("not_started"), // not_started | requested | client_confirmed | transferred | skipped
+  secRequestNo: text("sec_request_no"), // رقم الطلب لدى الشركة السعودية للكهرباء
+  previousBillsCleared: boolean("previous_bills_cleared").notNull().default(false), // تصفية الفواتير السابقة
+  meterTransferDate: date("meter_transfer_date"), // تاريخ إتمام نقل الحساب
+  meterTransferNotes: text("meter_transfer_notes"),
+
+  notes: text("notes"),
+  createdBy: varchar("created_by").references(() => users.id, { onDelete: "set null" }),
+  completedBy: varchar("completed_by").references(() => users.id, { onDelete: "set null" }),
+  completedAt: timestamp("completed_at"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => ({
+  seqUq: uniqueIndex("unit_handovers_seq_uq").on(table.projectId, table.seq),
+  projectIdx: index("unit_handovers_project_idx").on(table.projectId),
+  unitIdx: index("unit_handovers_unit_idx").on(table.workLocationId),
+  clientIdx: index("unit_handovers_client_idx").on(table.clientId),
+}));
+
+export const handoverAttachments = pgTable("handover_attachments", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  projectId: varchar("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
+  handoverId: varchar("handover_id").notNull().references(() => unitHandovers.id, { onDelete: "cascade" }),
+  category: text("category").notNull().default("other"), // meter_transfer | id_copy | protocol | other
+  fileName: text("file_name").notNull(),
+  objectPath: text("object_path").notNull(),
+  contentType: text("content_type"),
+  size: integer("size"),
+  uploadedBy: varchar("uploaded_by").references(() => users.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => ({
+  handoverIdx: index("handover_attachments_handover_idx").on(table.handoverId),
+}));
+
+export const handoverActivity = pgTable("handover_activity", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  projectId: varchar("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
+  handoverId: varchar("handover_id").notNull().references(() => unitHandovers.id, { onDelete: "cascade" }),
+  action: text("action").notNull(),
+  fromStatus: text("from_status"),
+  toStatus: text("to_status"),
+  note: text("note"),
+  userId: varchar("user_id").references(() => users.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => ({
+  handoverIdx: index("handover_activity_handover_idx").on(table.handoverId),
+}));
+
+export type Client = typeof clients.$inferSelect;
+export type InsertClient = typeof clients.$inferInsert;
+export type UnitHandover = typeof unitHandovers.$inferSelect;
+export type InsertUnitHandover = typeof unitHandovers.$inferInsert;
+export type HandoverAttachment = typeof handoverAttachments.$inferSelect;
+export type HandoverActivity = typeof handoverActivity.$inferSelect;

@@ -496,3 +496,38 @@ export const PermitPermissions = {
     return (user.role === "developer_admin" || user.role === "org_admin") && user.organizationSectorType === DEVELOPER_SECTOR;
   },
 };
+
+// Unit Handover (تسليم الوحدات)
+//
+// Accessible only to:
+// - super_admin
+// - Developer organization members holding the "Customer Service" ("خدمة العملاء") position (or developer_admin)
+export const CUSTOMER_SERVICE_POSITIONS = new Set(["customer service", "خدمة العملاء"]);
+
+export function isCustomerServicePosition(positions?: (string | null | undefined)[] | string | null): boolean {
+  if (!positions) return false;
+  const list = Array.isArray(positions) ? positions : [positions];
+  return list.some((p) => !!p && CUSTOMER_SERVICE_POSITIONS.has(p.trim().toLowerCase()));
+}
+
+export const HandoverPermissions = {
+  canAccessSection(user: PermissionUser, positions?: string[] | string | null): boolean {
+    if (user.role === "super_admin") return true;
+    if (user.organizationSectorType !== DEVELOPER_SECTOR) return false;
+    if (user.role === "developer_admin") return true;
+    return isCustomerServicePosition(positions);
+  },
+
+  canManageProject(
+    user: PermissionUser,
+    project: PermissionProject,
+    userOrgId?: string | null,
+    positions?: string[] | string | null,
+  ): boolean {
+    if (user.role === "super_admin") return true;
+    if (!userOrgId || project.organizationId !== userOrgId) return false;
+    if (user.organizationSectorType !== DEVELOPER_SECTOR) return false;
+    if (user.role === "developer_admin") return true;
+    return isCustomerServicePosition(positions);
+  },
+};

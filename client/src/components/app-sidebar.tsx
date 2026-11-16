@@ -1,4 +1,4 @@
-import { Home, Wallet, Landmark, FolderKanban, CheckSquare, Users, DollarSign, Building2, LogsIcon, Settings, ShieldCheck, Library, ChevronDown } from "lucide-react";
+import { Home, Wallet, Landmark, KeyRound, FolderKanban, CheckSquare, Users, DollarSign, Building2, LogsIcon, Settings, ShieldCheck, Library, ChevronDown } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -19,6 +19,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useLocation } from "wouter";
 import { useAuth } from "@/lib/auth";
+import { HandoverPermissions, type UserRole } from "@shared/permissions";
 import { cn } from "@/lib/utils";
 
 const menuItems = [
@@ -41,6 +42,11 @@ const menuItems = [
     key: "permits",
     url: "/permits",
     icon: Landmark,
+  },
+  {
+    key: "handover",
+    url: "/handover",
+    icon: KeyRound,
   },
   {
     key: "activity",
@@ -83,8 +89,22 @@ export function AppSidebar() {
   const isViewOnlyUser = user?.role === "user";
   const isSuperAdmin = user?.role === "super_admin";
   const canManageWebhooks = ["super_admin", "developer_admin", "org_admin"].includes(user?.role ?? "");
+  const canAccessHandover =
+    !!user &&
+    HandoverPermissions.canAccessSection(
+      {
+        id: user.id,
+        role: user.role as UserRole,
+        organizationId: user.organizationId,
+        organizationSectorType: user.organizationSectorType,
+      },
+      user.positions,
+    );
 
   const filteredMenuItems = menuItems.filter(item => {
+    if (item.key === "handover") {
+      return canAccessHandover;
+    }
     if (item.key === "budget" && user?.organizationSectorType === "Consultant") {
       return false;
     }

@@ -224,5 +224,20 @@
     "Consultant PM Review": "مراجعة مدير مشروع الاستشاري",
     "Consultant PM Approval": "اعتماد مدير مشروع الاستشاري",
     "Consultant Manager Approval": "اعتماد مدير الاستشاري"
+  },
+  "handover_status": {
+    "draft": "مسودة",
+    "snagging": "فحص وملاحظات",
+    "ready_for_handover": "جاهز للتسليم",
+    "meter_transfer": "نقل عداد الكهرباء",
+    "handed_over": "تم التسليم",
+    "cancelled": "ملغي"
+  },
+  "meter_transfer_status": {
+    "not_started": "لم يبدأ",
+    "requested": "تم تقديم الطلب",
+    "client_confirmed": "موافقة العميل",
+    "transferred": "تم النقل",
+    "skipped": "لا ينطبق"
   }
 }

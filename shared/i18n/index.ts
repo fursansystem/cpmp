@@ -24,6 +24,8 @@ import arWarehouse from "./ar/warehouse.json";
 import enWarehouse from "./en/warehouse.json";
 import arProgress from "./ar/progress.json";
 import enProgress from "./en/progress.json";
+import arHandover from "./ar/handover.json";
+import enHandover from "./en/handover.json";
 
 export const LANGUAGES = ["ar", "en"] as const;
 export type Language = (typeof LANGUAGES)[number];
@@ -44,8 +46,8 @@ export const LOCALE_TAG: Record<Language, string> = {
 };
 
 export const resources = {
-  ar: { common: arCommon, enums: arEnums, payments: arPayments, permits: arPermits, procurement: arProcurement, settings: arSettings, projects: arProjects, nav: arNav, notifications: arNotifications, warehouse: arWarehouse, progress: arProgress, about: arAbout },
-  en: { common: enCommon, enums: enEnums, payments: enPayments, permits: enPermits, procurement: enProcurement, settings: enSettings, projects: enProjects, nav: enNav, notifications: enNotifications, warehouse: enWarehouse, progress: enProgress, about: enAbout },
+  ar: { common: arCommon, enums: arEnums, payments: arPayments, permits: arPermits, procurement: arProcurement, settings: arSettings, projects: arProjects, nav: arNav, notifications: arNotifications, warehouse: arWarehouse, progress: arProgress, about: arAbout, handover: arHandover },
+  en: { common: enCommon, enums: enEnums, payments: enPayments, permits: enPermits, procurement: enProcurement, settings: enSettings, projects: enProjects, nav: enNav, notifications: enNotifications, warehouse: enWarehouse, progress: enProgress, about: enAbout, handover: enHandover },
 } as const;
 
 export const defaultNS = "common";

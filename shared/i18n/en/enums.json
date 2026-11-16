@@ -224,5 +224,20 @@
     "Consultant PM Review": "Consultant PM Review",
     "Consultant PM Approval": "Consultant PM Approval",
     "Consultant Manager Approval": "Consultant Manager Approval"
+  },
+  "handover_status": {
+    "draft": "Draft",
+    "snagging": "Snagging",
+    "ready_for_handover": "Ready for Handover",
+    "meter_transfer": "Meter Transfer",
+    "handed_over": "Handed Over",
+    "cancelled": "Cancelled"
+  },
+  "meter_transfer_status": {
+    "not_started": "Not Started",
+    "requested": "Request Submitted",
+    "client_confirmed": "Client Confirmed",
+    "transferred": "Transferred",
+    "skipped": "Not Applicable"
   }
 }

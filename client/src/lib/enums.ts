@@ -25,7 +25,9 @@ export type EnumGroup =
   | "permit_attention"
   | "payment_action"
   | "receipt_source"
-  | "manual_movement";
+  | "manual_movement"
+  | "handover_status"
+  | "meter_transfer_status";
 
 /**
  * The name of one code, translated. Falls back to the code itself rather than to the other language,

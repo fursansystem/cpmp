@@ -5,6 +5,7 @@ export const DEFAULT_POSITIONS = [
   { titleEnglish: "Architect Engineer", titleArabic: "مهندس معماري" },
   { titleEnglish: "Mechanical Engineer", titleArabic: "مهندس ميكانيكي" },
   { titleEnglish: "Customer Team", titleArabic: "فريق المالك" },
+  { titleEnglish: "Customer Service", titleArabic: "خدمة العملاء" },
   { titleEnglish: "Owner Representative", titleArabic: "ممثل المالك" },
   { titleEnglish: "Electrical Engineer", titleArabic: "مهندس كهربائي" },
   { titleEnglish: "Quantity Surveyor", titleArabic: "محاسب كميات" },

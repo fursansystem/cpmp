@@ -12,6 +12,7 @@
     "db:migrate-payments": "tsx --env-file=.env migrate_payments_tables.ts",
     "db:migrate-webhooks": "tsx --env-file=.env migrate_webhooks_tables.ts",
     "db:migrate-permits": "tsx --env-file=.env migrate_permits_tables.ts",
+    "db:migrate-handover": "tsx --env-file=.env migrate_handover_tables.ts",
     "db:migrate-language": "tsx --env-file=.env migrate_language.ts",
     "i18n:scan": "node scripts/i18n-scan.mjs",
     "i18n:check": "node scripts/i18n-scan.mjs --done"
@@ -127,7 +128,7 @@
     "tailwindcss": "^3.4.17",
     "tsx": "^4.20.5",
     "typescript": "^5.7.3",
-    "vite: ^5.4.20"
+    "vite": "^5.4.20"
   },
   "optionalDependencies": {
     "bufferutil": "^4.0.8"
