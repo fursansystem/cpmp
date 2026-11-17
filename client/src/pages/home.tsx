@@ -130,9 +130,9 @@ export default function Home() {
   const projectFilter = filters.projectId !== "all" ? filters.projectId : "";
 
   return (
-    <div className="mx-auto w-full max-w-[1600px] px-4 sm:px-6 lg:px-8 py-6 space-y-5" data-testid="page-home">
-      {/* ---- Title and filters ---- */}
-      <header className="flex flex-col xl:flex-row xl:items-end justify-between gap-4">
+    <div className="w-full px-4 sm:px-6 lg:px-8 pb-6 space-y-5" data-testid="page-home">
+      {/* ---- Title and filters (sticky at top of home page) ---- */}
+      <header className="sticky top-0 z-20 -mx-4 sm:-mx-6 lg:-mx-8 px-4 sm:px-6 lg:px-8 py-4 bg-[#F8FAFC]/95 dark:bg-background/95 backdrop-blur-md border-b border-slate-200/60 dark:border-border/50 flex flex-col xl:flex-row xl:items-end justify-between gap-4">
         <div className="min-w-0">
           <h1 className="text-2xl sm:text-3xl font-bold font-display tracking-tight text-foreground">{t("title")}</h1>
           <p className="text-sm text-muted-foreground/80 dark:text-foreground/70 mt-1">

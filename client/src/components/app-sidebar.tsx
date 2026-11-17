@@ -127,7 +127,6 @@ export function AppSidebar() {
       </SidebarHeader>
       <SidebarContent className="group-data-[collapsible=icon]:!overflow-y-auto">
         <SidebarGroup>
-          <SidebarGroupLabel className={cn("text-slate-400 font-bold text-[10px] uppercase tracking-[0.15em] mb-2", RAIL_HIDDEN)}>{t("navigation_system")}</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               {filteredMenuItems.map((item) => {

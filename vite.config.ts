@@ -20,6 +20,17 @@ export default defineConfig({
     emptyOutDir: true,
   },
   server: {
+    port: 4000,
+    proxy: {
+      "/api": {
+        target: `http://localhost:${process.env.PORT || 5002}`,
+        changeOrigin: true,
+      },
+      "/ws": {
+        target: `ws://localhost:${process.env.PORT || 5002}`,
+        ws: true,
+      },
+    },
     fs: {
       strict: true,
       allow: [".."],

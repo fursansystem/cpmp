@@ -168,9 +168,9 @@ function AppLayout() {
       <SidebarProvider style={style as React.CSSProperties} defaultOpen={false}>
         <div className="flex h-screen w-full bg-[#F8FAFC] dark:bg-background">
           <AppSidebar />
-          <div className="flex flex-col flex-1 overflow-hidden">
+          <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
             <AppHeader />
-            <main ref={mainRef} className="flex-1 overflow-auto">
+            <main ref={mainRef} className="flex-1 w-full overflow-auto">
               <ProtectedRoutes />
             </main>
           </div>
