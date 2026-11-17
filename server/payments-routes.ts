@@ -114,6 +114,8 @@ const billRequestSchema = z.object({
 const orderSchema = z.object({
   projectId: z.string().min(1),
   supplierId: z.string().nullish().transform((v) => v || null),
+  subcontractorId: z.string().nullish().transform((v) => v || null),
+  subcontractorContractId: z.string().nullish().transform((v) => v || null),
   billRequestId: z.string().nullish().transform((v) => v || null),
   fineId: z.string().nullish().transform((v) => v || null),
   permitTransactionId: z.string().nullish().transform((v) => v || null),
@@ -125,7 +127,7 @@ const orderSchema = z.object({
   sourceType: z.enum(SOURCE_TYPES as unknown as [string, ...string[]]).nullish().transform((v) => v || null),
   sourceId: z.string().nullish().transform((v) => v || null),
   // Only meaningful when there is no bill/fine/licence fee behind the order
-  purpose: z.enum(["advance", "other"]).optional(),
+  purpose: z.enum(["advance", "other", "subcontractor"]).optional(),
   reason: optText(),
 });
 
@@ -728,7 +730,7 @@ export function registerPaymentsRoutes(app: Express, deps: Deps) {
           status: subcontractorContracts.status,
         })
         .from(subcontractorContracts)
-        .where(eq(subcontractorContracts.projectId, projectId))
+        .where(and(eq(subcontractorContracts.projectId, projectId), eq(subcontractorContracts.status, "active")))
         .orderBy(desc(subcontractorContracts.createdAt)),
       db
         .select({
@@ -1124,6 +1126,7 @@ export function registerPaymentsRoutes(app: Express, deps: Deps) {
       if (data.amount > n(fine.amount) - n(fine.paidAmount) + 0.001) return fail(400, "Amount exceeds the fine's outstanding balance");
     }
     if (data.permitTransactionId) await requirePayablePermit(data.projectId, data.permitTransactionId);
+    let subCert: typeof paymentSubcontractorCertificates.$inferSelect | null = null;
     if (data.subcontractorCertificateId) {
       const [cert] = await db.select().from(paymentSubcontractorCertificates).where(and(eq(paymentSubcontractorCertificates.id, data.subcontractorCertificateId), eq(paymentSubcontractorCertificates.projectId, data.projectId)));
       if (!cert) return fail(400, "Subcontractor certificate not found in this project");
@@ -1131,6 +1134,7 @@ export function registerPaymentsRoutes(app: Express, deps: Deps) {
       if (await hasLiveOrder("subcontractorCertificateId", cert.id)) return fail(409, "This certificate already has a payment order");
       // One order pays the certificate in full, so the amount is the certificate's net payable
       if (Math.abs(data.amount - n(cert.netPayable)) > 0.005) return fail(400, "The amount must equal the certificate's net payable");
+      subCert = cert;
     }
     if (purchaseOrderId) {
       const [po] = await db.select({ id: purchaseOrders.id, supplierId: purchaseOrders.supplierId }).from(purchaseOrders).where(and(eq(purchaseOrders.id, purchaseOrderId), eq(purchaseOrders.projectId, data.projectId)));
@@ -1150,16 +1154,18 @@ export function registerPaymentsRoutes(app: Express, deps: Deps) {
         billRequestId: data.billRequestId,
         fineId: data.fineId,
         permitTransactionId: data.permitTransactionId,
+        subcontractorId: data.subcontractorId ?? (subCert?.subcontractorId ?? null),
+        subcontractorContractId: data.subcontractorContractId ?? (subCert?.contractId ?? null),
         subcontractorCertificateId: data.subcontractorCertificateId,
         supplierId,
         purchaseOrderId,
         certificateId: data.certificateId,
         payeeName: data.payeeName,
-        purpose: data.billRequestId ? "bill" : data.fineId ? "fine" : data.permitTransactionId ? "clearance" : data.subcontractorCertificateId ? "subcontractor" : data.purpose ?? "other",
+        purpose: data.billRequestId ? "bill" : data.fineId ? "fine" : data.permitTransactionId ? "clearance" : (data.subcontractorCertificateId || data.subcontractorId) ? "subcontractor" : data.purpose ?? "other",
         reason: data.reason,
         amount: String(data.amount),
-        sourceType: data.sourceType,
-        sourceId: data.sourceId,
+        sourceType: data.sourceType ?? ((data.subcontractorId || data.subcontractorCertificateId) ? "subcontractor" : null),
+        sourceId: data.sourceId ?? data.subcontractorId ?? data.subcontractorCertificateId ?? null,
         createdBy: ctx.cu.user.id,
       }).returning();
       return row;

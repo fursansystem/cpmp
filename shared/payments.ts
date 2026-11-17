@@ -56,7 +56,7 @@ export function computeSubCert(input: {
 }
 
 // The page a request, order or deduction was started from, so that page can list what came of it
-export const SOURCE_TYPES = ["purchase_order", "delivery", "snag", "ncr", "project", "invoice"] as const;
+export const SOURCE_TYPES = ["purchase_order", "delivery", "snag", "ncr", "project", "invoice", "subcontractor"] as const;
 export type SourceType = (typeof SOURCE_TYPES)[number];
 
 export const BILL_REQUEST_LABELS: Record<BillRequestStatus, string> = enumMap("bill_request", BILL_REQUEST_STATUSES);

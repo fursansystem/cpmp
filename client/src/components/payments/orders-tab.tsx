@@ -184,6 +184,14 @@ function sourceLabel(o: any, data: PaymentsOverview, t?: (key: string, opts?: an
     return tr("orders.permit_reason", { info: p ? `${p.transactionNo} · ${p.title}` : "" });
   }
   if (o.subcontractorCertificateId) return tr("orders.cert_source", { certNo: data.subcontractorCertificates.find((c) => c.id === o.subcontractorCertificateId)?.certNo ?? "" });
+  if (o.subcontractorContractId) {
+    const cnt = (data.subcontractorContracts ?? []).find((c: any) => c.id === o.subcontractorContractId);
+    return cnt ? `${tr("transfer.contract_label")}: ${cnt.contractNo} — ${cnt.title}` : (o.reason || "—");
+  }
+  if (o.subcontractorId) {
+    const sub = (data.subcontractors ?? []).find((s: any) => s.id === o.subcontractorId);
+    return sub ? `${tr("transfer.beneficiary_subcontractor")}: ${sub.name}` : (o.reason || "—");
+  }
   if (o.purpose === "advance") return o.reason && o.reason !== "دفعة مقدمة" && o.reason !== "Advance payment" ? `${tr("orders.purpose_advance")}: ${o.reason}` : tr("orders.purpose_advance");
   return o.reason ?? "—";
 }
@@ -215,8 +223,20 @@ export function CreateOrderDialog({ ctx, defaultProjectId, data, draft, onClose 
   const [reason, setReason] = useState(pre?.reason ?? (pre?.kind === "advance" ? t("orders.advance_reason") : ""));
   const [advancePoId, setAdvancePoId] = useState(pre?.purchaseOrderId ?? "");
   const [supplierId, setSupplierId] = useState(pre?.supplierId ?? "");
+  const [beneficiaryType, setBeneficiaryType] = useState<"supplier" | "subcontractor" | "other">(
+    draft.subcontractorCertificateId ? "subcontractor" : (pre?.supplierId ? "supplier" : "supplier")
+  );
+  const [subcontractorId, setSubcontractorId] = useState<string>("");
+  const [subcontractorContractId, setSubcontractorContractId] = useState<string>("");
+  const [subcontractorCertificateId, setSubcontractorCertificateId] = useState<string>(draft.subcontractorCertificateId ?? "");
 
-  const { data: sources } = useQuery<{ purchaseOrders: any[]; suppliers: { id: string; name: string }[] }>({
+  const { data: sources } = useQuery<{
+    purchaseOrders: any[];
+    suppliers: { id: string; name: string }[];
+    subcontractors?: { id: string; name: string; scope?: string }[];
+    subcontractorContracts?: any[];
+    subcontractorCertificates?: any[];
+  }>({
     queryKey: ["payments", "sources", projectId],
     queryFn: () => getJson(`/api/payments/sources?projectId=${projectId}`),
     enabled: !!projectId,
@@ -264,24 +284,27 @@ export function CreateOrderDialog({ ctx, defaultProjectId, data, draft, onClose 
   }, [kind, sourceId, data]);
 
   const create = useMutation({
-    mutationFn: async () =>
-      apiRequest("POST", "/api/payments/orders", {
+    mutationFn: async () => {
+      const certForSub = kind === "subcontractor" ? data.subcontractorCertificates.find((c) => c.id === sourceId) : null;
+      return apiRequest("POST", "/api/payments/orders", {
         projectId,
         billRequestId: kind === "bill" ? sourceId || null : null,
         fineId: kind === "fine" ? sourceId || null : null,
         permitTransactionId: kind === "clearance" ? sourceId || null : null,
-        subcontractorCertificateId: kind === "subcontractor" ? sourceId || null : null,
-        // a bill request brings its own supplier and PO; anything else can name them
-        supplierId: kind === "bill" ? null : supplierId || null,
-        sourceType: pre?.sourceType ?? null,
-        sourceId: pre?.sourceId ?? null,
-        purchaseOrderId: kind === "bill" ? data.billRequests.find((b) => b.id === sourceId)?.purchaseOrderId ?? null : advancePoId || null,
+        subcontractorCertificateId: kind === "subcontractor" ? sourceId || null : (beneficiaryType === "subcontractor" ? subcontractorCertificateId || null : null),
+        subcontractorId: (kind === "subcontractor" && certForSub?.subcontractorId) ? certForSub.subcontractorId : (beneficiaryType === "subcontractor" ? subcontractorId || null : null),
+        subcontractorContractId: (kind === "subcontractor" && certForSub?.contractId) ? certForSub.contractId : (beneficiaryType === "subcontractor" ? subcontractorContractId || null : null),
+        supplierId: kind === "bill" ? null : (beneficiaryType === "supplier" ? supplierId || null : null),
+        sourceType: pre?.sourceType ?? ((beneficiaryType === "subcontractor" || kind === "subcontractor") ? "subcontractor" : null),
+        sourceId: pre?.sourceId ?? ((beneficiaryType === "subcontractor" || kind === "subcontractor") ? (subcontractorId || certForSub?.subcontractorId || null) : null),
+        purchaseOrderId: kind === "bill" ? data.billRequests.find((b) => b.id === sourceId)?.purchaseOrderId ?? null : (beneficiaryType === "supplier" ? advancePoId || null : null),
         certificateId: kind === "bill" ? data.billRequests.find((b) => b.id === sourceId)?.certificateId ?? null : null,
-        purpose: kind === "advance" || kind === "other" ? kind : undefined,
+        purpose: kind === "advance" || kind === "other" ? (beneficiaryType === "subcontractor" ? "subcontractor" : kind) : undefined,
         payeeName,
         amount,
         reason: reason || null,
-      }),
+      });
+    },
     onSuccess: () => {
       invalidatePayments(queryClient);
       toast({ title: t("toasts.order_created") });
@@ -328,64 +351,211 @@ export function CreateOrderDialog({ ctx, defaultProjectId, data, draft, onClose 
       }
     >
         <div className="grid gap-3">
-          <div className="space-y-1.5">
-            <Label>{t("common.project")}</Label>
-            <Select value={projectId} onValueChange={(v) => { setProjectId(v); setSourceId(""); }} disabled={!!draftProject}>
-              <SelectTrigger><SelectValue placeholder={t("common.select_project")} /></SelectTrigger>
-              <SelectContent>{ctx.projects.map((p) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-1.5">
-            <Label>{t("orders.reason_label")}</Label>
-            <Select value={kind} onValueChange={(v) => { setKind(v as SourceKind); setSourceId(""); setAdvancePoId(""); setSupplierId(""); setPayeeName(""); setAmount(""); setReason(v === "advance" ? t("orders.advance_reason") : ""); }} disabled={!!draftProject}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="bill">{t("orders.source_invoices")}</SelectItem>
-                <SelectItem value="fine">{t("orders.source_fine")}</SelectItem>
-                <SelectItem value="clearance">{t("orders.source_permit")}</SelectItem>
-                <SelectItem value="subcontractor">{t("orders.source_subcontractor")}</SelectItem>
-                <SelectItem value="advance">{t("orders.source_advance")}</SelectItem>
-                <SelectItem value="other">{t("orders.source_other")}</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          {(kind === "advance" || kind === "other") && (sources?.suppliers.length ?? 0) > 0 && (
+          <div className="grid sm:grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label>{t("orders.supplier_from_register")}</Label>
+              <Label>{t("common.project")}</Label>
+              <Select value={projectId} onValueChange={(v) => { setProjectId(v); setSourceId(""); }} disabled={!!draftProject}>
+                <SelectTrigger><SelectValue placeholder={t("common.select_project")} /></SelectTrigger>
+                <SelectContent>{ctx.projects.map((p) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label>{t("orders.reason_label")}</Label>
               <Select
-                value={supplierId || "none"}
+                value={kind}
                 onValueChange={(v) => {
-                  const s = sources?.suppliers.find((x) => x.id === v);
-                  setSupplierId(v === "none" ? "" : v);
-                  if (s && !payeeName) setPayeeName(s.name);
+                  setKind(v as SourceKind);
+                  setSourceId("");
+                  setAdvancePoId("");
+                  setSupplierId("");
+                  setSubcontractorId("");
+                  setSubcontractorContractId("");
+                  setSubcontractorCertificateId("");
+                  setPayeeName("");
+                  setAmount("");
+                  setReason(v === "advance" ? t("orders.advance_reason") : "");
+                  if (v === "subcontractor") setBeneficiaryType("subcontractor");
+                  else if (v === "bill") setBeneficiaryType("supplier");
+                }}
+                disabled={!!draftProject}
+              >
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="bill">{t("orders.source_invoices")}</SelectItem>
+                  <SelectItem value="fine">{t("orders.source_fine")}</SelectItem>
+                  <SelectItem value="clearance">{t("orders.source_permit")}</SelectItem>
+                  <SelectItem value="subcontractor">{t("orders.source_subcontractor")}</SelectItem>
+                  <SelectItem value="advance">{t("orders.source_advance")}</SelectItem>
+                  <SelectItem value="other">{t("orders.source_other")}</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          {/* Beneficiary Type (نوع المستفيد) for Advance & Other */}
+          {(kind === "advance" || kind === "other") && (
+            <div className="space-y-1.5">
+              <Label>{t("transfer.beneficiary_type")}</Label>
+              <Select
+                value={beneficiaryType}
+                onValueChange={(v: "supplier" | "subcontractor" | "other") => {
+                  setBeneficiaryType(v);
+                  if (v === "supplier") {
+                    setSubcontractorId("");
+                    setSubcontractorContractId("");
+                    setSubcontractorCertificateId("");
+                  } else if (v === "subcontractor") {
+                    setSupplierId("");
+                    setAdvancePoId("");
+                  } else {
+                    setSupplierId("");
+                    setAdvancePoId("");
+                    setSubcontractorId("");
+                    setSubcontractorContractId("");
+                    setSubcontractorCertificateId("");
+                  }
                 }}
               >
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="none">{t("common.unspecified")}</SelectItem>
-                  {sources?.suppliers.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+                  <SelectItem value="supplier">{t("transfer.beneficiary_supplier")}</SelectItem>
+                  <SelectItem value="subcontractor">{t("transfer.beneficiary_subcontractor")}</SelectItem>
+                  <SelectItem value="other">{t("transfer.beneficiary_other")}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
           )}
-          {kind !== "bill" && (
-            <div className="space-y-1.5">
-              <Label>{t("orders.po_optional")}</Label>
-              <Select value={advancePoId || "none"} onValueChange={(v) => {
-                const po = sources?.purchaseOrders.find((p) => p.id === v);
-                setAdvancePoId(v === "none" ? "" : v);
-                if (po && !payeeName && (kind === "advance" || kind === "other")) setPayeeName(po.supplierName ?? "");
-                if (po?.supplierId && !supplierId) setSupplierId(po.supplierId);
-              }}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">—</SelectItem>
-                  {sources?.purchaseOrders.map((p) => <SelectItem key={p.id} value={p.id}>{p.poNumber} · {p.supplierName} · {money(p.totalAmount)}</SelectItem>)}
-                </SelectContent>
-              </Select>
-              <p className="text-xs text-muted-foreground">{kind === "advance" ? t("orders.source_advance_hint") : t("orders.source_other_hint")}</p>
-            </div>
+
+          {/* Supplier fields when beneficiary is supplier */}
+          {(kind === "advance" || kind === "other") && beneficiaryType === "supplier" && (
+            <>
+              {(sources?.suppliers.length ?? 0) > 0 && (
+                <div className="space-y-1.5">
+                  <Label>{t("orders.supplier_from_register")}</Label>
+                  <Select
+                    value={supplierId || "none"}
+                    onValueChange={(v) => {
+                      const s = sources?.suppliers.find((x) => x.id === v);
+                      setSupplierId(v === "none" ? "" : v);
+                      if (s && !payeeName) setPayeeName(s.name);
+                    }}
+                  >
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">{t("common.unspecified")}</SelectItem>
+                      {sources?.suppliers.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+              <div className="space-y-1.5">
+                <Label>{t("orders.po_optional")}</Label>
+                <Select
+                  value={advancePoId || "none"}
+                  onValueChange={(v) => {
+                    const po = sources?.purchaseOrders.find((p) => p.id === v);
+                    setAdvancePoId(v === "none" ? "" : v);
+                    if (po && !payeeName && (kind === "advance" || kind === "other")) setPayeeName(po.supplierName ?? "");
+                    if (po?.supplierId && !supplierId) setSupplierId(po.supplierId);
+                  }}
+                >
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">—</SelectItem>
+                    {sources?.purchaseOrders.map((p) => <SelectItem key={p.id} value={p.id}>{p.poNumber} · {p.supplierName} · {money(p.totalAmount)}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">{kind === "advance" ? t("orders.source_advance_hint") : t("orders.source_other_hint")}</p>
+              </div>
+            </>
           )}
+
+          {/* Subcontractor fields when beneficiary is subcontractor */}
+          {(kind === "advance" || kind === "other") && beneficiaryType === "subcontractor" && (
+            <>
+              <div className="space-y-1.5">
+                <Label>{t("transfer.subcontractor_label")}</Label>
+                <Select
+                  value={subcontractorId || "none"}
+                  onValueChange={(v) => {
+                    const sub = (sources?.subcontractors ?? []).find((x) => x.id === v);
+                    setSubcontractorId(v === "none" ? "" : v);
+                    setSubcontractorContractId("");
+                    setSubcontractorCertificateId("");
+                    if (sub && !payeeName) setPayeeName(sub.name);
+                  }}
+                >
+                  <SelectTrigger><SelectValue placeholder={t("transfer.subcontractor_placeholder")} /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">{t("common.unspecified")}</SelectItem>
+                    {(sources?.subcontractors ?? []).map((s) => (
+                      <SelectItem key={s.id} value={s.id}>
+                        {s.name} {s.scope ? `— ${s.scope}` : ""}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {subcontractorId && (
+                <div className="grid sm:grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label>{t("transfer.contract_label")}</Label>
+                    <Select
+                      value={subcontractorContractId || "none"}
+                      onValueChange={(v) => {
+                        const cnt = (sources?.subcontractorContracts ?? []).find((c) => c.id === v);
+                        setSubcontractorContractId(v === "none" ? "" : v);
+                        if (cnt && (!reason || reason === t("orders.advance_reason"))) {
+                          setReason(`دفعة لحساب العقد ${cnt.contractNo} — ${cnt.title}`);
+                        }
+                      }}
+                    >
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">—</SelectItem>
+                        {(sources?.subcontractorContracts ?? [])
+                          .filter((c) => c.subcontractorId === subcontractorId && c.status === "active")
+                          .map((c) => (
+                            <SelectItem key={c.id} value={c.id}>
+                              {c.contractNo} — {c.title} ({money(Number(c.contractValue) || 0)})
+                            </SelectItem>
+                          ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label>{t("transfer.cert_label")}</Label>
+                    <Select
+                      value={subcontractorCertificateId || "none"}
+                      onValueChange={(v) => {
+                        const cert = (sources?.subcontractorCertificates ?? []).find((c) => c.id === v);
+                        setSubcontractorCertificateId(v === "none" ? "" : v);
+                        if (cert) {
+                          setAmount(String(cert.netPayable));
+                          if (cert.contractId && !subcontractorContractId) setSubcontractorContractId(cert.contractId);
+                        }
+                      }}
+                    >
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">{t("common.unspecified")}</SelectItem>
+                        {(sources?.subcontractorCertificates ?? [])
+                          .filter((c) => c.subcontractorId === subcontractorId && (!subcontractorContractId || c.contractId === subcontractorContractId))
+                          .map((c) => (
+                            <SelectItem key={c.id} value={c.id}>
+                              {c.certNo} — {money(Number(c.netPayable) || 0)}
+                            </SelectItem>
+                          ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+
           {kind === "bill" && effPoId && poSource && (
             <p className="text-xs text-muted-foreground">{t("orders.linked_po")} <span className="font-mono">{poSource.poNumber}</span></p>
           )}
@@ -399,7 +569,19 @@ export function CreateOrderDialog({ ctx, defaultProjectId, data, draft, onClose 
                 <SelectContent>{list.map((r: any) => <SelectItem key={r.id} value={r.id}>{optionLabel(r)}</SelectItem>)}</SelectContent>
               </Select>
               {kind === "bill" && <p className="text-xs text-muted-foreground">{t("orders.bills_hint")}</p>}
-              {kind === "subcontractor" && <p className="text-xs text-muted-foreground">{t("orders.certs_hint")}</p>}
+              {kind === "subcontractor" && list.length > 0 && <p className="text-xs text-muted-foreground">{t("orders.certs_hint")}</p>}
+              {kind === "subcontractor" && list.length === 0 && (
+                <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-xs text-amber-700 dark:text-amber-400 space-y-1">
+                  <p className="font-semibold">
+                    {i18n.language === "ar" ? "لا توجد مستخلصات معتمدة لهذا المشروع حالياً." : "No approved certificates available for this project."}
+                  </p>
+                  <p>
+                    {i18n.language === "ar"
+                      ? "إذا كنت ترغب في صرف دفعة مقدمة أو تحويل مباشر لمقاول باطن على حساب العقد، يرجى تغيير «سبب الدفع» أعلاه إلى «دفعة مقدمة» أو «أخرى»، ثم اختيار «نوع المستفيد: مقاول باطن»."
+                      : "If you want to disburse an advance or direct payment to a subcontractor against a contract, change Reason to 'Advance' or 'Other', then select 'Beneficiary Type: Subcontractor'."}
+                  </p>
+                </div>
+              )}
             </div>
           )}
           <div className="grid sm:grid-cols-2 gap-3">

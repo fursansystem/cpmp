@@ -220,6 +220,11 @@ export default function ProjectSubcontractors() {
       .filter((c: any) => ["approved", "paid"].includes(c.status))
       .reduce((s: number, c: any) => s + num(c.netPayable), 0);
 
+    // Direct orders (advances, direct payments) that do NOT have a linked certificate
+    const directOrdersPaidTotal = subPaymentOrders
+      .filter((o: any) => o.status === "paid" && !o.subcontractorCertificateId)
+      .reduce((s: number, o: any) => s + num(o.amount), 0);
+
     const ordersPaidTotal = subPaymentOrders
       .filter((o: any) => o.status === "paid")
       .reduce((s: number, o: any) => s + num(o.amount), 0);
@@ -228,7 +233,13 @@ export default function ProjectSubcontractors() {
       .filter((o: any) => ["request_approved", "approved", "pending_approval"].includes(o.status))
       .reduce((s: number, o: any) => s + num(o.amount), 0);
 
-    const totalDisbursedAndCertified = certifiedTotal + ordersPaidTotal;
+    // Paid certs with no linked order in subPaymentOrders (to avoid double-counting)
+    const unlinkedPaidCertsTotal = filteredCertificates
+      .filter((c: any) => c.status === "paid" && !subPaymentOrders.some((o: any) => o.subcontractorCertificateId === c.id && o.status === "paid"))
+      .reduce((s: number, c: any) => s + num(c.netPayable), 0);
+
+    const netDisbursedTotal = ordersPaidTotal + unlinkedPaidCertsTotal;
+    const totalDisbursedAndCertified = certifiedTotal + directOrdersPaidTotal;
     const remainingContract = Math.max(0, totalContractValue - totalDisbursedAndCertified);
 
     const openDeductionsTotal =
@@ -245,8 +256,10 @@ export default function ProjectSubcontractors() {
       settledCount,
       certifiedTotal,
       netPayableTotal,
+      directOrdersPaidTotal,
       ordersPaidTotal,
       ordersApprovedTotal,
+      netDisbursedTotal,
       totalDisbursedAndCertified,
       remainingContract,
       issuesCount: subMaterialIssues.filter((m: any) => m.status !== "cancelled" && m.status !== "rejected").length,
@@ -275,19 +288,32 @@ export default function ProjectSubcontractors() {
         (o.purpose === "subcontractor" && (o.subcontractorId === subId || (subName && o.payeeName === subName)))
     );
 
-    const certPaidVal = subCerts
-      .filter((c: any) => c.status === "paid")
-      .reduce((sum: number, c: any) => sum + num(c.netPayable), 0);
-
+    // 1) All actual cash paid to this subcontractor via orders:
     const ordersPaidVal = subOrders
       .filter((o: any) => o.status === "paid")
+      .reduce((sum: number, o: any) => sum + num(o.amount), 0);
+
+    // 2) Any paid certificate without a linked paid order in subOrders (to prevent double-counting):
+    const unlinkedCertPaidVal = subCerts
+      .filter((c: any) => c.status === "paid" && !subOrders.some((o: any) => o.subcontractorCertificateId === c.id && o.status === "paid"))
+      .reduce((sum: number, c: any) => sum + num(c.netPayable), 0);
+
+    // Actual net cash disbursed to subcontractor:
+    const netPaidVal = ordersPaidVal + unlinkedCertPaidVal;
+
+    // Direct orders (advances / direct payments) that are NOT linked to any certificate:
+    const directOrdersPaidVal = subOrders
+      .filter((o: any) => o.status === "paid" && !o.subcontractorCertificateId)
       .reduce((sum: number, o: any) => sum + num(o.amount), 0);
 
     const ordersApprovedVal = subOrders
       .filter((o: any) => ["request_approved", "approved", "pending_approval"].includes(o.status))
       .reduce((sum: number, o: any) => sum + num(o.amount), 0);
 
-    const netPaidVal = certPaidVal + ordersPaidVal;
+    // Total recognized/committed on contracts = approved certificate works (gross) + direct un-certified advances:
+    const totalRecognizedVal = approvedVal + directOrdersPaidVal;
+    const remainingVal = Math.max(0, totalVal - totalRecognizedVal);
+    const progressPct = totalVal > 0 ? Math.min(100, (totalRecognizedVal / totalVal) * 100) : 0;
 
     const issues = materialIssues.filter(
       (m: any) => m.subcontractorId === subId && m.status !== "cancelled" && m.status !== "rejected"
@@ -303,8 +329,6 @@ export default function ProjectSubcontractors() {
         .filter((f: any) => f.status === "open")
         .reduce((s: number, f: any) => s + Math.max(0, num(f.amount) - num(f.paidAmount)), 0);
 
-    const progressPct = totalVal > 0 ? Math.min(100, ((approvedVal + ordersPaidVal) / totalVal) * 100) : 0;
-
     return {
       subContracts,
       activeContracts,
@@ -312,10 +336,10 @@ export default function ProjectSubcontractors() {
       totalVal,
       approvedVal,
       ordersApprovedVal,
-      certPaidVal,
+      certPaidVal: unlinkedCertPaidVal,
       ordersPaidVal,
       netPaidVal,
-      remainingVal: Math.max(0, totalVal - approvedVal - ordersPaidVal),
+      remainingVal,
       progressPct,
       subCerts,
       subOrders,
@@ -448,15 +472,15 @@ export default function ProjectSubcontractors() {
                 {money(stats.totalDisbursedAndCertified)}
               </div>
               <p className="text-[11px] text-muted-foreground">
-                {stats.ordersPaidTotal > 0 && stats.certifiedTotal > 0 ? (
+                {stats.directOrdersPaidTotal > 0 && stats.certifiedTotal > 0 ? (
                   <span>
-                    {isAr ? "مستخلصات:" : "Certs:"} {money(stats.certifiedTotal)} · {isAr ? "دفعات:" : "Paid:"}{" "}
-                    <b className="text-foreground tabular-nums">{money(stats.ordersPaidTotal)}</b>
+                    {isAr ? "مستخلصات:" : "Certs:"} {money(stats.certifiedTotal)} · {isAr ? "دفعات مقدمة:" : "Advances:"}{" "}
+                    <b className="text-foreground tabular-nums">{money(stats.directOrdersPaidTotal)}</b>
                   </span>
-                ) : stats.ordersPaidTotal > 0 ? (
+                ) : stats.directOrdersPaidTotal > 0 ? (
                   <span>
-                    {isAr ? "دفعات مسددة:" : "Paid Orders:"}{" "}
-                    <b className="text-foreground tabular-nums">{money(stats.ordersPaidTotal)}</b>
+                    {isAr ? "دفعات مقدمة:" : "Advances:"}{" "}
+                    <b className="text-foreground tabular-nums">{money(stats.directOrdersPaidTotal)}</b>
                   </span>
                 ) : (
                   <span>
@@ -978,7 +1002,7 @@ export default function ProjectSubcontractors() {
                             <TableCell className="text-xs">
                               {linkedCert ? (
                                 <Badge variant="outline" className="border-blue-300 text-blue-700 bg-blue-50/50 text-[11px] font-mono">
-                                  {linkedCert.certificateNo || (isAr ? "مستخلص" : "Cert")}
+                                  {linkedCert.certNo || linkedCert.certificateNo || (isAr ? "مستخلص" : "Cert")}
                                 </Badge>
                               ) : (
                                 <span className="text-[11px] text-muted-foreground">{isAr ? "تحويل مباشر / مقدمة" : "Direct / Advance"}</span>
@@ -1492,7 +1516,7 @@ export default function ProjectSubcontractors() {
                                   <TableCell className="text-xs">
                                     {linkedCert ? (
                                       <Badge variant="outline" className="border-blue-300 text-blue-700 bg-blue-50/50 text-[11px] font-mono">
-                                        {linkedCert.certificateNo || (isAr ? "مستخلص" : "Cert")}
+                                        {linkedCert.certNo || linkedCert.certificateNo || (isAr ? "مستخلص" : "Cert")}
                                       </Badge>
                                     ) : (
                                       <span className="text-[11px] text-muted-foreground">{isAr ? "تحويل مباشر / مقدمة" : "Direct / Advance"}</span>
@@ -1582,11 +1606,27 @@ export default function ProjectSubcontractors() {
                             ) : (
                               subM.subCerts.map((cert: any) => {
                                 const linkedOrder = allOrders.find((o: any) => o.subcontractorCertificateId === cert.id);
+                                const linkedContract = allContracts.find((c: any) => c.id === cert.contractId);
+                                const certDisplayNo = cert.certNo || cert.certificateNo || (cert.id ? cert.id.slice(0, 8) : "—");
+                                const certDate = cert.periodTo || cert.createdAt || cert.certificateDate;
                                 return (
                                 <TableRow key={cert.id}>
-                                  <TableCell className="font-mono text-xs font-bold">{cert.certificateNo || cert.id.slice(0, 8)}</TableCell>
-                                  <TableCell className="text-xs font-mono">{cert.contractNo || "—"}</TableCell>
-                                  <TableCell className="text-xs">{fmtDate(cert.certificateDate)}</TableCell>
+                                  <TableCell className="font-mono text-xs font-bold text-primary">{certDisplayNo}</TableCell>
+                                  <TableCell className="text-xs font-mono">
+                                    {linkedContract ? (
+                                      <span title={linkedContract.title || ""}>
+                                        {linkedContract.contractNo}
+                                        {linkedContract.title ? (
+                                          <span className="text-muted-foreground text-[10px] font-sans block truncate max-w-[130px]">
+                                            ({linkedContract.title})
+                                          </span>
+                                        ) : null}
+                                      </span>
+                                    ) : (
+                                      cert.contractNo || "—"
+                                    )}
+                                  </TableCell>
+                                  <TableCell className="text-xs">{fmtDate(certDate)}</TableCell>
                                   <TableCell className="text-xs tabular-nums font-bold">{money(cert.grossAmount)}</TableCell>
                                   <TableCell className="text-xs tabular-nums font-bold text-emerald-600">{money(cert.netPayable)}</TableCell>
                                   <TableCell className="text-xs">
@@ -1614,9 +1654,17 @@ export default function ProjectSubcontractors() {
                                               ? "outline"
                                               : "destructive"
                                       }
-                                      className="text-[11px]"
+                                      className={`text-[11px] ${cert.status === "paid" ? "bg-emerald-600 hover:bg-emerald-700" : ""}`}
                                     >
-                                      {cert.status}
+                                      {cert.status === "paid"
+                                        ? (isAr ? "مدفوع" : "Paid")
+                                        : cert.status === "approved"
+                                          ? (isAr ? "معتمد" : "Approved")
+                                          : cert.status === "submitted"
+                                            ? (isAr ? "قيد المراجعة" : "Submitted")
+                                            : cert.status === "draft"
+                                              ? (isAr ? "مسودة" : "Draft")
+                                              : cert.status}
                                     </Badge>
                                   </TableCell>
                                 </TableRow>

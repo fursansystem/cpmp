@@ -372,7 +372,7 @@ function RequestTransferDialog({ ctx, context, onClose }: { ctx: PaymentsContext
                       <SelectContent>
                         <SelectItem value="none">—</SelectItem>
                         {(sources?.subcontractorContracts ?? [])
-                          .filter((c) => c.subcontractorId === form.subcontractorId)
+                          .filter((c) => c.subcontractorId === form.subcontractorId && c.status === "active")
                           .map((c) => (
                             <SelectItem key={c.id} value={c.id}>
                               {c.contractNo} — {c.title} ({money(Number(c.contractValue) || 0)})
@@ -390,6 +390,7 @@ function RequestTransferDialog({ ctx, context, onClose }: { ctx: PaymentsContext
                         setForm((f) => ({
                           ...f,
                           subcontractorCertificateId: v === "none" ? "" : v,
+                          subcontractorContractId: cert?.contractId && !f.subcontractorContractId ? cert.contractId : f.subcontractorContractId,
                           amount: cert ? String(cert.netPayable) : f.amount,
                           reason: cert ? `صرف مستخلص معتمد رقم ${cert.certNo}` : f.reason,
                         }));
@@ -399,7 +400,7 @@ function RequestTransferDialog({ ctx, context, onClose }: { ctx: PaymentsContext
                       <SelectContent>
                         <SelectItem value="none">—</SelectItem>
                         {(sources?.subcontractorCertificates ?? [])
-                          .filter((c) => c.subcontractorId === form.subcontractorId)
+                          .filter((c) => c.subcontractorId === form.subcontractorId && (!form.subcontractorContractId || c.contractId === form.subcontractorContractId))
                           .map((c) => (
                             <SelectItem key={c.id} value={c.id}>
                               {c.certNo} · {t("certificates.net_payable")}: {money(Number(c.netPayable) || 0)}
