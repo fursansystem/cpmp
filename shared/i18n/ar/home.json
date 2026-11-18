@@ -1,5 +1,6 @@
 {
-  "title": "نبض المشاريع",
+  "title": "مرحباً، {{name}}",
+  "title_fallback": "مرحباً بك",
   "subtitle": "ما ينتظرك اليوم، وكيف تسير مشاريعك",
   "updated": "آخر تحديث {{time}}",
   "filters": {

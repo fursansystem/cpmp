@@ -1,5 +1,6 @@
 {
-  "title": "Project Pulse",
+  "title": "Welcome, {{name}}",
+  "title_fallback": "Welcome",
   "subtitle": "What is waiting on you today, and how your projects are doing",
   "updated": "Updated {{time}}",
   "filters": {
