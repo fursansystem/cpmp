@@ -14,6 +14,7 @@
     "db:migrate-permits": "tsx --env-file=.env migrate_permits_tables.ts",
     "db:migrate-handover": "tsx --env-file=.env migrate_handover_tables.ts",
     "db:migrate-language": "tsx --env-file=.env migrate_language.ts",
+    "test:webhooks": "tsx --env-file=.env scripts/test-webhooks.ts",
     "i18n:scan": "node scripts/i18n-scan.mjs",
     "i18n:check": "node scripts/i18n-scan.mjs --done"
   },

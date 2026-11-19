@@ -25,16 +25,56 @@ export type ErpInboundEntry = {
   createdAt: string;
 };
 
+export type ErpDirectoryRole = "supplier" | "subcontractor";
+
+export function isErpContractorGroup(group: string | null | undefined): boolean {
+  const g = (group ?? "").trim().toLowerCase();
+  if (!g) return false;
+  return g.includes("مقاول") || g.includes("contractor") || g.includes("subcontractor");
+}
+
+export function isErpSupplierGroup(group: string | null | undefined): boolean {
+  const g = (group ?? "").trim().toLowerCase();
+  if (!g || isErpContractorGroup(g)) return false;
+  return g.includes("مورد") || g.includes("supplier") || g.includes("محلي") || g.includes("services") || g.includes("raw material");
+}
+
+export function classifyErpSupplierGroup(group: string | null | undefined): "supplier" | "subcontractor" | "unclassified" {
+  if (isErpContractorGroup(group)) return "subcontractor";
+  if (isErpSupplierGroup(group)) return "supplier";
+  return "unclassified";
+}
+
 export type ErpSupplierEntry = {
   erpName: string;
   supplierName: string;
   taxId: string | null;
+  contactPerson: string | null;
   email: string | null;
   phone: string | null;
+  address: string | null;
+  logoUrl: string | null;
   supplierGroup: string | null;
   disabled: boolean;
   linkedProjectSuppliers: number;
   updatedAt: string;
+};
+
+export type ErpPaymentEntry = {
+  name: string;
+  paymentType: string | null;
+  partyType: string | null;
+  party: string | null;
+  partyName: string | null;
+  paidAmount: number;
+  modeOfPayment: string | null;
+  paymentMethod: "bank_transfer" | "cheque" | "cash";
+  referenceNo: string | null;
+  referenceDate: string | null;
+  postingDate: string | null;
+  docstatus: number;
+  remarks: string | null;
+  pmpPaymentOrder: string | null;
 };
 
 export type ErpStatement = {

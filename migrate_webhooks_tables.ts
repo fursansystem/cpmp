@@ -72,13 +72,19 @@ async function main() {
       erp_name TEXT NOT NULL,
       supplier_name TEXT NOT NULL,
       tax_id TEXT,
+      contact_person TEXT,
       email TEXT,
       phone TEXT,
+      address TEXT,
+      logo_url TEXT,
       supplier_group TEXT,
       disabled BOOLEAN NOT NULL DEFAULT false,
       updated_at TIMESTAMP NOT NULL DEFAULT NOW()
     );
   `);
+  await db.execute(sql`ALTER TABLE erp_suppliers ADD COLUMN IF NOT EXISTS contact_person TEXT;`);
+  await db.execute(sql`ALTER TABLE erp_suppliers ADD COLUMN IF NOT EXISTS address TEXT;`);
+  await db.execute(sql`ALTER TABLE erp_suppliers ADD COLUMN IF NOT EXISTS logo_url TEXT;`);
   await db.execute(sql`CREATE UNIQUE INDEX IF NOT EXISTS erp_suppliers_org_name_uq ON erp_suppliers (organization_id, erp_name);`);
   console.log("Table 'erp_suppliers' ready.");
 
@@ -98,9 +104,10 @@ async function main() {
   await db.execute(sql`CREATE INDEX IF NOT EXISTS erp_inbound_log_org_idx ON erp_inbound_log (organization_id, created_at);`);
   console.log("Table 'erp_inbound_log' ready.");
 
-  // The only change to an existing table: an optional link from a project supplier to ERPNext
+  // The only change to existing tables: an optional link from a project supplier or subcontractor to ERPNext
   await db.execute(sql`ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS erp_supplier TEXT;`);
-  console.log("Column 'suppliers.erp_supplier' ready.");
+  await db.execute(sql`ALTER TABLE project_subcontractors ADD COLUMN IF NOT EXISTS erp_supplier TEXT;`);
+  console.log("Columns 'suppliers.erp_supplier' and 'project_subcontractors.erp_supplier' ready.");
 
   console.log("Done.");
   process.exit(0);

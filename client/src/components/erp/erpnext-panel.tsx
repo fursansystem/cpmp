@@ -15,6 +15,7 @@ import { toast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { errorMessage, fmtDateTime, getJson, money } from "@/components/payments/payments-common";
 import {
+  classifyErpSupplierGroup,
   FRAPPE_SIGNATURE_HEADER,
   PAYMENT_ORDER_FIELD,
   type ErpConnectionSummary,
@@ -58,7 +59,38 @@ const STATUS_TONE: Record<string, string> = {
   rejected: "border-destructive/40 text-destructive",
 };
 
-const BODY_TEMPLATE = "{{ doc.as_json() }}";
+const SUPPLIER_BODY_TEMPLATE = `{
+  "doctype": "{{ doc.doctype }}",
+  "name": "{{ doc.name }}",
+  "supplier_name": "{{ doc.supplier_name or '' }}",
+  "tax_id": "{{ doc.tax_id or '' }}",
+  "supplier_group": "{{ doc.supplier_group or '' }}",
+  "supplier_type": "{{ doc.supplier_type or '' }}",
+  "supplier_primary_contact": "{{ doc.supplier_primary_contact or '' }}",
+  "email_id": "{{ doc.email_id or '' }}",
+  "mobile_no": "{{ doc.mobile_no or '' }}",
+  "primary_address": "{{ doc.primary_address or '' }}",
+  "country": "{{ doc.country or '' }}",
+  "image": "{{ doc.image or '' }}",
+  "disabled": {{ doc.disabled or 0 }}
+}`;
+
+const PAYMENT_BODY_TEMPLATE = `{
+  "doctype": "{{ doc.doctype }}",
+  "name": "{{ doc.name }}",
+  "docstatus": {{ doc.docstatus or 0 }},
+  "payment_type": "{{ doc.payment_type or '' }}",
+  "party_type": "{{ doc.party_type or '' }}",
+  "party": "{{ doc.party or '' }}",
+  "party_name": "{{ doc.party_name or '' }}",
+  "mode_of_payment": "{{ doc.mode_of_payment or '' }}",
+  "reference_no": "{{ doc.reference_no or '' }}",
+  "reference_date": "{{ doc.reference_date or '' }}",
+  "posting_date": "{{ doc.posting_date or '' }}",
+  "paid_amount": {{ doc.paid_amount or 0 }},
+  "remarks": "{{ doc.remarks or '' }}",
+  "pmp_payment_order": "{{ doc.pmp_payment_order or '' }}"
+}`;
 
 function SetupGuide({ conn }: { conn: ErpConnectionSummary }) {
   const [open, setOpen] = useState(false);
@@ -74,7 +106,8 @@ function SetupGuide({ conn }: { conn: ErpConnectionSummary }) {
       {open && (
         <CardContent className="space-y-4 text-sm">
           <CopyRow label="Request URL (for both webhooks)" value={conn.inboundUrl} />
-          <CopyRow label="JSON Request Body (for both webhooks)" value={BODY_TEMPLATE} />
+          <CopyRow label="JSON Request Body — Supplier webhook" value={SUPPLIER_BODY_TEMPLATE} />
+          <CopyRow label="JSON Request Body — Payment Entry webhook" value={PAYMENT_BODY_TEMPLATE} />
           <ol className="list-decimal ps-5 space-y-2 text-muted-foreground">
             <li>In ERPNext open <b>Integrations → Webhook → New</b>.</li>
             <li>
@@ -91,9 +124,8 @@ function SetupGuide({ conn }: { conn: ErpConnectionSummary }) {
               request in <code className="text-xs">{FRAPPE_SIGNATURE_HEADER}</code>; unsigned requests are refused.
             </li>
             <li>
-              For payments: add a <b>Data</b> custom field <code className="text-xs">{PAYMENT_ORDER_FIELD}</code> to Payment Entry (Customize Form) and fill it
-              with the payment order's id (the <code className="text-xs">data.id</code> of our <code className="text-xs">payment_order</code> webhook). A submitted
-              Payment Entry of type <b>Pay</b> then marks that order paid, but only if it is already approved here and the amount matches.
+              For payments: you can either write the payment order number (e.g. <code className="text-xs">PAY-0001</code>) in ERPNext's <b>Remarks</b> / <b>Reference No</b>
+              {" "}(or in a custom field <code className="text-xs">{PAYMENT_ORDER_FIELD}</code>), <b>or</b> pick the ERPNext Payment Entry directly inside the payment order's <b>Record payment</b> panel in ProjectManager Pro.
             </li>
             <li>
               For statements and the first supplier sync: in ERPNext create an <b>API key and secret</b> for a user who can read Suppliers and the General Ledger,
@@ -192,6 +224,8 @@ export function ErpNextPanel({ orgId, orgQuery }: { orgId: string; orgQuery: str
   const [seeded, setSeeded] = useState<string | null>(null);
   const [secret, setSecret] = useState<string | null>(null);
   const [statementFor, setStatementFor] = useState<ErpSupplierEntry | null>(null);
+  const [supplierSearch, setSupplierSearch] = useState("");
+  const [groupFilter, setGroupFilter] = useState<"all" | "supplier" | "subcontractor" | "unclassified">("all");
 
   const { data: conn, isLoading } = useQuery<ErpConnectionSummary | null>({
     queryKey: ["/api/erp/connection", { org: orgId }],
@@ -338,7 +372,38 @@ export function ErpNextPanel({ orgId, orgQuery }: { orgId: string; orgQuery: str
               <RefreshCw className={cn("w-4 h-4 me-1.5", sync.isPending && "animate-spin")} /> Sync now
             </Button>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-3">
+            {!!erpSuppliers?.length && (
+              <div className="flex flex-wrap items-center gap-2">
+                <Input
+                  placeholder="بحث في الموردين والمقاولين بالاسم أو الرقم الضريبي أو الفئة أو الهاتف..."
+                  value={supplierSearch}
+                  onChange={(e) => setSupplierSearch(e.target.value)}
+                  className="max-w-md"
+                />
+                <div className="flex items-center gap-1 flex-wrap">
+                  {(
+                    [
+                      ["all", `الكل (${erpSuppliers.length})`],
+                      ["supplier", `الموردون · مورد (${erpSuppliers.filter((s) => classifyErpSupplierGroup(s.supplierGroup) === "supplier").length})`],
+                      ["subcontractor", `المقاولون · مقاول (${erpSuppliers.filter((s) => classifyErpSupplierGroup(s.supplierGroup) === "subcontractor").length})`],
+                      ["unclassified", `غير مصنف (${erpSuppliers.filter((s) => classifyErpSupplierGroup(s.supplierGroup) === "unclassified").length})`],
+                    ] as const
+                  ).map(([val, label]) => (
+                    <Button
+                      key={val}
+                      type="button"
+                      size="sm"
+                      variant={groupFilter === val ? "default" : "outline"}
+                      className="h-8 text-xs"
+                      onClick={() => setGroupFilter(val)}
+                    >
+                      {label}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+            )}
             {!erpSuppliers?.length ? (
               <p className="text-sm text-muted-foreground text-center py-4">No suppliers yet. Use “Sync now”, or they arrive as they change in ERPNext.</p>
             ) : (
@@ -346,20 +411,34 @@ export function ErpNextPanel({ orgId, orgQuery }: { orgId: string; orgQuery: str
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Supplier</TableHead>
-                      <TableHead className="hidden sm:table-cell">Tax number</TableHead>
+                      <TableHead>Supplier · المورد / المقاول</TableHead>
+                      <TableHead className="hidden sm:table-cell">Category · الفئة</TableHead>
+                      <TableHead className="hidden sm:table-cell">Tax number · الرقم الضريبي</TableHead>
+                      <TableHead className="hidden md:table-cell">Contact & Address · التواصل والعنوان</TableHead>
                       <TableHead className="hidden md:table-cell">Linked</TableHead>
                       <TableHead className="text-end">Statement</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {erpSuppliers.map((s) => (
+                    {erpSuppliers
+                      .filter((s) => {
+                        if (groupFilter !== "all" && classifyErpSupplierGroup(s.supplierGroup) !== groupFilter) return false;
+                        const q = supplierSearch.trim().toLowerCase();
+                        if (!q) return true;
+                        return [s.supplierName, s.erpName, s.taxId, s.supplierGroup, s.phone, s.email, s.contactPerson, s.address]
+                          .some((v) => (v ?? "").toLowerCase().includes(q));
+                      })
+                      .map((s) => (
                       <TableRow key={s.erpName}>
                         <TableCell>
                           <p className="text-sm font-medium">{s.supplierName} {s.disabled && <Badge variant="secondary" className="text-[10px] ms-1">Disabled</Badge>}</p>
                           <p className="text-[11px] text-muted-foreground font-mono">{s.erpName}</p>
                         </TableCell>
+                        <TableCell className="hidden sm:table-cell text-xs">{s.supplierGroup ?? "—"}</TableCell>
                         <TableCell className="hidden sm:table-cell text-xs font-mono">{s.taxId ?? "—"}</TableCell>
+                        <TableCell className="hidden md:table-cell text-xs text-muted-foreground">
+                          {[s.contactPerson, s.phone, s.email, s.address].filter(Boolean).join(" · ") || "—"}
+                        </TableCell>
                         <TableCell className="hidden md:table-cell text-xs">{s.linkedProjectSuppliers ? `${s.linkedProjectSuppliers} project(s)` : "—"}</TableCell>
                         <TableCell className="text-end">
                           <Button variant="ghost" size="sm" onClick={() => setStatementFor(s)} disabled={!conn.hasApiKey || !conn.company}>

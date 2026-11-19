@@ -217,6 +217,7 @@ const subcontractorSchema = z.object({
   contactPerson: optText(200),
   phone: optText(50),
   scope: optText(300),
+  erpSupplier: optText(200),
   workLocationIds: z.array(z.string().min(1)).max(500).optional().default([]),
 });
 
@@ -716,6 +717,7 @@ export function registerPaymentsRoutes(app: Express, deps: Deps) {
           scope: projectSubcontractors.scope,
           phone: projectSubcontractors.phone,
           taxNumber: projectSubcontractors.taxNumber,
+          erpSupplier: projectSubcontractors.erpSupplier,
         })
         .from(projectSubcontractors)
         .where(eq(projectSubcontractors.projectId, projectId))
@@ -2511,14 +2513,62 @@ export function registerPaymentsRoutes(app: Express, deps: Deps) {
   // ---- Payment confirmed in the ERP (ERPNext Payment Entry) ----
   // Follows the same rules as the "pay" action: the order must already be approved here, so the
   // approval chain is never skipped, and the amount must match.
+  // Accepts either the internal UUID (order.id) or the visible order number (e.g. PAY-0001).
   async function markOrderPaidFromErp(
-    orderId: string,
+    orderRef: string,
     orgProjectIds: Set<string>,
-    details: { paymentMethod: PaymentMethod; paymentReference: string | null; paidDate: string | null; amount: number; source: string },
-  ): Promise<{ ok: true; orderNo: string } | { ok: false; error: string }> {
-    const [order] = await db.select().from(paymentOrders).where(eq(paymentOrders.id, orderId));
+    details: { paymentMethod: PaymentMethod; paymentReference: string | null; paidDate: string | null; amount: number; source: string; partyName?: string | null },
+  ): Promise<{ ok: true; orderNo: string; orderId: string; projectId: string } | { ok: false; error: string; alreadyPaid?: boolean; orderId?: string; projectId?: string; orderNo?: string }> {
+    const cleanRef = orderRef.trim();
+    const projList = Array.from(orgProjectIds);
+    if (!cleanRef || projList.length === 0) {
+      return { ok: false, error: "Payment order not found in this organization's projects" };
+    }
+
+    // 1. Try direct ID match first
+    let candidates = await db
+      .select()
+      .from(paymentOrders)
+      .where(and(inArray(paymentOrders.projectId, projList), eq(paymentOrders.id, cleanRef)));
+
+    // 2. Try matching by visible orderNo (e.g. "PAY-0001" or "0001" -> "PAY-0001")
+    if (candidates.length === 0) {
+      const normalizedNo = /^\d+$/.test(cleanRef)
+        ? `PAY-${cleanRef.padStart(4, "0")}`
+        : cleanRef.toUpperCase();
+      candidates = await db
+        .select()
+        .from(paymentOrders)
+        .where(
+          and(
+            inArray(paymentOrders.projectId, projList),
+            sql`UPPER(${paymentOrders.orderNo}) = ${normalizedNo}`,
+          ),
+        );
+    }
+
+    if (candidates.length === 0) {
+      return { ok: false, error: `Payment order "${cleanRef}" not found in this organization's projects` };
+    }
+
+    // If multiple projects have the same orderNo (e.g. PAY-0001), disambiguate by status='approved', matching amount, and payeeName
+    let order = candidates[0];
+    if (candidates.length > 1) {
+      const approved = candidates.filter((o) => o.status === "approved");
+      const pool = approved.length > 0 ? approved : candidates;
+      const amountMatched = pool.filter((o) => Math.abs(details.amount - n(o.amount)) <= 0.005);
+      const pool2 = amountMatched.length > 0 ? amountMatched : pool;
+      if (details.partyName) {
+        const partyLower = details.partyName.trim().toLowerCase();
+        const partyMatched = pool2.filter((o) => o.payeeName.trim().toLowerCase().includes(partyLower) || partyLower.includes(o.payeeName.trim().toLowerCase()));
+        order = partyMatched[0] ?? pool2[0];
+      } else {
+        order = pool2[0];
+      }
+    }
+
     if (!order || !orgProjectIds.has(order.projectId)) return { ok: false, error: "Payment order not found in this organization's projects" };
-    if (order.status === "paid") return { ok: false, error: `${order.orderNo} is already paid` };
+    if (order.status === "paid") return { ok: false, error: `${order.orderNo} is already paid`, alreadyPaid: true, orderId: order.id, projectId: order.projectId, orderNo: order.orderNo };
     if (order.status !== "approved") return { ok: false, error: `${order.orderNo} is "${order.status}"; only an approved order can be paid` };
     if (Math.abs(details.amount - n(order.amount)) > 0.005) {
       return { ok: false, error: `Paid amount ${details.amount} does not match ${order.orderNo}'s amount ${n(order.amount)}` };
@@ -2548,7 +2598,7 @@ export function registerPaymentsRoutes(app: Express, deps: Deps) {
     };
     notifyOrderOwners(erpCtx, order, translate("notifications", "payments.order_paid_erp"), `${order.orderNo} · ${order.payeeName} · ${amountText(order.amount)}`, "orders", order.id);
     notificationWss.broadcastPaymentsUpdate(order.projectId, "erp");
-    return { ok: true, orderNo: order.orderNo };
+    return { ok: true, orderNo: order.orderNo, orderId: order.id, projectId: order.projectId };
   }
 
   return { markOrderPaidFromErp };

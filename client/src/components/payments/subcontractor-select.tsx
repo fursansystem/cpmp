@@ -2,7 +2,8 @@
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Building2, Check, CheckCircle2, FileSignature, HardHat, MapPin, Pencil, Plus, RotateCcw, Save, Search, Trash2, XCircle } from "lucide-react";
+import { Building2, Check, CheckCircle2, FileSignature, HardHat, MapPin, Pencil, Plug, Plus, RefreshCw, RotateCcw, Save, Search, Trash2, X, XCircle } from "lucide-react";
+import { isErpContractorGroup, type ErpSupplierEntry } from "@shared/erp";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -25,6 +26,7 @@ export interface SubcontractorRow {
   contactPerson: string | null;
   phone: string | null;
   scope: string | null;
+  erpSupplier?: string | null;
   workLocationIds?: string[];
 }
 
@@ -471,9 +473,71 @@ export function SubcontractorDialog({ projectId, row, onClose, onSaved }: {
     contactPerson: row?.contactPerson ?? "",
     phone: row?.phone ?? "",
     scope: row?.scope ?? "",
+    erpSupplier: row?.erpSupplier ?? null,
   });
+  const [erpSearch, setErpSearch] = useState("");
+  const [showErpDropdown, setShowErpDropdown] = useState(false);
+  const [strictContractorGroup, setStrictContractorGroup] = useState(true);
+
   const set = (k: "name" | "taxNumber" | "contactPerson" | "phone" | "scope") => (v: string) =>
     setForm((f) => ({ ...f, [k]: v }));
+
+  const { data: erpContractors = [] } = useQuery<ErpSupplierEntry[]>({
+    queryKey: ["/api/erp/project-suppliers", { projectId, role: "subcontractor" }],
+    queryFn: async () => {
+      const res = await fetch(`/api/erp/project-suppliers?projectId=${encodeURIComponent(projectId)}&role=subcontractor`, { credentials: "include" });
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: !!projectId && projectId !== "all",
+  });
+
+  const strictCount = useMemo(
+    () => erpContractors.filter((s) => isErpContractorGroup(s.supplierGroup)).length,
+    [erpContractors],
+  );
+
+  const filteredErpContractors = useMemo(() => {
+    const baseList =
+      strictContractorGroup && strictCount > 0
+        ? erpContractors.filter((s) => isErpContractorGroup(s.supplierGroup))
+        : erpContractors;
+    const q = erpSearch.trim().toLowerCase();
+    if (!q) return baseList.slice(0, 40);
+    return baseList
+      .filter((s) =>
+        [s.supplierName, s.erpName, s.taxId, s.supplierGroup, s.phone, s.contactPerson]
+          .some((v) => (v ?? "").toLowerCase().includes(q)),
+      )
+      .slice(0, 40);
+  }, [erpContractors, erpSearch, strictContractorGroup, strictCount]);
+
+  const applyErpEntry = (entry: ErpSupplierEntry) => {
+    setForm((f) => ({
+      ...f,
+      erpSupplier: entry.erpName,
+      name: entry.supplierName || f.name,
+      taxNumber: entry.taxId || f.taxNumber,
+      contactPerson: entry.contactPerson || f.contactPerson,
+      phone: entry.phone || f.phone,
+    }));
+  };
+
+  const syncErpMutation = useMutation({
+    mutationFn: async (erpName: string) => {
+      const res = await apiRequest("POST", "/api/erp/project-suppliers/fetch", { projectId, erpName });
+      return (await res.json()) as ErpSupplierEntry;
+    },
+    onSuccess: (fresh) => {
+      applyErpEntry(fresh);
+      queryClient.invalidateQueries({ queryKey: ["/api/erp/project-suppliers"] });
+      toast({
+        title: "تمت مزامنة بيانات المقاول من ERPNext",
+        description: `${fresh.supplierName}${fresh.taxId ? ` · الرقم الضريبي: ${fresh.taxId}` : ""}`,
+      });
+    },
+    onError: (e) => toast({ title: "تعذر تحديث المقاول من ERPNext", description: errorMessage(e), variant: "destructive" }),
+  });
 
   const save = useMutation({
     mutationFn: async () => {
@@ -493,7 +557,7 @@ export function SubcontractorDialog({ projectId, row, onClose, onSaved }: {
   return (
     <PaymentDialog
       onClose={onClose}
-      size="sm"
+      size="md"
       icon={HardHat}
       kind={t("subcontractors.kind")}
       title={row ? t("subcontractors.edit_title") : t("subcontractors.new_title")}
@@ -506,6 +570,148 @@ export function SubcontractorDialog({ projectId, row, onClose, onSaved }: {
       }
     >
       <div className="grid gap-3">
+        {/* ERPNext Contractor Selection & Sync Section (Filtered by Supplier Group = مقاول) */}
+        {erpContractors.length > 0 && (
+          <div className="rounded-2xl border border-primary/20 bg-primary/5 p-3.5 space-y-2.5">
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+              <div className="flex items-center gap-2">
+                <Plug className="w-4 h-4 text-primary shrink-0" />
+                <div>
+                  <div className="text-xs font-bold">
+                    اختيار ومزامنة مقاول من ERPNext (فئة: مقاول)
+                  </div>
+                  <div className="text-[11px] text-muted-foreground">
+                    مفلتر تلقائياً على مجموعة «مقاول» مع استبعاد الموردين ({strictContractorGroup && strictCount > 0 ? strictCount : erpContractors.length} مقاول متاح)
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center gap-1">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={strictContractorGroup ? "default" : "outline"}
+                  className="h-6 rounded-lg text-[10px] px-2"
+                  onClick={() => setStrictContractorGroup(true)}
+                >
+                  مجموعة «مقاول» فقط ({strictCount})
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={!strictContractorGroup ? "default" : "outline"}
+                  className="h-6 rounded-lg text-[10px] px-2"
+                  onClick={() => setStrictContractorGroup(false)}
+                >
+                  تضمين غير المصنفين ({erpContractors.length})
+                </Button>
+              </div>
+            </div>
+
+            {form.erpSupplier && (
+              <div className="flex items-center justify-between gap-2 rounded-xl bg-emerald-500/10 border border-emerald-500/30 px-2.5 py-1.5 text-xs">
+                <span className="flex items-center gap-1.5 text-emerald-700 dark:text-emerald-400 font-semibold truncate">
+                  <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                  <span>مرتبط بـ ERPNext: {form.erpSupplier}</span>
+                </span>
+                <div className="flex items-center gap-1 shrink-0">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-6 px-2 text-[11px]"
+                    disabled={syncErpMutation.isPending}
+                    onClick={() => form.erpSupplier && syncErpMutation.mutate(form.erpSupplier)}
+                  >
+                    <RefreshCw className={`w-3 h-3 me-1 ${syncErpMutation.isPending ? "animate-spin" : ""}`} />
+                    مزامنة
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6 text-muted-foreground hover:text-destructive"
+                    onClick={() => setForm((f) => ({ ...f, erpSupplier: null }))}
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            <div className="relative">
+              <Search className="absolute start-3 top-2.5 w-3.5 h-3.5 text-muted-foreground" />
+              <Input
+                value={erpSearch}
+                onFocus={() => setShowErpDropdown(true)}
+                onChange={(e) => {
+                  setErpSearch(e.target.value);
+                  setShowErpDropdown(true);
+                }}
+                placeholder="ابحث باسم المقاول في ERPNext أو الرقم الضريبي..."
+                className="ps-8 h-8 text-xs bg-background"
+                data-testid="input-search-erp-subcontractor"
+              />
+              {showErpDropdown && (
+                <button
+                  type="button"
+                  onClick={() => setShowErpDropdown(false)}
+                  className="absolute end-2 top-1.5 text-[11px] text-muted-foreground hover:text-foreground px-1.5 py-0.5"
+                >
+                  إغلاق
+                </button>
+              )}
+            </div>
+
+            {showErpDropdown && (
+              <div className="max-h-44 overflow-y-auto rounded-xl border bg-background shadow-lg divide-y">
+                {filteredErpContractors.length === 0 ? (
+                  <div className="p-3 text-center text-xs text-muted-foreground">
+                    لا يوجد مقاول مطابق في ERPNext
+                  </div>
+                ) : (
+                  filteredErpContractors.map((item) => {
+                    const isSelected = form.erpSupplier === item.erpName;
+                    return (
+                      <button
+                        key={item.erpName}
+                        type="button"
+                        onClick={() => {
+                          applyErpEntry(item);
+                          setShowErpDropdown(false);
+                          setErpSearch(item.supplierName);
+                          syncErpMutation.mutate(item.erpName);
+                        }}
+                        className={`w-full text-start px-3 py-2 text-xs hover:bg-primary/5 transition-colors flex items-center justify-between gap-2 ${
+                          isSelected ? "bg-primary/10" : ""
+                        }`}
+                      >
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="font-bold truncate">{item.supplierName}</span>
+                            {item.supplierGroup && (
+                              <Badge variant="secondary" className="text-[10px]">
+                                {item.supplierGroup}
+                              </Badge>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2 text-[11px] text-muted-foreground mt-0.5 flex-wrap">
+                            {item.taxId && <span className="font-mono">الضريبي: {item.taxId}</span>}
+                            {item.phone && <span>هاتف: {item.phone}</span>}
+                            {item.contactPerson && <span>جهة الاتصال: {item.contactPerson}</span>}
+                          </div>
+                        </div>
+                        <span className="text-[11px] font-semibold text-primary shrink-0">
+                          {isSelected ? "مختار ✓" : "اختيار ومزامنة"}
+                        </span>
+                      </button>
+                    );
+                  })
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
         <div className="space-y-1.5"><Label>{t("subcontractors.name")}</Label><Input value={form.name} onChange={(e) => set("name")(e.target.value)} /></div>
         <div className="space-y-1.5"><Label>{t("subcontractors.scope")}</Label><Input value={form.scope} onChange={(e) => set("scope")(e.target.value)} placeholder={t("subcontractors.scope_placeholder")} /></div>
         <div className="grid grid-cols-2 gap-3">
