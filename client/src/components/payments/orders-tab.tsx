@@ -2,7 +2,9 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import i18n from "@/lib/i18n";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus, Search, Paperclip, Printer, Send, CheckCircle2, XCircle, Banknote, Ban, AlertTriangle, FileSearch, FileCheck, FileText } from "lucide-react";
+import { Plus, Search, Paperclip, Printer, Send, CheckCircle2, XCircle, Banknote, Ban, AlertTriangle, FileSearch, FileCheck, FileText, Plug, RefreshCw } from "lucide-react";
+import type { ErpPaymentEntry } from "@shared/erp";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -660,6 +662,75 @@ function OrderDialog({ ctx, row, data, onClose, onOpenBillRequest }: { ctx: Paym
   const [method, setMethod] = useState<string>("bank_transfer");
   const [reference, setReference] = useState("");
   const [paidDate, setPaidDate] = useState(new Date().toISOString().slice(0, 10));
+  const [erpPeSearch, setErpPeSearch] = useState("");
+  const [selectedErpPe, setSelectedErpPe] = useState<ErpPaymentEntry | null>(null);
+
+  const { data: erpPaymentEntries = [], isFetching: isFetchingErpPe, refetch: refetchErpPe } = useQuery<ErpPaymentEntry[]>({
+    queryKey: ["/api/erp/payment-entries", row.projectId, row.payeeName],
+    queryFn: async () => {
+      const params = new URLSearchParams({
+        projectId: String(row.projectId ?? ""),
+        party: String(row.payeeName ?? ""),
+      });
+      const res = await fetch(`/api/erp/payment-entries?${params.toString()}`, { credentials: "include" });
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: panel === "pay",
+  });
+
+  const filteredErpPe = useMemo(() => {
+    const q = erpPeSearch.trim().toLowerCase();
+    if (!q) return erpPaymentEntries.slice(0, 25);
+    return erpPaymentEntries
+      .filter((pe) =>
+        [pe.name, pe.partyName, pe.party, pe.referenceNo, pe.remarks, pe.pmpPaymentOrder, String(pe.paidAmount)]
+          .some((v) => (v ?? "").toLowerCase().includes(q)),
+      )
+      .slice(0, 25);
+  }, [erpPaymentEntries, erpPeSearch]);
+
+  const applyErpPaymentEntry = (pe: ErpPaymentEntry) => {
+    setSelectedErpPe(pe);
+    setMethod(pe.paymentMethod);
+    const refText = pe.referenceNo && pe.referenceNo !== pe.name ? `${pe.name} (${pe.referenceNo})` : pe.name;
+    setReference(refText);
+    const dateVal = (pe.referenceDate || pe.postingDate || new Date().toISOString()).slice(0, 10);
+    setPaidDate(dateVal);
+  };
+
+  const linkedErpPeName = useMemo(() => {
+    if (selectedErpPe?.name) return selectedErpPe.name;
+    const ref = String(row.paymentReference || reference || "");
+    const m = ref.match(/\b(ACC-PAY-[A-Za-z0-9-]+)\b/i);
+    return m ? m[1] : null;
+  }, [selectedErpPe, row.paymentReference, reference]);
+
+  const syncErpAttachments = useMutation({
+    mutationFn: async (peName?: string) => {
+      const res = await apiRequest("POST", "/api/erp/payment-entries/sync-attachments", {
+        orderId: row.id,
+        projectId: row.projectId,
+        paymentEntryName: peName || linkedErpPeName || undefined,
+      });
+      return (await res.json()) as { paymentEntryName: string; synced: number; files: { id: string; fileName: string }[] };
+    },
+    onSuccess: (r) => {
+      invalidatePayments(queryClient);
+      if (r.synced > 0) {
+        toast({
+          title: `تمت مزامنة ${r.synced} مرفق من ERPNext`,
+          description: `قيد الدفع: ${r.paymentEntryName}`,
+        });
+      } else {
+        toast({
+          title: "لا توجد مرفقات في قيد الدفع داخل ERPNext",
+          description: `قيد الدفع: ${r.paymentEntryName}`,
+        });
+      }
+    },
+    onError: (e) => toast({ title: "تعذر مزامنة المرفقات من ERPNext", description: errorMessage(e), variant: "destructive" }),
+  });
 
   const act = useMutation({
     mutationFn: async (v: Record<string, unknown>) => apiRequest("POST", `/api/payments/orders/${row.id}/transition`, v),
@@ -667,6 +738,9 @@ function OrderDialog({ ctx, row, data, onClose, onOpenBillRequest }: { ctx: Paym
       invalidatePayments(queryClient);
       const msg: Record<string, string> = { submit: t("orders.toast_submitted"), approve: t("orders.toast_approved"), reject: t("orders.toast_rejected"), pay: t("orders.toast_paid"), cancel: t("orders.toast_cancelled"), approve_request: t("orders.toast_request_approved"), decline_request: t("orders.toast_request_declined"), accept_request: t("orders.toast_request_accepted"), withdraw_request: t("orders.toast_request_withdrawn") };
       toast({ title: msg[String(v.action)] });
+      if (v.action === "pay" && linkedErpPeName) {
+        syncErpAttachments.mutate(linkedErpPeName);
+      }
       setPanel(null);
       setNote("");
     },
@@ -691,6 +765,106 @@ function OrderDialog({ ctx, row, data, onClose, onOpenBillRequest }: { ctx: Paym
       </Section>
     ) : panel === "pay" ? (
       <Section title={t("orders.payment_panel")} icon={Banknote}>
+        {/* ERPNext Payment Entry Picker */}
+        <div className="rounded-xl border border-primary/20 bg-primary/5 p-3 space-y-2.5">
+          <div className="flex items-center justify-between gap-2 flex-wrap">
+            <div className="flex items-center gap-2">
+              <Plug className="w-4 h-4 text-primary" />
+              <span className="text-xs font-bold">
+                ربط قيد دفع من ERPNext (Payment Entry)
+              </span>
+              {selectedErpPe && (
+                <Badge variant="outline" className="bg-emerald-500/10 text-emerald-700 border-emerald-500/30 text-[11px]">
+                  {selectedErpPe.name}
+                </Badge>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] text-muted-foreground">
+                أو اكتب رقم الأمر <code className="font-mono font-bold text-foreground">{row.orderNo}</code> في ملاحظات ERPNext للسداد التلقائي
+              </span>
+              <Button type="button" variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => refetchErpPe()} disabled={isFetchingErpPe}>
+                <RefreshCw className={`w-3.5 h-3.5 me-1 ${isFetchingErpPe ? "animate-spin" : ""}`} />
+                تحديث
+              </Button>
+            </div>
+          </div>
+
+          <div className="relative">
+            <Search className="absolute start-3 top-2.5 w-3.5 h-3.5 text-muted-foreground" />
+            <Input
+              value={erpPeSearch}
+              onChange={(e) => setErpPeSearch(e.target.value)}
+              placeholder="ابحث برقم قيد الدفع (ACC-PAY-...) أو اسم المستفيد أو المبلغ أو المرجع..."
+              className="ps-8 h-8 text-xs bg-background"
+              data-testid="input-search-erp-payment-entry"
+            />
+          </div>
+
+          {filteredErpPe.length > 0 ? (
+            <div className="max-h-40 overflow-y-auto rounded-lg border bg-background divide-y">
+              {filteredErpPe.map((pe) => {
+                const isSelected = selectedErpPe?.name === pe.name;
+                const amountMatches = Math.abs(pe.paidAmount - Number(row.amount || 0)) <= 0.01;
+                const orderMatches = pe.pmpPaymentOrder?.toUpperCase() === String(row.orderNo || "").toUpperCase();
+                return (
+                  <button
+                    key={pe.name}
+                    type="button"
+                    onClick={() => applyErpPaymentEntry(pe)}
+                    className={`w-full text-start px-3 py-2 text-xs hover:bg-primary/5 transition-colors flex items-center justify-between gap-2 ${
+                      isSelected ? "bg-primary/10" : ""
+                    }`}
+                  >
+                    <div className="min-w-0 flex-1 space-y-0.5">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="font-mono font-bold">{pe.name}</span>
+                        {pe.partyName && <span className="font-semibold truncate">· {pe.partyName}</span>}
+                        {orderMatches && (
+                          <Badge variant="outline" className="text-[10px] border-emerald-500/40 text-emerald-700">
+                            مطابق لـ {row.orderNo}
+                          </Badge>
+                        )}
+                        {amountMatches && (
+                          <Badge variant="outline" className="text-[10px] border-primary/40 text-primary">
+                            نفس المبلغ
+                          </Badge>
+                        )}
+                        <Badge variant="secondary" className="text-[10px]">
+                          {pe.docstatus === 1 ? "معتمد" : "مسودة"}
+                        </Badge>
+                      </div>
+                      <div className="text-[11px] text-muted-foreground flex items-center gap-2 flex-wrap">
+                        {pe.modeOfPayment && <span>{pe.modeOfPayment}</span>}
+                        {pe.referenceNo && <span className="font-mono">مرجع: {pe.referenceNo}</span>}
+                        {(pe.referenceDate || pe.postingDate) && <span>تاريخ: {pe.referenceDate || pe.postingDate}</span>}
+                        {pe.remarks && <span className="truncate max-w-xs">({pe.remarks})</span>}
+                      </div>
+                    </div>
+                    <div className="text-end shrink-0">
+                      <div className="font-mono font-bold tabular-nums">{money(pe.paidAmount)}</div>
+                      <div className="text-[10px] text-primary font-semibold">{isSelected ? "مرتبط ✓" : "اختيار"}</div>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          ) : (
+            <p className="text-[11px] text-muted-foreground text-center py-1">
+              {isFetchingErpPe ? "جاري جلب قيود الدفع من ERPNext..." : "لا توجد قيود دفع مطابقة في ERPNext حالياً"}
+            </p>
+          )}
+
+          {selectedErpPe && Math.abs(selectedErpPe.paidAmount - Number(row.amount || 0)) > 0.01 && (
+            <div className="flex items-center gap-1.5 text-[11px] text-amber-700 dark:text-amber-400 bg-amber-500/10 border border-amber-500/20 rounded-lg px-2.5 py-1.5">
+              <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+              <span>
+                تنبيه: مبلغ قيد ERPNext ({money(selectedErpPe.paidAmount)}) يختلف عن مبلغ أمر الدفع ({money(row.amount)}).
+              </span>
+            </div>
+          )}
+        </div>
+
         <div className="grid sm:grid-cols-3 gap-3">
           <div className="space-y-1.5">
             <Label>{t("orders.payment_method")}</Label>
@@ -839,7 +1013,27 @@ function OrderDialog({ ctx, row, data, onClose, onOpenBillRequest }: { ctx: Paym
 
       <LatestActivity entityType="payment_order" entityId={row.id} group="payment_order" />
 
-      <div className="rounded-md border border-dashed border-primary/20 bg-primary/5 p-3">
+      <div className="rounded-md border border-dashed border-primary/20 bg-primary/5 p-3 space-y-2.5">
+        {isAccounting && linkedErpPeName && (
+          <div className="flex items-center justify-between gap-2 flex-wrap pb-2 border-b border-primary/15">
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <Plug className="w-3.5 h-3.5 text-primary" />
+              <span>قيد ERPNext المرتبط: <code className="font-mono font-bold text-foreground">{linkedErpPeName}</code></span>
+            </div>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="h-7 text-xs"
+              disabled={syncErpAttachments.isPending}
+              onClick={() => syncErpAttachments.mutate(linkedErpPeName)}
+              data-testid="button-sync-erp-attachments"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 me-1.5 ${syncErpAttachments.isPending ? "animate-spin" : ""}`} />
+              {syncErpAttachments.isPending ? "جاري جلب المرفقات..." : "مزامنة المرفقات من ERPNext"}
+            </Button>
+          </div>
+        )}
         <AttachmentsPanel
           entityType="payment_order"
           entityId={row.id}

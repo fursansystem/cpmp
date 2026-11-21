@@ -2748,6 +2748,7 @@ export const projectSubcontractors = pgTable("project_subcontractors", {
   phone: text("phone"),
   scope: text("scope"), // trade / work the subcontractor does
   workLocationIds: text("work_location_ids").array().notNull().default(sql`'{}'::text[]`), // المباني / مواقع العمل المسندة للمقاول
+  erpSupplier: text("erp_supplier"), // معرّف المقاول في ERPNext، يبقيه متزامناً معه
   createdBy: varchar("created_by").references(() => users.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 }, (table) => ({
@@ -3223,8 +3224,11 @@ export const erpSuppliers = pgTable("erp_suppliers", {
   erpName: text("erp_name").notNull(), // ERPNext's Supplier ID (its "name")
   supplierName: text("supplier_name").notNull(),
   taxId: text("tax_id"),
+  contactPerson: text("contact_person"),
   email: text("email"),
   phone: text("phone"),
+  address: text("address"),
+  logoUrl: text("logo_url"),
   supplierGroup: text("supplier_group"),
   disabled: boolean("disabled").notNull().default(false),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
