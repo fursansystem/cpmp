@@ -47,6 +47,7 @@ import ProjectMaterialGallery from "@/pages/ProjectMaterialGallery";
 import ProjectSnagList from "@/pages/ProjectSnagList";
 import ProjectProgressMatrix from "@/pages/ProjectProgressMatrix";
 import ProjectSubcontractors from "@/pages/ProjectSubcontractors";
+import SubcontractorCertificateDetail from "@/pages/SubcontractorCertificateDetail";
 import Payments from "@/pages/Payments";
 import Permits from "@/pages/Permits";
 import Services from "@/pages/Services";
@@ -116,6 +117,7 @@ function ProtectedRoutes() {
       <Route path="/projects/:projectId/storage" component={ProjectStorage} />
       <Route path="/projects/:projectId/requests" component={ProjectRequests} />
       <Route path="/projects/:projectId" component={ProjectDetail} />
+      <Route path="/payments/certificates/:id" component={SubcontractorCertificateDetail} />
       <Route path="/payments" component={Payments} />
       <Route path="/permits/:id" component={PermitDetail} />
       <Route path="/permits" component={Permits} />

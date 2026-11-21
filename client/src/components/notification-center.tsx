@@ -57,34 +57,44 @@ function NotificationItem({
   onMarkAsRead: (id: string) => void;
   onDelete: (id: string) => void;
 }) {
+  const { t } = useTranslation();
   const content = (
     <div
-      className={`flex items-start gap-3 p-3 rounded-md transition-colors ${
+      className={`group flex items-start gap-3 p-3 rounded-md transition-colors ${
         notification.isRead 
           ? "bg-transparent" 
           : "bg-primary/5"
       } ${!notification.isRead && notification.type === "approval" ? "border-s-4 border-primary bg-primary/10" : ""} hover-elevate`}
     >
-      <NotificationIcon type={notification.type} link={notification.link} title={notification.title} />
+      <div className="pt-0.5 shrink-0">
+        <NotificationIcon type={notification.type} link={notification.link} title={notification.title} />
+      </div>
       <div className="flex-1 min-w-0">
         <div className="flex items-start justify-between gap-2">
-          <p dir="auto" className={`text-sm font-medium truncate ${!notification.isRead ? "text-foreground" : "text-muted-foreground"}`}>
-            {!notification.isRead && notification.type === "approval" && <span className="me-2 rounded bg-primary px-1.5 py-0.5 text-[10px] font-bold text-primary-foreground">مطلوب</span>}
-            {notification.title}
+          <p className={`text-sm font-medium truncate ${!notification.isRead ? "text-foreground" : "text-muted-foreground"}`}>
+            {!notification.isRead && notification.type === "approval" && (
+              <span className="me-2 inline-flex items-center rounded bg-primary px-1.5 py-0.5 text-[10px] font-bold text-primary-foreground">
+                {t("notifications:required", "مطلوب")}
+              </span>
+            )}
+            <span title={notification.title}>{notification.title}</span>
           </p>
           {!notification.isRead && (
-            <span className="h-2 w-2 rounded-full bg-primary shrink-0 mt-1" />
+            <span className="h-2 w-2 rounded-full bg-primary shrink-0 mt-1.5" />
           )}
         </div>
-        <p dir="auto" className="text-xs text-muted-foreground line-clamp-2 mt-0.5">{notification.message}</p>
-        <p className="text-xs text-muted-foreground mt-1">{timeAgo(notification.createdAt)}</p>
+        <p className="text-xs text-muted-foreground line-clamp-2 mt-0.5 text-start" title={notification.message}>
+          {notification.message}
+        </p>
+        <p className="text-xs text-muted-foreground mt-1 text-start">{timeAgo(notification.createdAt)}</p>
       </div>
-      <div className="flex gap-1 shrink-0">
+      <div className="flex gap-1 shrink-0 pt-0.5">
         {!notification.isRead && (
           <Button
             variant="ghost"
             size="icon"
-            className="h-6 w-6"
+            className="h-6 w-6 text-muted-foreground hover:text-foreground"
+            title={t("notifications:mark_read", "تحديد كمقروء")}
             onClick={(e) => {
               e.preventDefault();
               e.stopPropagation();
@@ -92,13 +102,14 @@ function NotificationItem({
             }}
             data-testid={`button-mark-read-${notification.id}`}
           >
-            <Check className="h-3 w-3" />
+            <Check className="h-3.5 w-3.5" />
           </Button>
         )}
         <Button
           variant="ghost"
           size="icon"
           className="h-6 w-6 text-muted-foreground hover:text-destructive"
+          title={t("notifications:delete", "حذف")}
           onClick={(e) => {
             e.preventDefault();
             e.stopPropagation();
@@ -106,7 +117,7 @@ function NotificationItem({
           }}
           data-testid={`button-delete-notification-${notification.id}`}
         >
-          <Trash2 className="h-3 w-3" />
+          <Trash2 className="h-3.5 w-3.5" />
         </Button>
       </div>
     </div>
@@ -125,8 +136,11 @@ function NotificationItem({
 }
 
 function EmptyState({ type }: { type: "notifications" | "messages" }) {
+  const { t } = useTranslation();
   const Icon = type === "messages" ? MessageSquare : Bell;
-  const text = type === "messages" ? "No messages" : "No notifications";
+  const text = type === "messages"
+    ? t("notifications:empty_messages", "لا توجد رسائل")
+    : t("notifications:empty_notifications", "لا توجد تنبيهات");
   
   return (
     <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
@@ -231,50 +245,53 @@ export function NotificationCenter() {
           )}
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-80 p-0">
+      <DropdownMenuContent align="end" className="w-[380px] sm:w-[410px] p-0">
         <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "notifications" | "messages")} className="w-full">
-          <div className="flex items-center justify-between px-3 py-2 border-b">
+          <div className="flex items-center justify-between px-3 py-2 border-b gap-2">
             <TabsList className="h-8">
               <TabsTrigger value="notifications" className="text-xs px-3 relative" data-testid="tab-notifications">
-                Notifications
+                {t("notifications:tabs.notifications", "الإشعارات")}
                 {unreadGeneralCount > 0 && (
-                  <Badge variant="secondary" className="h-4 w-4 p-0 text-[10px] ms-1 flex items-center justify-center">
+                  <Badge variant="secondary" className="h-4 min-w-4 px-1 text-[10px] ms-1.5 flex items-center justify-center">
                     {unreadGeneralCount > 9 ? "9+" : unreadGeneralCount}
                   </Badge>
                 )}
               </TabsTrigger>
               <TabsTrigger value="messages" className="text-xs px-3 relative" data-testid="tab-messages">
-                Messages
+                {t("notifications:tabs.messages", "الرسائل")}
                 {unreadMessagesCount > 0 && (
-                  <Badge variant="secondary" className="h-4 w-4 p-0 text-[10px] ms-1 flex items-center justify-center">
+                  <Badge variant="secondary" className="h-4 min-w-4 px-1 text-[10px] ms-1.5 flex items-center justify-center">
                     {unreadMessagesCount > 9 ? "9+" : unreadMessagesCount}
                   </Badge>
                 )}
               </TabsTrigger>
             </TabsList>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7"
-              title={muted ? t("notifications:sound.unmute") : t("notifications:sound.mute")}
-              onClick={() => { const next = !muted; setMuted(next); if (user?.id) setSoundMuted(user.id, next); }}
-              data-testid="button-toggle-notification-sound"
-            >
-              {muted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
-            </Button>
-            {unreadCount > 0 && (
+            <div className="flex items-center gap-1 shrink-0">
               <Button
                 variant="ghost"
-                size="sm"
-                className="h-7 text-xs"
-                onClick={() => markAllAsRead()}
-                disabled={isMarkingAllAsRead}
-                data-testid="button-mark-all-read"
+                size="icon"
+                className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                title={muted ? t("notifications:sound.unmute", "تشغيل صوت التنبيهات") : t("notifications:sound.mute", "كتم صوت التنبيهات")}
+                onClick={() => { const next = !muted; setMuted(next); if (user?.id) setSoundMuted(user.id, next); }}
+                data-testid="button-toggle-notification-sound"
               >
-                <CheckCheck className="h-3 w-3 me-1" />
-                Mark all
+                {muted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
               </Button>
-            )}
+              {unreadCount > 0 && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 text-xs px-2"
+                  onClick={() => markAllAsRead()}
+                  disabled={isMarkingAllAsRead}
+                  data-testid="button-mark-all-read"
+                  title={t("notifications:mark_all_read", "تحديد الكل كمقروء")}
+                >
+                  <CheckCheck className="h-3.5 w-3.5 me-1" />
+                  <span>{t("notifications:mark_all_read_short", "قراءة الكل")}</span>
+                </Button>
+              )}
+            </div>
           </div>
 
           <TabsContent value="notifications" className="m-0">
@@ -305,10 +322,10 @@ export function NotificationCenter() {
         {notifications.length > 0 && (
           <>
             <DropdownMenuSeparator />
-            <div className="p-2 flex justify-between">
+            <div className="p-2 flex justify-between items-center">
               <Link href="/notifications">
                 <Button variant="ghost" size="sm" className="text-xs" data-testid="link-view-all-notifications">
-                  View all
+                  {t("notifications:view_all", "عرض الكل")}
                 </Button>
               </Link>
               <Button
@@ -319,7 +336,7 @@ export function NotificationCenter() {
                 data-testid="button-delete-all-notifications"
               >
                 <Trash2 className="h-3 w-3 me-1" />
-                Clear all
+                {t("notifications:clear_all", "مسح الكل")}
               </Button>
             </div>
           </>

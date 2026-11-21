@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { useLocation } from "wouter";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus, Search, Paperclip, AlertTriangle, Send, CheckCircle2, XCircle, Ban, Banknote, Save, HardHat, Building2, MapPin } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -17,8 +18,6 @@ import { OPEN_PAYMENT_ORDER, SUB_CERT_LABELS, computeSubCert, SUB_CERT_STATUSES 
 import { ChargebacksPanel } from "./chargebacks";
 import {
   SubcontractorSelect,
-  SubcontractorsPanel,
-  SubcontractorContractsPanel,
   SubcontractorContractDialog,
   WorkLocationPickerDialog,
   GroupedLocationBadges,
@@ -49,7 +48,7 @@ interface Props {
   rows: any[];
   chargebacks: any[];
   fines: any[];
-  subcontractors: SubcontractorRow[];
+  subcontractors?: SubcontractorRow[];
   contracts?: SubcontractorContractRow[];
   orders: any[];
   onRequestOrder: (certId: string) => void;
@@ -60,19 +59,17 @@ const num = (v: unknown) => Number(v ?? 0) || 0;
 // Saudi VAT, the starting value for a new certificate; it can be changed per certificate
 const DEFAULT_VAT = "15";
 
-export function SubcontractorCertificatesTab({ ctx, projectId, rows, chargebacks, fines, subcontractors, contracts = [], orders, onRequestOrder, hidePanels = false }: Props) {
+export function SubcontractorCertificatesTab({ ctx, projectId, rows, chargebacks, fines, orders, onRequestOrder, hidePanels = false }: Props) {
   const { t } = useTranslation("payments");
+  const [, navigate] = useLocation();
   const [status, setStatus] = useState("all");
   const [search, setSearch] = useState("");
-  const [editing, setEditing] = useState<any | "new" | null>(null);
-  useFocusFromUrl((id) => rows.some((r) => r.id === id), (id) => setEditing(rows.find((r) => r.id === id) ?? null));
+  useFocusFromUrl((id) => rows.some((r) => r.id === id), (id) => navigate(`/payments/certificates/${id}`));
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return rows.filter((r) => (status === "all" || r.status === status) && (!q || [r.certNo, r.subcontractorName, r.scope, r.projectName].some((s) => String(s ?? "").toLowerCase().includes(q))));
   }, [rows, status, search]);
-
-  const current = editing && editing !== "new" ? rows.find((r) => r.id === editing.id) ?? null : null;
 
   return (
     <div className="space-y-4">
@@ -88,7 +85,9 @@ export function SubcontractorCertificatesTab({ ctx, projectId, rows, chargebacks
             {enumOptions("sub_cert", SUB_CERT_STATUSES).map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
           </SelectContent>
         </Select>
-        <Button className="ms-auto" onClick={() => setEditing("new")}><Plus className="w-4 h-4 me-1" /> {t("certificates.new_btn")}</Button>
+        <Button className="ms-auto" onClick={() => navigate(`/payments/certificates/new${projectId !== "all" ? `?project=${projectId}` : ""}`)}>
+          <Plus className="w-4 h-4 me-1" /> {t("certificates.new_btn")}
+        </Button>
       </div>
 
       <Card className="rounded-2xl">
@@ -109,7 +108,7 @@ export function SubcontractorCertificatesTab({ ctx, projectId, rows, chargebacks
             <TableBody>
               {filtered.length === 0 && <TableRow><TableCell colSpan={8} className="text-center text-muted-foreground py-10">{t("certificates.no_items")}</TableCell></TableRow>}
               {filtered.map((r) => (
-                <TableRow key={r.id} className="cursor-pointer" onClick={() => setEditing(r)}>
+                <TableRow key={r.id} className="cursor-pointer hover:bg-muted/50" onClick={() => navigate(`/payments/certificates/${r.id}`)}>
                   <TableCell className="font-mono text-xs">{r.certNo}</TableCell>
                   {projectId === "all" && <TableCell>{r.projectName}</TableCell>}
                   <TableCell className="font-semibold">{r.subcontractorName}{r.scope && <div className="text-xs font-normal text-muted-foreground truncate max-w-[220px]">{r.scope}</div>}</TableCell>
@@ -126,25 +125,7 @@ export function SubcontractorCertificatesTab({ ctx, projectId, rows, chargebacks
       </Card>
 
       {!hidePanels && (
-        <>
-          <SubcontractorContractsPanel ctx={ctx} projectId={projectId} contracts={contracts} certificates={rows} />
-          <SubcontractorsPanel ctx={ctx} projectId={projectId} rows={subcontractors} certificates={rows} />
-          <ChargebacksPanel ctx={ctx} projectId={projectId} rows={chargebacks} fines={fines} />
-        </>
-      )}
-
-      {editing && (
-        <SubCertDialog
-          ctx={ctx}
-          defaultProjectId={projectId}
-          row={current}
-          chargebacks={chargebacks}
-          fines={fines}
-          allRows={rows}
-          orders={orders}
-          onClose={() => setEditing(null)}
-          onRequestOrder={(id) => { setEditing(null); onRequestOrder(id); }}
-        />
+        <ChargebacksPanel ctx={ctx} projectId={projectId} rows={chargebacks} fines={fines} />
       )}
     </div>
   );
@@ -217,7 +198,7 @@ export function SubCertDialog({ ctx, defaultProjectId, row, defaultSubcontractor
 
   const applyContract = (c: SubcontractorContractRow | undefined) => {
     if (!c) {
-      setForm((f) => ({ ...f, contractId: "" }));
+      setForm((f) => ({ ...f, contractId: "", workLocationIds: [] }));
       return;
     }
     setForm((f) => ({
@@ -227,7 +208,7 @@ export function SubCertDialog({ ctx, defaultProjectId, row, defaultSubcontractor
       contractValue: String(num(c.contractValue) || ""),
       retentionPercent: String(num(c.retentionPercent)),
       vatPercent: String(num(c.vatPercent)),
-      workLocationIds: c.workLocationIds?.length ? [...c.workLocationIds] : f.workLocationIds,
+      workLocationIds: c.workLocationIds?.length ? [...c.workLocationIds] : [],
     }));
   };
   // Approved invoice charge-backs this certificate can deduct: the subcontractor's own, not taken by another certificate

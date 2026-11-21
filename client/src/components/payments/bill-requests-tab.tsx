@@ -401,7 +401,7 @@ function InvoicesPanel({ ctx, row, editable, canRemove, chargebacks }: { ctx: Pa
   );
 }
 
-function BillRequestDialog({ ctx, row, orders, po, chargebacks, onClose, onCreateOrder }: { ctx: PaymentsContext; row: any; orders: any[]; po: PoSummary | null; chargebacks: any[]; onClose: () => void; onCreateOrder: (id: string) => void }) {
+export function BillRequestDialog({ ctx, row, orders, po, chargebacks, onClose, onCreateOrder }: { ctx: PaymentsContext; row: any; orders: any[]; po: PoSummary | null; chargebacks: any[]; onClose: () => void; onCreateOrder: (id: string) => void }) {
   const { t } = useTranslation("payments");
   const { toast } = useToast();
   const { user } = useAuth();

@@ -1,4 +1,17 @@
 {
+  "tabs": {
+    "notifications": "Notifications",
+    "messages": "Messages"
+  },
+  "mark_all_read": "Mark all as read",
+  "mark_all_read_short": "Mark all",
+  "mark_read": "Mark as read",
+  "delete": "Delete",
+  "view_all": "View all",
+  "clear_all": "Clear all",
+  "empty_notifications": "No notifications",
+  "empty_messages": "No messages",
+  "required": "Required",
   "sound": {
     "mute": "Mute notification sound",
     "unmute": "Unmute notification sound"

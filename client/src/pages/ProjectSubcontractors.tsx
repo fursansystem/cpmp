@@ -8,6 +8,8 @@ import {
   Banknote,
   Building2,
   CheckCircle2,
+  ChevronDown,
+  ChevronUp,
   FileSignature,
   FileText,
   HandCoins,
@@ -28,9 +30,10 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
+import { cn } from "@/lib/utils";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -51,7 +54,6 @@ import {
 import {
   SubcontractorDialog,
   SubcontractorContractDialog,
-  SubcontractorContractsPanel,
   GroupedLocationBadges,
   type SubcontractorContractRow,
   type SubcontractorRow,
@@ -89,6 +91,21 @@ export default function ProjectSubcontractors() {
 
   // Selected Subcontractor Profile Drawer / Modal
   const [selectedProfileSub, setSelectedProfileSub] = useState<SubcontractorRow | null>(null);
+  const [selectedContract, setSelectedContract] = useState<SubcontractorContractRow | null>(null);
+
+  const removeContract = useMutation({
+    mutationFn: async (id: string) => apiRequest("DELETE", `/api/payments/subcontractor-contracts/${id}`),
+    onSuccess: () => {
+      invalidatePayments(queryClient);
+      toast({ title: isAr ? "تم حذف العقد بنجاح" : "Contract deleted successfully" });
+    },
+    onError: (e) =>
+      toast({
+        title: isAr ? "تعذر حذف العقد" : "Failed to delete contract",
+        description: errorMessage(e),
+        variant: "destructive",
+      }),
+  });
 
   const { data: project } = useQuery<Project>({
     queryKey: ["/api/projects", projectId],
@@ -100,6 +117,8 @@ export default function ProjectSubcontractors() {
     queryFn: () => getJson("/api/payments/context"),
     meta: paymentsQuery,
   });
+
+  const canManageContract = Boolean(ctx?.perms?.isAccounting || ctx?.perms?.canApprove);
 
   const { data: overview, isLoading } = useQuery<PaymentsOverview>({
     queryKey: ["payments", "overview", projectId],
@@ -788,143 +807,266 @@ export default function ProjectSubcontractors() {
           </TabsContent>
 
           {/* ======================================================== */}
-          {/* TAB 2: Contracts & Buildings (Cleaned & Grouped)        */}
+          {/* TAB 2: Contracts & Buildings                             */}
           {/* ======================================================== */}
-          <TabsContent value="contracts" className="space-y-6">
-            <SubcontractorContractsPanel
-              ctx={ctx}
-              projectId={projectId}
-              contracts={filteredContracts}
-              certificates={allCertificates}
-            />
+          <TabsContent value="contracts" className="space-y-4">
+            {filteredContracts.length === 0 ? (
+              <Card className="rounded-2xl border-dashed">
+                <CardContent className="p-12 text-center space-y-3">
+                  <div className="w-12 h-12 rounded-2xl bg-muted/60 text-muted-foreground flex items-center justify-center mx-auto">
+                    <FileSignature className="w-6 h-6" />
+                  </div>
+                  <div className="space-y-1">
+                    <p className="font-bold text-sm">
+                      {isAr ? "لم تُسجَّل عقود لمقاولي الباطن بعد" : "No subcontractor contracts recorded yet"}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {isAr
+                        ? "أنشئ عقداً لربط المقاول بالمباني والوحدات وتتبع مستخلصاته وسندات الصرف."
+                        : "Create a contract to link the contractor to buildings and units."}
+                    </p>
+                  </div>
+                  <Button
+                    size="sm"
+                    className="rounded-xl gap-1.5 mt-2"
+                    onClick={() => {
+                      setTargetSubIdForContract(filterSubId !== "all" ? filterSubId : undefined);
+                      setAddingContract(true);
+                    }}
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>{isAr ? "عقد جديد" : "New Contract"}</span>
+                  </Button>
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 items-start">
+                {filteredContracts.map((c) => {
+                  const contractCerts = allCertificates.filter(
+                    (cert: any) => cert.contractId === c.id && cert.status !== "cancelled"
+                  );
+                  const approvedVal = contractCerts
+                    .filter((cert: any) => ["approved", "paid"].includes(cert.status))
+                    .reduce((s: number, cert: any) => s + num(cert.grossAmount), 0);
 
-            {/* Detailed Contract Cards with Grouped Building -> Unit Badges */}
-            {filteredContracts.length > 0 && (
-              <div className="space-y-3">
-                <h3 className="text-sm font-bold flex items-center gap-2">
-                  <Building2 className="w-4 h-4 text-primary" />
-                  {isAr ? "المباني والوحدات والمنصرف لكل عقد" : "Buildings & Units Coverage per Contract"}
-                </h3>
-                <div className="grid grid-cols-1 gap-4">
-                  {filteredContracts.map((c) => {
-                    const contractCerts = allCertificates.filter(
-                      (cert: any) => cert.contractId === c.id && cert.status !== "cancelled"
-                    );
-                    const approvedVal = contractCerts
-                      .filter((cert: any) => ["approved", "paid"].includes(cert.status))
-                      .reduce((s: number, cert: any) => s + num(cert.grossAmount), 0);
+                  const contractOrders = subPaymentOrders.filter(
+                    (o: any) =>
+                      o.subcontractorContractId === c.id ||
+                      (o.subcontractorCertificateId && contractCerts.some((cert: any) => cert.id === o.subcontractorCertificateId))
+                  );
 
-                    // Direct orders / payments linked to this contract
-                    const contractOrders = subPaymentOrders.filter(
-                      (o: any) =>
-                        o.subcontractorContractId === c.id ||
-                        (o.subcontractorCertificateId && contractCerts.some((cert: any) => cert.id === o.subcontractorCertificateId))
-                    );
+                  const directOrdersPaidVal = contractOrders
+                    .filter((o: any) => o.status === "paid" && !o.subcontractorCertificateId)
+                    .reduce((s: number, o: any) => s + num(o.amount), 0);
 
-                    const directOrdersPaidVal = contractOrders
-                      .filter((o: any) => o.status === "paid" && !o.subcontractorCertificateId)
-                      .reduce((s: number, o: any) => s + num(o.amount), 0);
+                  const totalContractDisbursed = approvedVal + directOrdersPaidVal;
+                  const contractIssues = materialIssues.filter(
+                    (m: any) => m.contractId === c.id && m.status !== "cancelled" && m.status !== "rejected"
+                  );
+                  const locSet = new Set(c.workLocationIds ?? []);
+                  const pickedLocations = workLocations.filter((l: any) => locSet.has(l.id));
+                  const val = num(c.contractValue);
+                  const pct = val > 0 ? Math.min(100, (totalContractDisbursed / val) * 100) : 0;
+                  const remaining = Math.max(0, val - totalContractDisbursed);
 
-                    const totalContractDisbursed = approvedVal + directOrdersPaidVal;
-                    const contractIssues = materialIssues.filter(
-                      (m: any) => m.contractId === c.id && m.status !== "cancelled" && m.status !== "rejected"
-                    );
-                    const locSet = new Set(c.workLocationIds ?? []);
-                    const pickedLocations = workLocations.filter((l: any) => locSet.has(l.id));
-                    const val = num(c.contractValue);
-                    const pct = val > 0 ? Math.min(100, (totalContractDisbursed / val) * 100) : 0;
-                    const remaining = Math.max(0, val - totalContractDisbursed);
+                  // Group buildings for compact summary
+                  const buildingGroupMap = new Map<string, number>();
+                  for (const loc of pickedLocations) {
+                    const b = String(loc.buildingNo || loc.building || "No Bldg").trim();
+                    buildingGroupMap.set(b, (buildingGroupMap.get(b) ?? 0) + 1);
+                  }
+                  const bGroups = Array.from(buildingGroupMap.entries());
+                  const isSettled = c.status === "settled";
+                  const isTerminated = c.status === "terminated";
 
-                    return (
-                      <Card key={c.id} className="rounded-2xl border shadow-xs">
-                        <CardContent className="p-4 space-y-3">
-                          <div className="flex flex-wrap items-center justify-between gap-2">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <Badge variant="outline" className="font-mono text-xs">
-                                {c.contractNo}
-                              </Badge>
-                              <span className="font-bold text-base">{c.title}</span>
-                              <span className="text-xs text-muted-foreground">· {c.subcontractorName}</span>
-                              {c.scope && <Badge variant="secondary" className="text-xs">{c.scope}</Badge>}
-                              <Badge
-                                variant={
-                                  c.status === "active"
-                                    ? "default"
-                                    : c.status === "settled"
-                                      ? "secondary"
-                                      : "destructive"
-                                }
-                              >
-                                {c.status === "active"
-                                  ? t("payments:contracts.status_active")
-                                  : c.status === "settled"
-                                    ? t("payments:contracts.status_settled")
-                                    : t("payments:contracts.status_terminated")}
-                              </Badge>
-                            </div>
-                            <Button size="sm" variant="outline" onClick={() => setEditingContract(c)}>
-                              {c.status === "active" ? (
-                                <>
-                                  <CheckCircle2 className="w-3.5 h-3.5 me-1 text-emerald-600" />
-                                  {isAr ? "إدارة العقد / مخالصة" : "Manage / Clearance"}
-                                </>
-                              ) : (
-                                isAr ? "عرض تفاصيل المخالصة" : "View Clearance"
-                              )}
-                            </Button>
-                          </div>
-
-                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 rounded-xl bg-muted/30 p-3 text-xs">
-                            <div>
-                              <span className="text-muted-foreground block">
-                                {isAr ? "قيمة العقد" : "Contract Value"}
-                              </span>
-                              <b className="text-sm tabular-nums">{money(val)}</b>
-                            </div>
-                            <div>
-                              <span className="text-muted-foreground block">
-                                {directOrdersPaidVal > 0 && approvedVal > 0
-                                  ? (isAr ? "المنصرف والمعتمد" : "Paid & Certified")
-                                  : directOrdersPaidVal > 0
-                                  ? (isAr ? "المنصرف (دفعات)" : "Paid (Orders)")
-                                  : (isAr ? "المعتمد بالمستخلصات" : "Certified")}{" "}
-                                ({pct.toFixed(0)}%)
-                              </span>
-                              <b className="text-sm text-emerald-600 tabular-nums">{money(totalContractDisbursed)}</b>
-                            </div>
-                            <div>
-                              <span className="text-muted-foreground block">
-                                {isAr ? "المتبقي من العقد" : "Remaining"}
-                              </span>
-                              <b className="text-sm tabular-nums">{money(remaining)}</b>
-                            </div>
-                            <div>
-                              <span className="text-muted-foreground block">
-                                {isAr ? "سندات صرف المواد والمستخلصات" : "Issues & Certificates"}
-                              </span>
-                              <b className="text-sm tabular-nums">
-                                {contractIssues.length} {isAr ? "سند صرف" : "issues"} · {contractCerts.length}{" "}
-                                {isAr ? "مستخلص" : "certs"}
-                              </b>
-                            </div>
-                          </div>
-
-                          {pickedLocations.length > 0 && (
-                            <div className="space-y-1">
-                              <span className="text-xs font-semibold text-muted-foreground">
-                                {isAr ? "المباني والوحدات المشمولة بالعقد:" : "Buildings & Units Covered:"}
-                              </span>
-                              <GroupedLocationBadges
-                                locations={pickedLocations}
-                                onRemoveOne={() => {}}
-                              />
-                            </div>
+                  return (
+                    <div
+                      key={c.id}
+                      onClick={() => setSelectedContract(c)}
+                      className={cn(
+                        "group cursor-pointer rounded-2xl border p-5 flex flex-col justify-between gap-3.5 transition-all duration-200 select-none relative overflow-hidden",
+                        isSettled &&
+                          "border-emerald-300 dark:border-emerald-800 bg-gradient-to-br from-emerald-500/10 via-card to-emerald-500/5 hover:border-emerald-500 hover:shadow-md ring-1 ring-emerald-400/30",
+                        isTerminated &&
+                          "border-rose-300 dark:border-rose-800 bg-gradient-to-br from-rose-500/10 via-card to-rose-500/5 hover:border-rose-500 hover:shadow-md ring-1 ring-rose-400/30 opacity-95",
+                        !isSettled &&
+                          !isTerminated &&
+                          "bg-card border-border/80 hover:border-primary/50 hover:shadow-md"
+                      )}
+                    >
+                      {/* Top Distinct Status Banner for Settled / Terminated */}
+                      {isSettled && (
+                        <div className="flex items-center justify-between bg-emerald-500/15 text-emerald-800 dark:text-emerald-200 border border-emerald-300 dark:border-emerald-800/60 rounded-xl px-3 py-1.5 text-xs font-bold shadow-2xs">
+                          <span className="flex items-center gap-1.5">
+                            <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                            <span>{isAr ? "مخالصة نهائية مكتملة" : "Final Clearance Completed"}</span>
+                          </span>
+                          {c.settlementDate && (
+                            <span className="text-[11px] font-mono text-emerald-700 dark:text-emerald-300">
+                              {fmtDate(c.settlementDate)}
+                            </span>
                           )}
-                        </CardContent>
-                      </Card>
-                    );
-                  })}
-                </div>
+                        </div>
+                      )}
+
+                      {isTerminated && (
+                        <div className="flex items-center justify-between bg-rose-500/15 text-rose-800 dark:text-rose-200 border border-rose-300 dark:border-rose-800/60 rounded-xl px-3 py-1.5 text-xs font-bold shadow-2xs">
+                          <span className="flex items-center gap-1.5">
+                            <XCircle className="w-4 h-4 text-rose-600" />
+                            <span>{isAr ? "تم سحب العمل / العقد ملغي" : "Work Terminated / Cancelled"}</span>
+                          </span>
+                          {c.settlementDate && (
+                            <span className="text-[11px] font-mono text-rose-700 dark:text-rose-300">
+                              {fmtDate(c.settlementDate)}
+                            </span>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Card Top: Badges, Title, Subcontractor */}
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <Badge
+                            variant="outline"
+                            className={cn(
+                              "font-mono text-xs font-bold px-2.5 py-0.5 rounded-md",
+                              isSettled && "border-emerald-400 bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40",
+                              isTerminated && "border-rose-400 bg-rose-50 text-rose-700 dark:bg-rose-950/40",
+                              !isSettled && !isTerminated && "border-primary/30 bg-primary/5 text-primary"
+                            )}
+                          >
+                            {c.contractNo}
+                          </Badge>
+
+                          <Badge
+                            variant={
+                              isSettled
+                                ? "secondary"
+                                : isTerminated
+                                  ? "destructive"
+                                  : "default"
+                            }
+                            className={cn(
+                              "text-xs px-2 py-0.5 h-6 font-semibold",
+                              !isSettled && !isTerminated && "bg-amber-500 hover:bg-amber-600 text-white",
+                              isSettled && "bg-emerald-600 hover:bg-emerald-700 text-white",
+                              isTerminated && "bg-rose-600 hover:bg-rose-700 text-white"
+                            )}
+                          >
+                            {c.status === "active"
+                              ? t("payments:contracts.status_active")
+                              : isSettled
+                                ? t("payments:contracts.status_settled")
+                                : t("payments:contracts.status_terminated")}
+                          </Badge>
+
+                          {c.scope && (
+                            <Badge variant="secondary" className="text-xs px-2 py-0.5 h-6 font-medium">
+                              {c.scope}
+                            </Badge>
+                          )}
+                        </div>
+
+                        <h4 className="font-bold text-base truncate text-foreground group-hover:text-primary transition-colors mt-1.5">
+                          {c.title}
+                        </h4>
+                        <p className="text-sm text-muted-foreground truncate font-medium">
+                          {c.subcontractorName}
+                        </p>
+                      </div>
+
+                      {/* Financial Box */}
+                      <div
+                        className={cn(
+                          "rounded-xl border p-3 text-xs space-y-2.5",
+                          isSettled && "bg-emerald-500/5 border-emerald-200 dark:border-emerald-900/50",
+                          isTerminated && "bg-rose-500/5 border-rose-200 dark:border-rose-900/50",
+                          !isSettled && !isTerminated && "bg-muted/30 border-border/50"
+                        )}
+                      >
+                        <div className="grid grid-cols-3 gap-2 text-center">
+                          <div>
+                            <span className="text-xs text-muted-foreground font-medium block mb-0.5">
+                              {isAr ? "قيمة العقد" : "Value"}
+                            </span>
+                            <b className="text-base font-black tabular-nums">{money(val)}</b>
+                          </div>
+                          <div>
+                            <span className="text-xs text-muted-foreground font-medium block mb-0.5">
+                              {isAr ? "المنصرف" : "Disbursed"}
+                            </span>
+                            <b className="text-base font-black text-emerald-600 tabular-nums">
+                              {money(totalContractDisbursed)}
+                            </b>
+                          </div>
+                          <div>
+                            <span className="text-xs text-muted-foreground font-medium block mb-0.5">
+                              {isAr ? "المتبقي" : "Remaining"}
+                            </span>
+                            <b
+                              className={cn(
+                                "text-base font-black tabular-nums",
+                                isSettled ? "text-emerald-600" : "text-primary"
+                              )}
+                            >
+                              {money(remaining)}
+                            </b>
+                          </div>
+                        </div>
+
+                        <div className="space-y-1 pt-0.5">
+                          <div className="flex items-center justify-between text-xs text-muted-foreground font-semibold">
+                            <span>{isAr ? "نسبة الصرف" : "Disbursed"}</span>
+                            <span className="tabular-nums font-bold text-foreground">{pct.toFixed(0)}%</span>
+                          </div>
+                          <Progress
+                            value={pct}
+                            className={cn(
+                              "h-2 rounded-full",
+                              isSettled && "[&>div]:bg-emerald-600",
+                              isTerminated && "[&>div]:bg-rose-500"
+                            )}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Operations Stats */}
+                      <div className="flex items-center justify-between text-xs font-medium text-muted-foreground px-0.5">
+                        <span className="flex items-center gap-1.5">
+                          <Receipt className="w-4 h-4 text-muted-foreground" />
+                          <span>{contractCerts.length} {isAr ? "مستخلص" : "certs"}</span>
+                        </span>
+                        <span className="flex items-center gap-1.5">
+                          <PackageOpen className="w-4 h-4 text-muted-foreground" />
+                          <span>{contractIssues.length} {isAr ? "سند صرف" : "issues"}</span>
+                        </span>
+                      </div>
+
+                      {/* Buildings & Units Coverage (Compact Summary Only) */}
+                      <div className="space-y-2 pt-1.5 border-t border-border/40">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="text-xs font-bold text-muted-foreground flex items-center gap-1">
+                            <Building2 className="w-4 h-4 text-primary" />
+                            {isAr ? "المباني:" : "Buildings:"}
+                          </span>
+
+                          {pickedLocations.length === 0 ? (
+                            <Badge variant="outline" className="text-xs text-muted-foreground font-normal py-1 px-2.5 rounded-md bg-muted/20">
+                              {isAr ? "كل المباني والوحدات مسموحة (عقد شامل)" : "All buildings allowed"}
+                            </Badge>
+                          ) : (
+                            bGroups.map(([bNo, count]) => (
+                              <Badge key={bNo} variant="outline" className="text-xs gap-1.5 py-1 px-2 rounded-md bg-muted/30 font-medium">
+                                <span>{isAr ? `مبنى ${bNo}` : `Bldg ${bNo}`}</span>
+                                <span className="text-muted-foreground font-mono font-bold">({count} {isAr ? "وحدة" : "units"})</span>
+                              </Badge>
+                            ))
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             )}
           </TabsContent>
@@ -1169,10 +1311,372 @@ export default function ProjectSubcontractors() {
               projectId={projectId}
               rows={filteredChargebacks}
               fines={filteredFines}
+              billRequests={overview?.billRequests ?? []}
+              orders={overview?.orders ?? []}
+              purchaseOrders={overview?.purchaseOrders ?? []}
             />
           </TabsContent>
         </Tabs>
       )}
+
+      {/* ===================================================================== */}
+      {/* CONTRACT DETAILS MODAL (تفاصيل العقد الشاملة والمخالصة)              */}
+      {/* ===================================================================== */}
+      {selectedContract && (() => {
+        const c = selectedContract;
+        const sub = subcontractors.find((s) => s.id === c.subcontractorId);
+        const contractCerts = allCertificates.filter(
+          (cert: any) => cert.contractId === c.id && cert.status !== "cancelled"
+        );
+        const approvedVal = contractCerts
+          .filter((cert: any) => ["approved", "paid"].includes(cert.status))
+          .reduce((s: number, cert: any) => s + num(cert.grossAmount), 0);
+
+        const contractOrders = subPaymentOrders.filter(
+          (o: any) =>
+            o.subcontractorContractId === c.id ||
+            (o.subcontractorCertificateId && contractCerts.some((cert: any) => cert.id === o.subcontractorCertificateId))
+        );
+
+        const directOrdersPaidVal = contractOrders
+          .filter((o: any) => o.status === "paid" && !o.subcontractorCertificateId)
+          .reduce((s: number, o: any) => s + num(o.amount), 0);
+
+        const totalContractDisbursed = approvedVal + directOrdersPaidVal;
+        const contractIssues = materialIssues.filter(
+          (m: any) => m.contractId === c.id && m.status !== "cancelled" && m.status !== "rejected"
+        );
+        const locSet = new Set(c.workLocationIds ?? []);
+        const pickedLocations = workLocations.filter((l: any) => locSet.has(l.id));
+        const val = num(c.contractValue);
+        const pct = val > 0 ? Math.min(100, (totalContractDisbursed / val) * 100) : 0;
+        const remaining = Math.max(0, val - totalContractDisbursed);
+
+        return (
+          <Dialog open={!!selectedContract} onOpenChange={(open) => !open && setSelectedContract(null)}>
+            <DialogContent className="max-w-4xl w-full max-h-[92vh] overflow-y-auto rounded-3xl p-6">
+              <DialogHeader className="space-y-3 pb-4 border-b border-border/60">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 rounded-2xl bg-primary/10 text-primary flex items-center justify-center font-black text-lg">
+                      <FileSignature className="w-6 h-6" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <Badge variant="outline" className="font-mono text-xs font-bold border-primary/30 bg-primary/5 text-primary">
+                          {c.contractNo}
+                        </Badge>
+                        <Badge
+                          variant={c.status === "active" ? "default" : c.status === "settled" ? "secondary" : "destructive"}
+                          className={`text-xs ${c.status === "active" ? "bg-amber-500 text-white" : ""}`}
+                        >
+                          {c.status === "active"
+                            ? t("payments:contracts.status_active")
+                            : c.status === "settled"
+                              ? t("payments:contracts.status_settled")
+                              : t("payments:contracts.status_terminated")}
+                        </Badge>
+                        {c.scope && <Badge variant="secondary" className="text-xs">{c.scope}</Badge>}
+                      </div>
+                      <DialogTitle className="text-xl font-black mt-1">{c.title}</DialogTitle>
+                      <DialogDescription className="text-xs text-muted-foreground">
+                        {c.subcontractorName} {sub?.phone ? `· ${sub.phone}` : ""}
+                      </DialogDescription>
+                    </div>
+                  </div>
+
+                  {/* Top Action Buttons in Dialog */}
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="rounded-xl gap-1.5 text-xs font-bold"
+                      onClick={() => {
+                        const target = selectedContract;
+                        setSelectedContract(null);
+                        setEditingContract(target);
+                      }}
+                    >
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                      <span>{c.status === "active" ? (isAr ? "مخالصة / تعديل العقد" : "Clearance / Edit") : (isAr ? "تعديل العقد" : "Edit Contract")}</span>
+                    </Button>
+
+                    <Button
+                      size="sm"
+                      className="rounded-xl gap-1.5 text-xs font-bold"
+                      onClick={() => {
+                        navigate(`/payments/certificates/new?project=${projectId}&subcontractor=${c.subcontractorId}&contract=${c.id}`);
+                        setSelectedContract(null);
+                      }}
+                    >
+                      <Receipt className="w-4 h-4" />
+                      <span>{isAr ? "مستخلص جديد" : "New Certificate"}</span>
+                    </Button>
+
+                    {canManageContract && (
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-8 w-8 rounded-xl text-destructive hover:bg-destructive/10"
+                        disabled={removeContract.isPending}
+                        onClick={() => {
+                          removeContract.mutate(c.id);
+                          setSelectedContract(null);
+                        }}
+                        title={isAr ? "حذف العقد" : "Delete Contract"}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Financial Summary Strip */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-3 bg-muted/40 rounded-2xl text-xs border border-border/50">
+                  <div>
+                    <span className="text-muted-foreground block text-[11px] mb-0.5">
+                      {isAr ? "قيمة العقد" : "Contract Value"}
+                    </span>
+                    <b className="text-base tabular-nums font-black text-primary">{money(val)}</b>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground block text-[11px] mb-0.5">
+                      {isAr ? "المعتمد والمنصرف" : "Disbursed"}
+                    </span>
+                    <b className="text-base tabular-nums font-black text-emerald-600">{money(totalContractDisbursed)}</b>
+                    <span className="text-[10px] text-muted-foreground block">{pct.toFixed(0)}% {isAr ? "إنجاز مالي" : "progress"}</span>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground block text-[11px] mb-0.5">
+                      {isAr ? "المتبقي من العقد" : "Remaining"}
+                    </span>
+                    <b className="text-base tabular-nums font-black">{money(remaining)}</b>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground block text-[11px] mb-0.5">
+                      {isAr ? "المستخلصات وسندات الصرف" : "Certs & Issues"}
+                    </span>
+                    <b className="text-base tabular-nums font-black text-amber-600">
+                      {contractCerts.length} <span className="text-xs font-normal">{isAr ? "مستخلص" : "certs"}</span> · {contractIssues.length}{" "}
+                      <span className="text-xs font-normal">{isAr ? "سند" : "issues"}</span>
+                    </b>
+                  </div>
+                </div>
+              </DialogHeader>
+
+              {/* Detail Tabs inside Dialog */}
+              <Tabs defaultValue="locations" className="space-y-4 pt-2">
+                <TabsList className="bg-muted/50 rounded-xl p-1">
+                  <TabsTrigger value="locations" className="text-xs rounded-lg gap-1.5">
+                    <Building2 className="w-3.5 h-3.5" />
+                    {isAr ? "المباني والوحدات المشمولة" : "Assigned Buildings & Units"}
+                    <Badge variant="secondary" className="ms-1 text-[10px] px-1 h-4">
+                      {pickedLocations.length > 0 ? pickedLocations.length : (isAr ? "الكل" : "All")}
+                    </Badge>
+                  </TabsTrigger>
+
+                  <TabsTrigger value="certs" className="text-xs rounded-lg gap-1.5">
+                    <Receipt className="w-3.5 h-3.5" />
+                    {isAr ? "المستخلصات والدفعات" : "Certificates & Payments"}
+                    <Badge variant="secondary" className="ms-1 text-[10px] px-1 h-4">
+                      {contractCerts.length}
+                    </Badge>
+                  </TabsTrigger>
+
+                  <TabsTrigger value="issues" className="text-xs rounded-lg gap-1.5">
+                    <PackageOpen className="w-3.5 h-3.5" />
+                    {isAr ? "سندات صرف المواد" : "Warehouse Issues"}
+                    <Badge variant="secondary" className="ms-1 text-[10px] px-1 h-4">
+                      {contractIssues.length}
+                    </Badge>
+                  </TabsTrigger>
+
+                  {sub && (
+                    <TabsTrigger value="contractor" className="text-xs rounded-lg gap-1.5">
+                      <User className="w-3.5 h-3.5" />
+                      {isAr ? "معلومات المقاول" : "Subcontractor"}
+                    </TabsTrigger>
+                  )}
+                </TabsList>
+
+                {/* Sub-tab 1: Locations & Units */}
+                <TabsContent value="locations" className="space-y-3">
+                  {pickedLocations.length === 0 ? (
+                    <div className="p-8 text-center border rounded-2xl bg-muted/20">
+                      <Building2 className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
+                      <p className="text-sm font-bold text-foreground">
+                        {isAr ? "عقد شامل لجميع المباني والوحدات" : "Comprehensive Contract - All Buildings Allowed"}
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {isAr
+                          ? "هذا العقد غير مقيّد بمبانٍ أو وحدات محددة، ويسمح بالعمل في كافة مواقع المشروع."
+                          : "This contract is not restricted to specific buildings or units."}
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between text-xs text-muted-foreground">
+                        <span>{isAr ? `إجمالي الوحدات المسندة: ${pickedLocations.length} وحدة` : `Total assigned units: ${pickedLocations.length}`}</span>
+                      </div>
+                      <div className="p-3 bg-muted/20 border rounded-2xl">
+                        <GroupedLocationBadges locations={pickedLocations} />
+                      </div>
+                    </div>
+                  )}
+                </TabsContent>
+
+                {/* Sub-tab 2: Certificates & Orders */}
+                <TabsContent value="certs" className="space-y-3">
+                  <div className="rounded-2xl border overflow-hidden">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="text-start">{isAr ? "رقم المستخلص" : "Cert No"}</TableHead>
+                          <TableHead className="text-start">{isAr ? "التاريخ" : "Date"}</TableHead>
+                          <TableHead className="text-start">{isAr ? "قيمة الأعمال" : "Gross"}</TableHead>
+                          <TableHead className="text-start">{isAr ? "الصافي المستحق" : "Net Payable"}</TableHead>
+                          <TableHead className="text-start">{isAr ? "أمر الدفع" : "Payment Order"}</TableHead>
+                          <TableHead className="text-start">{isAr ? "الحالة" : "Status"}</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {contractCerts.length === 0 ? (
+                          <TableRow>
+                            <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
+                              {isAr ? "لا توجد مستخلصات مسجلة لهذا العقد بعد" : "No certificates registered for this contract"}
+                            </TableCell>
+                          </TableRow>
+                        ) : (
+                          contractCerts.map((cert: any) => {
+                            const linkedOrder = subPaymentOrders.find(
+                              (o: any) => o.subcontractorCertificateId === cert.id
+                            );
+                            const certDisplayNo = cert.certNo || cert.certificateNo || (cert.id ? cert.id.slice(0, 8) : "—");
+                            const certDate = cert.periodTo || cert.createdAt || cert.certificateDate;
+                            return (
+                              <TableRow
+                                key={cert.id}
+                                className="cursor-pointer hover:bg-muted/50"
+                                onClick={() => {
+                                  setSelectedContract(null);
+                                  navigate(`/payments/certificates/${cert.id}`);
+                                }}
+                              >
+                                <TableCell className="font-mono text-xs font-bold text-primary">{certDisplayNo}</TableCell>
+                                <TableCell className="text-xs">{fmtDate(certDate)}</TableCell>
+                                <TableCell className="text-xs tabular-nums font-bold">{money(cert.grossAmount)}</TableCell>
+                                <TableCell className="text-xs tabular-nums font-bold text-emerald-600">{money(cert.netPayable)}</TableCell>
+                                <TableCell className="text-xs">
+                                  {linkedOrder ? (
+                                    <Badge variant="outline" className="font-mono text-[11px] border-emerald-300 text-emerald-700 bg-emerald-50/50">
+                                      {linkedOrder.orderNo}
+                                    </Badge>
+                                  ) : (
+                                    <span className="text-[11px] text-muted-foreground">{isAr ? "لم يصدر أمر دفع" : "No order"}</span>
+                                  )}
+                                </TableCell>
+                                <TableCell>
+                                  <Badge
+                                    variant={cert.status === "paid" ? "default" : cert.status === "approved" ? "secondary" : "outline"}
+                                    className={`text-[11px] ${cert.status === "paid" ? "bg-emerald-600" : ""}`}
+                                  >
+                                    {cert.status === "paid" ? (isAr ? "مدفوع" : "Paid") : cert.status === "approved" ? (isAr ? "معتمد" : "Approved") : cert.status}
+                                  </Badge>
+                                </TableCell>
+                              </TableRow>
+                            );
+                          })
+                        )}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </TabsContent>
+
+                {/* Sub-tab 3: Warehouse Material Issues */}
+                <TabsContent value="issues" className="space-y-3">
+                  <div className="rounded-2xl border overflow-hidden">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="text-start">{isAr ? "رقم السند" : "Issue No"}</TableHead>
+                          <TableHead className="text-start">{isAr ? "التاريخ" : "Date"}</TableHead>
+                          <TableHead className="text-start">{isAr ? "الموقع" : "Location"}</TableHead>
+                          <TableHead className="text-start">{isAr ? "المواد المصروفة" : "Items"}</TableHead>
+                          <TableHead className="text-start">{isAr ? "الحالة" : "Status"}</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {contractIssues.length === 0 ? (
+                          <TableRow>
+                            <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
+                              {isAr ? "لا توجد سندات صرف مواد لهذا العقد" : "No material issues found"}
+                            </TableCell>
+                          </TableRow>
+                        ) : (
+                          contractIssues.map((issue: any) => (
+                            <TableRow key={issue.id}>
+                              <TableCell className="font-mono text-xs font-bold">{issue.issueNumber}</TableCell>
+                              <TableCell className="text-xs">{fmtDate(issue.issueDate)}</TableCell>
+                              <TableCell className="text-xs">{issue.workLocationName || "—"}</TableCell>
+                              <TableCell className="text-xs">
+                                <div className="flex flex-wrap gap-1">
+                                  {(issue.items ?? []).map((it: any) => (
+                                    <Badge key={it.id} variant="outline" className="text-[10px]">
+                                      {it.materialName}: {it.quantity} {it.unit}
+                                    </Badge>
+                                  ))}
+                                </div>
+                              </TableCell>
+                              <TableCell>
+                                <Badge variant="outline" className="text-[10px]">{issue.status}</Badge>
+                              </TableCell>
+                            </TableRow>
+                          ))
+                        )}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </TabsContent>
+
+                {/* Sub-tab 4: Subcontractor Info */}
+                {sub && (
+                  <TabsContent value="contractor" className="space-y-3">
+                    <div className="p-4 rounded-2xl border bg-muted/20 flex flex-wrap items-center justify-between gap-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-12 h-12 rounded-2xl bg-primary text-primary-foreground flex items-center justify-center font-black text-lg">
+                          {sub.name.slice(0, 2)}
+                        </div>
+                        <div>
+                          <h4 className="font-bold text-base">{sub.name}</h4>
+                          <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
+                            {sub.scope && <Badge variant="secondary">{sub.scope}</Badge>}
+                            {sub.taxNumber && <span>ضريبي: {sub.taxNumber}</span>}
+                            {sub.phone && <span className="flex items-center gap-1"><Phone className="w-3 h-3" /> {sub.phone}</span>}
+                          </div>
+                        </div>
+                      </div>
+
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="rounded-xl text-xs gap-1.5"
+                        onClick={() => {
+                          setSelectedContract(null);
+                          setSelectedProfileSub(sub);
+                        }}
+                      >
+                        <User className="w-3.5 h-3.5" />
+                        <span>{isAr ? "عرض ملف المقاول الشامل 360°" : "View Full Profile"}</span>
+                        <ArrowRight className="w-3.5 h-3.5 rtl:rotate-180" />
+                      </Button>
+                    </div>
+                  </TabsContent>
+                )}
+              </Tabs>
+            </DialogContent>
+          </Dialog>
+        );
+      })()}
 
       {/* ===================================================================== */}
       {/* 360° SUBCONTRACTOR PROFILE MODAL (ملف المقاول الشامل)                  */}
@@ -1230,8 +1734,7 @@ export default function ProjectSubcontractors() {
                     size="sm"
                     className="rounded-xl text-xs gap-1"
                     onClick={() => {
-                      setTargetSubIdForCert(selectedProfileSub.id);
-                      setAddingCert(true);
+                      navigate(`/payments/certificates/new?project=${projectId}&subcontractor=${selectedProfileSub.id}`);
                     }}
                   >
                     <Receipt className="w-3.5 h-3.5 text-emerald-600" />
@@ -1458,7 +1961,6 @@ export default function ProjectSubcontractors() {
                                   </span>
                                   <GroupedLocationBadges
                                     locations={pickedLocations}
-                                    onRemoveOne={() => {}}
                                   />
                                 </div>
                               )}
@@ -1610,7 +2112,11 @@ export default function ProjectSubcontractors() {
                                 const certDisplayNo = cert.certNo || cert.certificateNo || (cert.id ? cert.id.slice(0, 8) : "—");
                                 const certDate = cert.periodTo || cert.createdAt || cert.certificateDate;
                                 return (
-                                <TableRow key={cert.id}>
+                                <TableRow
+                                  key={cert.id}
+                                  className="cursor-pointer hover:bg-muted/50"
+                                  onClick={() => navigate(`/payments/certificates/${cert.id}`)}
+                                >
                                   <TableCell className="font-mono text-xs font-bold text-primary">{certDisplayNo}</TableCell>
                                   <TableCell className="text-xs font-mono">
                                     {linkedContract ? (

@@ -1,4 +1,17 @@
 {
+  "tabs": {
+    "notifications": "الإشعارات",
+    "messages": "الرسائل"
+  },
+  "mark_all_read": "تحديد الكل كمقروء",
+  "mark_all_read_short": "قراءة الكل",
+  "mark_read": "تحديد كمقروء",
+  "delete": "حذف",
+  "view_all": "عرض الكل",
+  "clear_all": "مسح الكل",
+  "empty_notifications": "لا توجد تنبيهات",
+  "empty_messages": "لا توجد رسائل",
+  "required": "مطلوب",
   "sound": {
     "mute": "كتم صوت التنبيهات",
     "unmute": "تشغيل صوت التنبيهات"

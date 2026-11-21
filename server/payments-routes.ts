@@ -816,12 +816,14 @@ export function registerPaymentsRoutes(app: Express, deps: Deps) {
       chargebacks: (await withAttachments("chargeback", decorate(chargebackRows))).map((c) => {
         const invoice = invoiceRows.find((i) => i.id === c.invoiceId);
         const bill = bills.find((b) => b.id === c.billRequestId);
+        const cert = subCerts.find((sc) => sc.id === c.certificateId);
         return {
           ...c,
           invoiceNo: invoice?.invoiceNo ?? "",
           invoiceAmount: n(invoice?.amount),
           requestNo: bill?.requestNo ?? "",
           payeeName: bill?.payeeName ?? "",
+          certificateNo: cert?.certNo ?? "",
           createdByName: userName.get(c.createdBy ?? "") ?? null,
           approvedByName: userName.get(c.approvedBy ?? "") ?? null,
         };
@@ -1028,9 +1030,9 @@ export function registerPaymentsRoutes(app: Express, deps: Deps) {
     }
     await db.update(paymentBillRequests).set({ ...patch, updatedAt: now }).where(eq(paymentBillRequests.id, bill.id));
     await log(bill.projectId, "bill_request", bill.id, action, ctx.cu.user.id, { from, to: patch.status as string, note });
-    if (action === "submit") notify(ctx, bill.projectId, "accounting", translate("notifications", "payments.bills_review"), `${bill.requestNo} · ${bill.payeeName}`, "bills", bill.id, "approval");
-    if (action === "receive") notify(ctx, bill.projectId, [bill.submittedBy], translate("notifications", "payments.bills_received"), `${bill.requestNo} · ${bill.payeeName}`, "bills", bill.id, "success");
-    if (action === "return") notify(ctx, bill.projectId, [bill.requestedBy], translate("notifications", "payments.bills_returned"), `${bill.requestNo} · ${bill.payeeName}${note ? ` — ${note}` : ""}`, "bills", bill.id, "warning");
+    if (action === "submit") notify(ctx, bill.projectId, "accounting", translate("notifications", "payments.bills_review"), `${bill.payeeName} · ${bill.requestNo}`, "bills", bill.id, "approval");
+    if (action === "receive") notify(ctx, bill.projectId, [bill.submittedBy], translate("notifications", "payments.bills_received"), `${bill.payeeName} · ${bill.requestNo}`, "bills", bill.id, "success");
+    if (action === "return") notify(ctx, bill.projectId, [bill.requestedBy], translate("notifications", "payments.bills_returned"), `${bill.payeeName} · ${bill.requestNo}${note ? ` — ${note}` : ""}`, "bills", bill.id, "warning");
     broadcast(bill.projectId, ctx);
     res.json({ ok: true, status: patch.status });
   }));
@@ -1249,7 +1251,7 @@ export function registerPaymentsRoutes(app: Express, deps: Deps) {
     });
     await log(data.projectId, "payment_order", created.id, "requested", ctx.cu.user.id, { to: status, note: data.reason });
     void permitsService.afterOrderEvent(created, "requested", ctx.cu.user.id);
-    notify(ctx, data.projectId, status === "requested" ? "approvers" : "accounting", status === "requested" ? "طلب تحويل بانتظار اعتمادك" : "طلب تحويل بانتظار المحاسبة", `${created.orderNo} · ${data.payeeName} · ${amountText(data.amount)}`, "orders", created.id);
+    notify(ctx, data.projectId, status === "requested" ? "approvers" : "accounting", status === "requested" ? "طلب تحويل بانتظار اعتمادك" : "طلب تحويل بانتظار المحاسبة", `${data.payeeName} · ${amountText(data.amount)} · ${created.orderNo}`, "orders", created.id);
     broadcast(data.projectId, ctx);
     res.status(201).json(created);
   }));
@@ -1375,7 +1377,7 @@ export function registerPaymentsRoutes(app: Express, deps: Deps) {
       if (input.action === "pay") void permitsService.afterOrderEvent({ ...order, paidBy: ctx.cu.user.id }, "paid", ctx.cu.user.id);
       else if (["rejected", "cancelled"].includes(patch.status as string)) void permitsService.afterOrderEvent(order, "reverted", ctx.cu.user.id);
     }
-    const orderText = `${order.orderNo} · ${order.payeeName} · ${amountText(order.amount)}`;
+    const orderText = `${order.payeeName} · ${amountText(order.amount)} · ${order.orderNo}`;
     switch (input.action) {
       case "approve_request":
         notify(ctx, order.projectId, "accounting", translate("notifications", "payments.request_pm_approved"), orderText, "orders", order.id, "info");
@@ -1710,6 +1712,20 @@ export function registerPaymentsRoutes(app: Express, deps: Deps) {
     res.status(201).json(created);
   }));
 
+  app.get(`${base}/subcontractor-certificates/:id`, route(async (req, res, ctx) => {
+    const row = await loadSubCert(ctx, req.params.id);
+    const [withAtt] = await withAttachments("subcontractor_certificate", [row]);
+    const [user] = row.createdBy ? await db.select({ name: users.username }).from(users).where(eq(users.id, row.createdBy)) : [null];
+    const [approver] = row.approvedBy ? await db.select({ name: users.username }).from(users).where(eq(users.id, row.approvedBy)) : [null];
+    const project = ctx.projects.find((p) => p.id === row.projectId);
+    res.json({
+      ...withAtt,
+      projectName: project?.name ?? "",
+      createdByName: user?.name ?? null,
+      approvedByName: approver?.name ?? null,
+    });
+  }));
+
   app.patch(`${base}/subcontractor-certificates/:id`, route(async (req, res, ctx) => {
     const row = await loadSubCert(ctx, req.params.id);
     requireSubCertOwner(ctx, row);
@@ -1797,8 +1813,8 @@ export function registerPaymentsRoutes(app: Express, deps: Deps) {
         .where(and(eq(paymentFines.deductedCertificateId, cert.id), eq(paymentFines.status, "open"))).returning({ id: paymentFines.id });
       for (const f of taken) await log(cert.projectId, "fine", f.id, "recover", ctx.cu.user.id, { from: "open", to: "recovered", note: cert.certNo });
     }
-    if (action === "submit") notify(ctx, cert.projectId, "approvers", translate("notifications", "payments.sub_cert_awaiting_approval"), `${cert.certNo} · ${cert.subcontractorName} · ${amountText(cert.netPayable)}`, "subcontractors", cert.id, "approval");
-    if (action === "approve" || action === "reject") notify(ctx, cert.projectId, [cert.createdBy], action === "approve" ? translate("notifications", "payments.cert_approved") : translate("notifications", "payments.cert_rejected"), `${cert.certNo} · ${cert.subcontractorName}${note ? ` — ${note}` : ""}`, "subcontractors", cert.id, action === "approve" ? "success" : "warning");
+    if (action === "submit") notify(ctx, cert.projectId, "approvers", translate("notifications", "payments.sub_cert_awaiting_approval"), `${cert.subcontractorName} · ${amountText(cert.netPayable)} · ${cert.certNo}`, "subcontractors", cert.id, "approval");
+    if (action === "approve" || action === "reject") notify(ctx, cert.projectId, [cert.createdBy], action === "approve" ? translate("notifications", "payments.cert_approved") : translate("notifications", "payments.cert_rejected"), `${cert.subcontractorName} · ${cert.certNo}${note ? ` — ${note}` : ""}`, "subcontractors", cert.id, action === "approve" ? "success" : "warning");
     broadcast(cert.projectId, ctx);
     res.json({ ok: true, status: patch.status });
   }));
@@ -1852,7 +1868,7 @@ export function registerPaymentsRoutes(app: Express, deps: Deps) {
     await log(bill.projectId, "chargeback", created.id, "created", ctx.cu.user.id, { to: created.status, note: `${invoice.invoiceNo} → ${sub.name}` });
     // The invoice's own history shows that part of it was charged, without changing its status
     await log(bill.projectId, "bill_request", bill.id, "chargeback_created", ctx.cu.user.id, { note: `${created.chargeNo}: ${invoice.invoiceNo} — ${data.amount} → ${sub.name}` });
-    if (created.status === "proposed") notify(ctx, bill.projectId, "approvers", "تحميل فاتورة على مقاول بانتظار اعتمادك", `${created.chargeNo} · ${sub.name} · ${amountText(created.amount)}`, "subcontractors", created.id);
+    if (created.status === "proposed") notify(ctx, bill.projectId, "approvers", "تحميل فاتورة على مقاول بانتظار اعتمادك", `${sub.name} · ${amountText(created.amount)} · ${created.chargeNo}`, "subcontractors", created.id);
     broadcast(bill.projectId, ctx);
     res.status(201).json(created);
   }));
@@ -2546,7 +2562,7 @@ export function registerPaymentsRoutes(app: Express, deps: Deps) {
       projects: project ? [project] : [],
       projectIds: new Set([order.projectId]),
     };
-    notifyOrderOwners(erpCtx, order, translate("notifications", "payments.order_paid_erp"), `${order.orderNo} · ${order.payeeName} · ${amountText(order.amount)}`, "orders", order.id);
+    notifyOrderOwners(erpCtx, order, translate("notifications", "payments.order_paid_erp"), `${order.payeeName} · ${amountText(order.amount)} · ${order.orderNo}`, "orders", order.id);
     notificationWss.broadcastPaymentsUpdate(order.projectId, "erp");
     return { ok: true, orderNo: order.orderNo };
   }

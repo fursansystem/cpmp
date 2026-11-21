@@ -97,7 +97,7 @@ export function GroupedLocationBadges({
   className,
 }: {
   locations: any[];
-  onRemoveOne: (id: string) => void;
+  onRemoveOne?: (id: string) => void;
   onRemoveMany?: (ids: string[]) => void;
   className?: string;
 }) {
@@ -143,14 +143,6 @@ export function GroupedLocationBadges({
                 className="inline-flex items-center gap-1 rounded-lg bg-background border border-border/80 px-2 py-0.5 text-xs font-semibold tabular-nums shadow-xs"
               >
                 <span>{loc.unitCustomNumber || loc.unit || "—"}</span>
-                <button
-                  type="button"
-                  onClick={() => onRemoveOne(loc.id)}
-                  className="text-muted-foreground hover:text-destructive transition-colors"
-                  title="Remove unit"
-                >
-                  <Trash2 className="w-3 h-3" />
-                </button>
               </span>
             ))}
           </div>
