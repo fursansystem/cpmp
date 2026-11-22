@@ -16,7 +16,7 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { cn } from "@/lib/utils";
-import { PaymentDialog, Section, errorMessage, getJson, invalidatePayments, money, paymentsQuery, type PaymentsContext } from "./payments-common";
+import { PaymentDialog, Section, errorMessage, getJson, invalidatePayments, money, paymentsQuery, useSystemVatRate, type PaymentsContext } from "./payments-common";
 
 export interface SubcontractorRow {
   id: string;
@@ -729,7 +729,9 @@ export function SubcontractorContractDialog({
   onClose: () => void;
   onSaved?: (c: SubcontractorContractRow) => void;
 }) {
-  const { t } = useTranslation("payments");
+  const { t, i18n } = useTranslation("payments");
+  const isAr = (i18n.language || "ar").startsWith("ar");
+  const systemVatRate = useSystemVatRate(15);
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const isEditing = Boolean(row && row.id);
@@ -957,15 +959,25 @@ export function SubcontractorContractDialog({
         </div>
         <div className="space-y-1.5">
           <Label>{t("certificates.vat_pct")}</Label>
-          <Input
-            type="number"
-            min="0"
-            max="100"
-            step="0.01"
-            value={form.vatPercent}
+          <Select
+            value={Number(form.vatPercent) > 0 ? "applied" : "not_applied"}
             disabled={!isActive}
-            onChange={(e) => setForm((f) => ({ ...f, vatPercent: e.target.value }))}
-          />
+            onValueChange={(v) =>
+              setForm((f) => ({ ...f, vatPercent: v === "applied" ? String(systemVatRate) : "0" }))
+            }
+          >
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="applied">
+                {isAr
+                  ? `مطبقة (${Number(form.vatPercent) > 0 ? Number(form.vatPercent) : systemVatRate}%)`
+                  : `Applied (${Number(form.vatPercent) > 0 ? Number(form.vatPercent) : systemVatRate}%)`}
+              </SelectItem>
+              <SelectItem value="not_applied">{isAr ? "غير مطبقة (0%)" : "Not Applied (0%)"}</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
         <div className="space-y-1.5">
           <Label>{t("contracts.start_date")}</Label>

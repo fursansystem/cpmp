@@ -532,7 +532,16 @@ export function ActivityHistory({ entityType, entityId, group }: { entityType: P
 
 export interface PaymentsContext {
   perms: { isAccounting: boolean; canApprove: boolean };
+  vatPercent?: number;
   projects: { id: string; name: string; canRequest: boolean }[];
+}
+
+export function useSystemVatRate(fallback = 15): number {
+  const { data } = useQuery<{ vatPercent: number }>({
+    queryKey: ["/api/system-settings"],
+    queryFn: () => getJson("/api/system-settings"),
+  });
+  return typeof data?.vatPercent === "number" ? data.vatPercent : fallback;
 }
 
 export interface PaymentsOverview {

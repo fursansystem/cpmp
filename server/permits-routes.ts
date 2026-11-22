@@ -232,7 +232,7 @@ export function registerPermitsRoutes(app: Express, deps: Deps) {
         await handler(req, res, { cu, projects: visible, projectIds: new Set(visible.map((p) => p.id)), devProjectIds });
       } catch (error) {
         if (error instanceof PermitsError) return res.status(error.status).json({ error: error.message });
-        if (error instanceof z.ZodError) return res.status(400).json({ error: error.errors.map((e) => e.message).join("; ") });
+        if (error instanceof z.ZodError) return res.status(400).json({ error: error.issues.map((e: any) => e.message).join("; ") });
         console.error("[Permits] route error:", error);
         deps.handleError(res, error);
       }

@@ -6,8 +6,9 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
-import { useState } from "react";
-import { Settings, Globe, Bell, Shield, Palette, Monitor, BellOff, ClipboardCheck } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Settings, Globe, Bell, Shield, Palette, Monitor, BellOff, ClipboardCheck, Percent } from "lucide-react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { isLanguage } from "@shared/i18n";
 import { useAuth } from "@/lib/auth";
@@ -22,10 +23,49 @@ export default function SettingsPage() {
   const { user, refetchUser } = useAuth();
   const { settings: desktopSettings, permissionState, toggleEnabled, updateSetting } = useDesktopNotifications();
   const [summaryOn, setSummaryOn] = useState(() => (user?.id ? isLoginSummaryEnabled(user.id) : true));
-  const { t } = useTranslation(["common", "settings"]);
+  const { t, i18n } = useTranslation(["common", "settings"]);
+  const isAr = (i18n.language || "ar").startsWith("ar");
   const { language, setLanguage } = useLanguage();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [savingLanguage, setSavingLanguage] = useState(false);
+
+  const { data: sysSettings } = useQuery<{ vatPercent: number }>({
+    queryKey: ["/api/system-settings"],
+    queryFn: async () => (await apiRequest("GET", "/api/system-settings")).json(),
+  });
+  const [vatInput, setVatInput] = useState("15");
+  useEffect(() => {
+    if (typeof sysSettings?.vatPercent === "number") {
+      setVatInput(String(sysSettings.vatPercent));
+    }
+  }, [sysSettings?.vatPercent]);
+
+  const canEditVat = ["super_admin", "org_admin", "developer_admin"].includes(user?.role || "");
+  const saveVatMutation = useMutation({
+    mutationFn: async () => {
+      const val = parseFloat(vatInput);
+      if (!Number.isFinite(val) || val < 0 || val > 100) {
+        throw new Error(isAr ? "نسبة الضريبة يجب أن تكون بين 0 و 100" : "VAT percentage must be between 0 and 100");
+      }
+      const res = await apiRequest("PATCH", "/api/system-settings", { vatPercent: val });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/system-settings"] });
+      queryClient.invalidateQueries({ queryKey: ["payments", "context"] });
+      toast({
+        title: isAr ? "تم حفظ إعدادات الضريبة" : "VAT settings saved",
+      });
+    },
+    onError: (err: any) => {
+      toast({
+        variant: "destructive",
+        title: isAr ? "تعذر حفظ الإعدادات" : "Failed to save settings",
+        description: err?.message || String(err),
+      });
+    },
+  });
 
   // The direction follows from the language, so there is no separate RTL switch: picking العربية turns
   // the whole app right-to-left at once. The choice is saved on the user so it follows them to any
@@ -61,6 +101,56 @@ export default function SettingsPage() {
 
       <div className="grid gap-6">
         {user && <ProfileForm user={user} />}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Percent className="w-5 h-5 text-primary" />
+              {isAr ? "الإعدادات المالية العامة (ضريبة القيمة المضافة VAT)" : "General Financial Settings (VAT)"}
+            </CardTitle>
+            <CardDescription>
+              {isAr
+                ? "نسبة ضريبة القيمة المضافة الثابتة المعتمدة في النظام (في العقود والمستخلصات وأوامر الشراء يتم فقط اختيار تطبيق الضريبة أو عدم تطبيقها)"
+                : "System-wide fixed VAT percentage (forms only toggle whether VAT is applied or not)"}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <div>
+                <Label>{isAr ? "نسبة ضريبة القيمة المضافة الافتراضية (%)" : "Default VAT Rate (%)"}</Label>
+                <p className="text-sm text-muted-foreground">
+                  {isAr
+                    ? "تُطبق هذه النسبة تلقائياً عند اختيار (تخضع للضريبة / مطبقة)"
+                    : "Applied automatically whenever VAT is enabled on a record"}
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <Input
+                  type="number"
+                  min="0"
+                  max="100"
+                  step="0.01"
+                  value={vatInput}
+                  disabled={!canEditVat || saveVatMutation.isPending}
+                  onChange={(e) => setVatInput(e.target.value)}
+                  className="w-[110px] text-center font-bold"
+                  data-testid="input-system-vat"
+                />
+                <span className="text-sm font-bold text-muted-foreground">%</span>
+                {canEditVat && (
+                  <Button
+                    size="sm"
+                    onClick={() => saveVatMutation.mutate()}
+                    disabled={saveVatMutation.isPending}
+                    data-testid="button-save-system-vat"
+                  >
+                    {isAr ? "حفظ النسبة" : "Save Rate"}
+                  </Button>
+                )}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">

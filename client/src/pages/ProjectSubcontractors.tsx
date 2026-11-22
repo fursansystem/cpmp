@@ -74,7 +74,10 @@ export default function ProjectSubcontractors() {
   const isAr = i18n.language?.startsWith("ar");
 
   // Main navigation tab
-  const [tab, setTab] = useState("directory");
+  const [tab, setTab] = useState(() => {
+    const t = new URLSearchParams(window.location.search).get("tab");
+    return t && ["directory", "contracts", "certificates", "issues", "deductions"].includes(t) ? t : "directory";
+  });
   const [searchQuery, setSearchQuery] = useState("");
   const [filterSubId, setFilterSubId] = useState("all");
   const [filterContractId, setFilterContractId] = useState("all");
@@ -209,9 +212,16 @@ export default function ProjectSubcontractors() {
   }, [allFines, filterSubId]);
 
   const subPaymentOrders = useMemo(() => {
+    const filteredCertIds = new Set(filteredCertificates.map((c: any) => c.id));
     return allOrders.filter((o: any) => {
+      if (filterContractId !== "all") {
+        if (o.subcontractorContractId === filterContractId) return true;
+        if (o.subcontractorCertificateId && filteredCertIds.has(o.subcontractorCertificateId)) return true;
+        return false;
+      }
       if (filterSubId !== "all") {
         if (o.subcontractorId === filterSubId) return true;
+        if (o.subcontractorCertificateId && filteredCertIds.has(o.subcontractorCertificateId)) return true;
         if (o.sourceType === "subcontractor" && o.sourceId === filterSubId) return true;
         const sub = subcontractors.find((s) => s.id === filterSubId);
         if (o.purpose === "subcontractor" && sub && o.payeeName === sub.name) return true;
@@ -225,7 +235,7 @@ export default function ProjectSubcontractors() {
         subcontractors.some((s) => s.name === o.payeeName)
       );
     });
-  }, [allOrders, filterSubId, subcontractors]);
+  }, [allOrders, filterSubId, filterContractId, filteredCertificates, subcontractors]);
 
   // Overall KPIs
   const stats = useMemo(() => {

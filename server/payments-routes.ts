@@ -293,9 +293,31 @@ const daysBetween = (fromIso: string, to = new Date()) =>
 export function registerPaymentsRoutes(app: Express, deps: Deps) {
   const base = "/api/payments";
 
+  db.execute(sql`
+    CREATE TABLE IF NOT EXISTS system_settings (
+      key VARCHAR PRIMARY KEY,
+      value TEXT NOT NULL,
+      updated_by VARCHAR REFERENCES users(id) ON DELETE SET NULL,
+      updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+    );
+    INSERT INTO system_settings (key, value) VALUES ('vat_percent', '15') ON CONFLICT (key) DO NOTHING;
+  `).catch((err) => {
+    console.error("[Payments] Could not ensure system_settings table:", err?.message);
+  });
   db.execute(sql`ALTER TABLE project_subcontractors ADD COLUMN IF NOT EXISTS work_location_ids TEXT[] NOT NULL DEFAULT '{}'::text[];`).catch((err) => {
     console.error("[Payments] Could not ensure work_location_ids column:", err?.message);
   });
+
+  const getSystemVatPercent = async (): Promise<number> => {
+    try {
+      const res = await db.execute(sql`SELECT value FROM system_settings WHERE key = 'vat_percent' LIMIT 1`);
+      const val = Number((res.rows?.[0] as any)?.value);
+      return Number.isFinite(val) && val >= 0 && val <= 100 ? val : 15;
+    } catch {
+      return 15;
+    }
+  };
+
   db.execute(sql`ALTER TABLE IF EXISTS material_issues ADD COLUMN IF NOT EXISTS work_location_ids TEXT[] NOT NULL DEFAULT '{}'::text[];`).catch((err) => {
     console.error("[Payments] Could not ensure material_issues.work_location_ids column:", err?.message);
   });
@@ -381,12 +403,29 @@ export function registerPaymentsRoutes(app: Express, deps: Deps) {
       } catch (error) {
         if (error instanceof PaymentsError) return res.status(error.status).json({ error: error.message });
         if (error instanceof z.ZodError) {
-          return res.status(400).json({ error: error.errors.map((e) => e.message).join("; ") });
+          return res.status(400).json({ error: error.issues.map((e: any) => e.message).join("; ") });
         }
         console.error("[Payments] route error:", error);
         deps.handleError(res, error);
       }
     };
+
+  app.get("/api/system-settings", route(async (_req, res) => {
+    const vatPercent = await getSystemVatPercent();
+    res.json({ vatPercent });
+  }));
+
+  app.patch("/api/system-settings", route(async (req, res, ctx) => {
+    const canEditSettings = ["super_admin", "org_admin", "developer_admin"].includes(ctx.cu.user.role) || ctx.perms.isAccounting;
+    if (!canEditSettings) return fail(403, "Only system administrators or accounting can update system settings");
+    const { vatPercent } = z.object({ vatPercent: z.coerce.number().min(0).max(100) }).parse(req.body);
+    await db.execute(sql`
+      INSERT INTO system_settings (key, value, updated_by, updated_at)
+      VALUES ('vat_percent', ${String(vatPercent)}, ${ctx.cu.user.id}, NOW())
+      ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_by = EXCLUDED.updated_by, updated_at = NOW();
+    `);
+    res.json({ vatPercent });
+  }));
 
   const requireProject = (ctx: Ctx, projectId: string): Project =>
     ctx.projects.find((p) => p.id === projectId) ?? fail(404, "Project not found");
@@ -622,8 +661,10 @@ export function registerPaymentsRoutes(app: Express, deps: Deps) {
 
   // ---- Who am I / what can I do ----
   app.get(`${base}/context`, route(async (_req, res, ctx) => {
+    const vatPercent = await getSystemVatPercent();
     res.json({
       perms: ctx.perms,
+      vatPercent,
       // canRequest: may this person ask for a transfer on that project (everyone but the consultant's team)
       projects: ctx.projects
         .map((p) => ({ id: p.id, name: p.name, canRequest: canRequestTransfer(ctx, p) }))

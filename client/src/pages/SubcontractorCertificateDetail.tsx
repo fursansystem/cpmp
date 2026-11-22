@@ -60,6 +60,7 @@ import {
   money,
   paymentsQuery,
   getJson,
+  useSystemVatRate,
   type PaymentsContext,
   type PaymentsOverview,
 } from "@/components/payments/payments-common";
@@ -97,6 +98,7 @@ export default function SubcontractorCertificateDetail() {
   const searchParams = new URLSearchParams(window.location.search);
   const initialProjectId = searchParams.get("project") || "";
   const initialSubId = searchParams.get("subcontractor") || "";
+  const initialContractId = searchParams.get("contract") || "";
 
   // 1. Payments context & permissions
   const { data: ctx, isLoading: ctxLoading } = useQuery<PaymentsContext>({
@@ -104,6 +106,7 @@ export default function SubcontractorCertificateDetail() {
     queryFn: () => getJson("/api/payments/context"),
     meta: paymentsQuery,
   });
+  const systemVatRate = useSystemVatRate(ctx?.vatPercent ?? 15);
 
   // 2. Certificate data if editing
   const { data: certData, isLoading: certLoading } = useQuery<any>({
@@ -118,6 +121,7 @@ export default function SubcontractorCertificateDetail() {
   const [rejectNote, setRejectNote] = useState("");
   const [pickerOpen, setPickerOpen] = useState(false);
   const [addingContract, setAddingContract] = useState(false);
+  const [viewContractId, setViewContractId] = useState<string>("");
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [pickedFines, setPickedFines] = useState<Set<string>>(new Set());
 
@@ -126,6 +130,7 @@ export default function SubcontractorCertificateDetail() {
   useEffect(() => {
     if (certData && !isNew) {
       setProjectId(certData.projectId || "");
+      setViewContractId(certData.contractId ?? "");
       setForm({
         subcontractorId: certData.subcontractorId ?? "",
         contractId: certData.contractId ?? "",
@@ -145,8 +150,13 @@ export default function SubcontractorCertificateDetail() {
     } else if (isNew) {
       if (initialProjectId) setProjectId(initialProjectId);
       if (initialSubId) setForm((f) => ({ ...f, subcontractorId: initialSubId }));
+      if (initialContractId) {
+        setForm((f) => ({ ...f, contractId: initialContractId }));
+        setViewContractId(initialContractId);
+      }
+      setForm((f) => ({ ...f, vatPercent: String(systemVatRate) }));
     }
-  }, [certData, isNew, initialProjectId, initialSubId]);
+  }, [certData, isNew, initialProjectId, initialSubId, initialContractId, systemVatRate]);
 
   const setField = (k: keyof typeof form) => (v: string) => setForm((f) => ({ ...f, [k]: v }));
 
@@ -166,6 +176,9 @@ export default function SubcontractorCertificateDetail() {
     enabled: !!effectiveProjectId,
   });
 
+  const isOwner = isNew || certData?.createdBy === user?.id || ctx?.perms?.isAccounting;
+  const editable = isOwner && (isNew || ["draft", "rejected"].includes(certData?.status));
+
   const subContracts = useMemo(
     () =>
       form.subcontractorId
@@ -178,10 +191,45 @@ export default function SubcontractorCertificateDetail() {
     [contracts, form.subcontractorId, form.contractId]
   );
 
-  const selectedContract = useMemo(
-    () => subContracts.find((c) => c.id === form.contractId),
-    [subContracts, form.contractId]
+  const allSubContracts = useMemo(
+    () => (form.subcontractorId ? contracts.filter((c) => c.subcontractorId === form.subcontractorId) : []),
+    [contracts, form.subcontractorId]
   );
+
+  const sumOfSubContractsValue = useMemo(
+    () => allSubContracts.reduce((s, c) => s + num(c.contractValue), 0),
+    [allSubContracts]
+  );
+
+  const activeContractId = editable ? form.contractId : viewContractId;
+
+  const selectedContract = useMemo(
+    () => subContracts.find((c) => c.id === activeContractId),
+    [subContracts, activeContractId]
+  );
+
+  // Auto-apply initial contract or default sum of contracts for a new certificate once contracts load
+  useEffect(() => {
+    if (!isNew || !form.subcontractorId || contracts.length === 0) return;
+    if (form.contractId) {
+      const c = contracts.find((x) => x.id === form.contractId);
+      if (c && !form.contractValue) {
+        setForm((f) => ({
+          ...f,
+          scope: c.scope || f.scope,
+          contractValue: String(num(c.contractValue) || ""),
+          retentionPercent: String(num(c.retentionPercent)),
+          vatPercent: String(num(c.vatPercent)),
+          workLocationIds: f.workLocationIds.length ? f.workLocationIds : (c.workLocationIds?.length ? [...c.workLocationIds] : []),
+        }));
+      }
+    } else if (!form.contractValue && sumOfSubContractsValue > 0) {
+      setForm((f) => ({
+        ...f,
+        contractValue: String(sumOfSubContractsValue),
+      }));
+    }
+  }, [isNew, form.subcontractorId, form.contractId, form.contractValue, contracts, sumOfSubContractsValue]);
 
   const availableLocations = useMemo(() => {
     if (selectedContract?.workLocationIds?.length) {
@@ -192,8 +240,15 @@ export default function SubcontractorCertificateDetail() {
   }, [workLocations, selectedContract]);
 
   const applyContract = (c: SubcontractorContractRow | undefined) => {
+    setViewContractId(c?.id ?? "");
+    if (!editable) return;
     if (!c) {
-      setForm((f) => ({ ...f, contractId: "", workLocationIds: [] }));
+      setForm((f) => ({
+        ...f,
+        contractId: "",
+        workLocationIds: [],
+        contractValue: sumOfSubContractsValue > 0 ? String(sumOfSubContractsValue) : "",
+      }));
       return;
     }
     setForm((f) => ({
@@ -208,7 +263,9 @@ export default function SubcontractorCertificateDetail() {
   };
 
   const onSubChange = (id: string, sub?: SubcontractorRow) => {
-    const activeCnts = contracts.filter((c) => c.subcontractorId === id && c.status === "active");
+    const subAllCnts = contracts.filter((c) => c.subcontractorId === id);
+    const activeCnts = subAllCnts.filter((c) => c.status === "active");
+    const sumVal = subAllCnts.reduce((s, c) => s + num(c.contractValue), 0);
     const match = overview?.subcontractorCertificates?.find(
       (r) => r.projectId === effectiveProjectId && r.subcontractorId === id
     );
@@ -216,6 +273,7 @@ export default function SubcontractorCertificateDetail() {
     setPickedFines(new Set());
     if (isNew && activeCnts.length === 1) {
       const c = activeCnts[0];
+      setViewContractId(c.id);
       setForm((f) => ({
         ...f,
         subcontractorId: id,
@@ -228,16 +286,17 @@ export default function SubcontractorCertificateDetail() {
       }));
       return;
     }
+    setViewContractId("");
     setForm((f) => ({
       ...f,
       subcontractorId: id,
       contractId: "",
       workLocationIds: [],
+      contractValue: sumVal > 0 ? String(sumVal) : (match && isNew ? String(num(match.contractValue) || "") : ""),
       ...(isNew && sub && !match ? { scope: f.scope || (sub.scope ?? "") } : {}),
       ...(match && isNew
         ? {
             scope: f.scope || (match.scope ?? ""),
-            contractValue: f.contractValue || String(num(match.contractValue) || ""),
             retentionPercent: String(num(match.retentionPercent)),
             vatPercent: String(num(match.vatPercent)),
           }
@@ -300,9 +359,6 @@ export default function SubcontractorCertificateDetail() {
       ? num(certData.chargebackDeductions)
       : pickedTotal + pickedFinesTotal;
 
-  const isOwner = isNew || certData?.createdBy === user?.id || ctx?.perms?.isAccounting;
-  const editable = isOwner && (isNew || ["draft", "rejected"].includes(certData?.status));
-
   // Certificate computations
   const figures = computeSubCert({
     grossAmount: num(form.grossAmount),
@@ -320,9 +376,9 @@ export default function SubcontractorCertificateDetail() {
       (c) =>
         c.projectId === effectiveProjectId &&
         c.subcontractorId === form.subcontractorId &&
-        (form.contractId ? c.contractId === form.contractId : true)
+        (activeContractId ? c.contractId === activeContractId : true)
     );
-  }, [overview?.subcontractorCertificates, form.subcontractorId, form.contractId, effectiveProjectId]);
+  }, [overview?.subcontractorCertificates, form.subcontractorId, activeContractId, effectiveProjectId]);
 
   const previousCerts = useMemo(
     () => allSubCerts.filter((c) => c.id !== id),
@@ -337,28 +393,56 @@ export default function SubcontractorCertificateDetail() {
     [previousCerts]
   );
 
-  const cumulativeGross = previousGross + num(form.grossAmount);
-  const contractVal = num(form.contractValue);
+  const currentGrossForScope =
+    !activeContractId || !form.contractId || activeContractId === form.contractId ? num(form.grossAmount) : 0;
+  const cumulativeGross = previousGross + currentGrossForScope;
+  const contractVal = selectedContract
+    ? editable
+      ? num(form.contractValue) || num(selectedContract.contractValue)
+      : num(selectedContract.contractValue) || num(form.contractValue)
+    : sumOfSubContractsValue > 0
+      ? sumOfSubContractsValue
+      : num(form.contractValue);
   const overContract = contractVal > 0 && cumulativeGross > contractVal + 0.005;
   const remainingContractVal = contractVal > 0 ? Math.max(0, contractVal - cumulativeGross) : 0;
   const progressPercent = contractVal > 0 ? Math.min(100, Math.round((cumulativeGross / contractVal) * 100)) : 0;
 
-  // Payments / Orders history for this subcontractor
+  // Payments / Orders history for this subcontractor (scoped to selected contract when a contract is selected)
   const subOrders = useMemo(() => {
     if (!overview?.orders || !form.subcontractorId) return [];
     const certIds = new Set(allSubCerts.map((c) => c.id));
-    return overview.orders.filter(
-      (o) =>
-        o.projectId === effectiveProjectId &&
-        (o.subcontractorId === form.subcontractorId ||
-          (o.subcontractorCertificateId && certIds.has(o.subcontractorCertificateId)))
-    );
-  }, [overview?.orders, form.subcontractorId, allSubCerts, effectiveProjectId]);
+    const subNameForMatch =
+      overview?.subcontractors?.find((s) => s.id === form.subcontractorId)?.name ||
+      certData?.subcontractorName ||
+      "";
+    return overview.orders.filter((o) => {
+      if (o.projectId !== effectiveProjectId) return false;
+      if (activeContractId) {
+        return (
+          o.subcontractorContractId === activeContractId ||
+          (o.subcontractorCertificateId && certIds.has(o.subcontractorCertificateId))
+        );
+      }
+      return (
+        o.subcontractorId === form.subcontractorId ||
+        (o.subcontractorCertificateId && certIds.has(o.subcontractorCertificateId)) ||
+        (o.sourceType === "subcontractor" && o.sourceId === form.subcontractorId) ||
+        (o.purpose === "subcontractor" && subNameForMatch && o.payeeName === subNameForMatch)
+      );
+    });
+  }, [overview?.orders, overview?.subcontractors, certData?.subcontractorName, form.subcontractorId, activeContractId, allSubCerts, effectiveProjectId]);
 
-  const totalPaidToDate = useMemo(
-    () => subOrders.filter((o) => o.status === "paid").reduce((s, o) => s + num(o.amount), 0),
-    [subOrders]
-  );
+  const totalPaidToDate = useMemo(() => {
+    const ordersPaid = subOrders.filter((o) => o.status === "paid").reduce((s, o) => s + num(o.amount), 0);
+    const unlinkedCertsPaid = allSubCerts
+      .filter(
+        (c) =>
+          c.status === "paid" &&
+          !subOrders.some((o) => o.subcontractorCertificateId === c.id && o.status === "paid")
+      )
+      .reduce((s, c) => s + num(c.netPayable), 0);
+    return ordersPaid + unlinkedCertsPaid;
+  }, [subOrders, allSubCerts]);
 
   const totalPendingOrders = useMemo(
     () =>
@@ -368,22 +452,23 @@ export default function SubcontractorCertificateDetail() {
     [subOrders]
   );
 
-  // Cumulative retention to date
+  // Cumulative retention to date (previous approved/paid certs + current cert if in scope)
+  const currentInScope = !activeContractId || !form.contractId || activeContractId === form.contractId;
   const totalRetentionToDate = useMemo(() => {
     const prev = previousCerts
       .filter((c) => ["approved", "paid"].includes(c.status))
       .reduce((s, c) => s + num(c.retentionAmount), 0);
-    return prev + (certData?.status === "approved" || certData?.status === "paid" ? 0 : figures.retentionAmount);
-  }, [previousCerts, certData?.status, figures.retentionAmount]);
+    return prev + (currentInScope ? figures.retentionAmount : 0);
+  }, [previousCerts, currentInScope, figures.retentionAmount]);
 
-  // Approved certs total net vs paid
-  const totalApprovedNet = useMemo(
-    () =>
-      allSubCerts
-        .filter((c) => ["approved", "paid"].includes(c.status))
-        .reduce((s, c) => s + num(c.netPayable), 0),
-    [allSubCerts]
-  );
+  // Approved certs total net (including current cert figures if in scope) vs paid
+  const totalApprovedNet = useMemo(() => {
+    const prevNet = previousCerts
+      .filter((c) => ["approved", "paid"].includes(c.status))
+      .reduce((s, c) => s + num(c.netPayable), 0);
+    const currentNet = !currentInScope || (!isNew && certData?.status === "cancelled") ? 0 : figures.netPayable;
+    return prevNet + currentNet;
+  }, [previousCerts, currentInScope, isNew, certData?.status, figures.netPayable]);
 
   const outstandingPayable = Math.max(0, totalApprovedNet - totalPaidToDate);
 
@@ -524,7 +609,7 @@ export default function SubcontractorCertificateDetail() {
             className="rounded-xl h-9 px-3 gap-1.5"
             onClick={() => {
               if (effectiveProjectId) {
-                navigate(`/payments?tab=subcontractors&project=${effectiveProjectId}`);
+                navigate(`/projects/${effectiveProjectId}/subcontractors?tab=certificates`);
               } else {
                 navigate(`/payments?tab=subcontractors`);
               }
@@ -696,7 +781,15 @@ export default function SubcontractorCertificateDetail() {
             </div>
             <div className="text-lg font-black tabular-nums">{money(contractVal)}</div>
             <div className="text-[11px] text-muted-foreground truncate">
-              {selectedContract ? selectedContract.contractNo : isAr ? "عقد أساسي / تقديري" : "Base / Estimate"}
+              {selectedContract
+                ? selectedContract.contractNo
+                : allSubContracts.length > 0
+                  ? isAr
+                    ? `مجموع العقود (${allSubContracts.length})`
+                    : `Sum of ${allSubContracts.length} contracts`
+                  : isAr
+                    ? "عقد أساسي / تقديري"
+                    : "Base / Estimate"}
             </div>
           </CardContent>
         </Card>
@@ -843,8 +936,8 @@ export default function SubcontractorCertificateDetail() {
                 <div className="space-y-1.5 sm:col-span-1">
                   <Label>{t("contracts.select_label")}</Label>
                   <Select
-                    value={form.contractId || "__none__"}
-                    disabled={!editable || !form.subcontractorId}
+                    value={activeContractId || "__none__"}
+                    disabled={!form.subcontractorId}
                     onValueChange={(v) => {
                       if (v === "__new__") setAddingContract(true);
                       else applyContract(subContracts.find((c) => c.id === v));
@@ -1017,19 +1110,50 @@ export default function SubcontractorCertificateDetail() {
                 {/* Retention % */}
                 <div className="space-y-1.5 sm:col-span-1">
                   <Label>{t("certificates.retention_pct")}</Label>
-                  <div className="relative">
+                  <div className="flex items-center gap-2">
                     <Input
                       type="number"
                       min="0"
                       max="100"
                       step="0.01"
-                      className="rounded-xl pe-16"
+                      className="rounded-xl flex-1"
                       value={form.retentionPercent}
                       disabled={!editable}
                       onChange={(e) => setField("retentionPercent")(e.target.value)}
                     />
-                    <span className="absolute end-3 top-2.5 text-xs text-muted-foreground font-semibold">
+                    <span className="shrink-0 rounded-xl border border-border/60 bg-muted/40 px-3 py-2 text-xs text-muted-foreground font-semibold tabular-nums">
                       = {money(figures.retentionAmount)}
+                    </span>
+                  </div>
+                </div>
+
+                {/* VAT Applied / Not Applied */}
+                <div className="space-y-1.5 sm:col-span-1">
+                  <Label>{t("certificates.vat_pct")}</Label>
+                  <div className="flex items-center gap-2">
+                    <Select
+                      value={num(form.vatPercent) > 0 ? "applied" : "not_applied"}
+                      disabled={!editable}
+                      onValueChange={(v) =>
+                        setField("vatPercent")(v === "applied" ? String(systemVatRate) : "0")
+                      }
+                    >
+                      <SelectTrigger className="rounded-xl flex-1">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="applied">
+                          {isAr
+                            ? `مطبقة (${num(form.vatPercent) > 0 ? num(form.vatPercent) : systemVatRate}%)`
+                            : `Applied (${num(form.vatPercent) > 0 ? num(form.vatPercent) : systemVatRate}%)`}
+                        </SelectItem>
+                        <SelectItem value="not_applied">
+                          {isAr ? "غير مطبقة (0%)" : "Not Applied (0%)"}
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <span className="shrink-0 rounded-xl border border-border/60 bg-muted/40 px-3 py-2 text-xs text-muted-foreground font-semibold tabular-nums">
+                      = {money(figures.vatAmount)}
                     </span>
                   </div>
                 </div>
@@ -1060,26 +1184,6 @@ export default function SubcontractorCertificateDetail() {
                     disabled={!editable}
                     onChange={(e) => setField("otherDeductions")(e.target.value)}
                   />
-                </div>
-
-                {/* VAT % */}
-                <div className="space-y-1.5 sm:col-span-1">
-                  <Label>{t("certificates.vat_pct")}</Label>
-                  <div className="relative">
-                    <Input
-                      type="number"
-                      min="0"
-                      max="100"
-                      step="0.01"
-                      className="rounded-xl pe-16"
-                      value={form.vatPercent}
-                      disabled={!editable}
-                      onChange={(e) => setField("vatPercent")(e.target.value)}
-                    />
-                    <span className="absolute end-3 top-2.5 text-xs text-muted-foreground font-semibold">
-                      = {money(figures.vatAmount)}
-                    </span>
-                  </div>
                 </div>
 
                 {/* Deductions Note */}

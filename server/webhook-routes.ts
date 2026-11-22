@@ -92,7 +92,7 @@ export function registerWebhookRoutes(app: Express, deps: Deps) {
         if (error instanceof WebhookError) return res.status(error.status).json({ error: error.message });
         if (error instanceof WebhookUrlError) return res.status(400).json({ error: error.message });
         if (error instanceof z.ZodError) {
-          return res.status(400).json({ error: error.errors.map((e) => e.message).join("; ") });
+          return res.status(400).json({ error: error.issues.map((e: any) => e.message).join("; ") });
         }
         console.error("[Webhooks] route error:", error);
         deps.handleError(res, error);

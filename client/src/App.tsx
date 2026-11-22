@@ -168,7 +168,7 @@ function AppLayout() {
       <BackgroundDataPreloader />
       <LoginSummary />
       <SidebarProvider style={style as React.CSSProperties} defaultOpen={false}>
-        <div className="flex h-screen w-full bg-[#F8FAFC] dark:bg-background">
+        <div className="flex h-full w-full overflow-hidden bg-[#F8FAFC] dark:bg-background">
           <AppSidebar />
           <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
             <AppHeader />

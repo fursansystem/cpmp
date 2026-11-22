@@ -38,6 +38,7 @@ import {
   invalidatePayments,
   money,
   useFocusFromUrl,
+  useSystemVatRate,
   type PaymentsContext,
 } from "./payments-common";
 import { enumOptions } from "@/lib/enums";
@@ -139,7 +140,9 @@ const emptyForm = (vat = DEFAULT_VAT) => ({
 export function SubCertDialog({ ctx, defaultProjectId, row, defaultSubcontractorId, chargebacks, fines, allRows, orders, onClose, onRequestOrder }: {
   ctx: PaymentsContext; defaultProjectId: string; row: any | null; defaultSubcontractorId?: string; chargebacks: any[]; fines: any[]; allRows: any[]; orders: any[]; onClose: () => void; onRequestOrder: (id: string) => void;
 }) {
-  const { t } = useTranslation("payments");
+  const { t, i18n } = useTranslation("payments");
+  const isAr = (i18n.language || "ar").startsWith("ar");
+  const systemVatRate = useSystemVatRate(ctx?.vatPercent ?? 15);
   const { toast } = useToast();
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -183,6 +186,16 @@ export function SubCertDialog({ ctx, defaultProjectId, row, defaultSubcontractor
     [contracts, form.subcontractorId, form.contractId]
   );
 
+  const allSubContracts = useMemo(
+    () => (form.subcontractorId ? contracts.filter((c) => c.subcontractorId === form.subcontractorId) : []),
+    [contracts, form.subcontractorId]
+  );
+
+  const sumOfSubContractsValue = useMemo(
+    () => allSubContracts.reduce((s, c) => s + num(c.contractValue), 0),
+    [allSubContracts]
+  );
+
   const selectedContract = useMemo(
     () => subContracts.find((c) => c.id === form.contractId),
     [subContracts, form.contractId]
@@ -198,7 +211,12 @@ export function SubCertDialog({ ctx, defaultProjectId, row, defaultSubcontractor
 
   const applyContract = (c: SubcontractorContractRow | undefined) => {
     if (!c) {
-      setForm((f) => ({ ...f, contractId: "", workLocationIds: [] }));
+      setForm((f) => ({
+        ...f,
+        contractId: "",
+        workLocationIds: [],
+        contractValue: sumOfSubContractsValue > 0 ? String(sumOfSubContractsValue) : "",
+      }));
       return;
     }
     setForm((f) => ({
@@ -232,7 +250,9 @@ export function SubCertDialog({ ctx, defaultProjectId, row, defaultSubcontractor
 
   // A repeat certificate for the same subcontractor starts from its active contract or latest certificate
   const onSubChange = (id: string, sub?: SubcontractorRow) => {
-    const activeCnts = contracts.filter((c) => c.subcontractorId === id && c.status === "active");
+    const subAllCnts = contracts.filter((c) => c.subcontractorId === id);
+    const activeCnts = subAllCnts.filter((c) => c.status === "active");
+    const sumVal = subAllCnts.reduce((s, c) => s + num(c.contractValue), 0);
     const match = allRows.find((r) => r.projectId === projectId && r.subcontractorId === id);
     setPicked(new Set());
     setPickedFines(new Set());
@@ -255,8 +275,9 @@ export function SubCertDialog({ ctx, defaultProjectId, row, defaultSubcontractor
       subcontractorId: id,
       contractId: "",
       workLocationIds: [],
+      contractValue: sumVal > 0 ? String(sumVal) : (match && !row ? String(num(match.contractValue) || "") : ""),
       ...(!row && sub && !match ? { scope: f.scope || (sub.scope ?? "") } : {}),
-      ...(match && !row ? { scope: f.scope || (match.scope ?? ""), contractValue: f.contractValue || String(num(match.contractValue) || ""), retentionPercent: String(num(match.retentionPercent)), vatPercent: String(num(match.vatPercent)) } : {}),
+      ...(match && !row ? { scope: f.scope || (match.scope ?? ""), retentionPercent: String(num(match.retentionPercent)), vatPercent: String(num(match.vatPercent)) } : {}),
     }));
   };
 
@@ -281,7 +302,12 @@ export function SubCertDialog({ ctx, defaultProjectId, row, defaultSubcontractor
     )
     .reduce((s, r) => s + num(r.grossAmount), 0);
   const cumulative = previousGross + num(form.grossAmount);
-  const overContract = num(form.contractValue) > 0 && cumulative > num(form.contractValue) + 0.005;
+  const effectiveContractVal = selectedContract
+    ? num(form.contractValue) || num(selectedContract.contractValue)
+    : sumOfSubContractsValue > 0
+      ? sumOfSubContractsValue
+      : num(form.contractValue);
+  const overContract = effectiveContractVal > 0 && cumulative > effectiveContractVal + 0.005;
 
   const body = () => ({
     ...form,
@@ -506,7 +532,26 @@ export function SubCertDialog({ ctx, defaultProjectId, row, defaultSubcontractor
           {L(t("certificates.period_from"), <Input type="date" value={form.periodFrom} disabled={!editable} onChange={(e) => set("periodFrom")(e.target.value)} />)}
           {L(t("certificates.period_to"), <Input type="date" value={form.periodTo} disabled={!editable} onChange={(e) => set("periodTo")(e.target.value)} />)}
           {L(t("certificates.retention_pct"), <Input type="number" min="0" max="100" step="0.01" value={form.retentionPercent} disabled={!editable} onChange={(e) => set("retentionPercent")(e.target.value)} />)}
-          {L(t("certificates.vat_pct"), <Input type="number" min="0" max="100" step="0.01" value={form.vatPercent} disabled={!editable} onChange={(e) => set("vatPercent")(e.target.value)} />)}
+          {L(
+            t("certificates.vat_pct"),
+            <Select
+              value={num(form.vatPercent) > 0 ? "applied" : "not_applied"}
+              disabled={!editable}
+              onValueChange={(v) => set("vatPercent")(v === "applied" ? String(systemVatRate) : "0")}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="applied">
+                  {isAr
+                    ? `مطبقة (${num(form.vatPercent) > 0 ? num(form.vatPercent) : systemVatRate}%)`
+                    : `Applied (${num(form.vatPercent) > 0 ? num(form.vatPercent) : systemVatRate}%)`}
+                </SelectItem>
+                <SelectItem value="not_applied">{isAr ? "غير مطبقة (0%)" : "Not Applied (0%)"}</SelectItem>
+              </SelectContent>
+            </Select>
+          )}
           {L(t("certificates.advance_recovery"), <Input type="number" min="0" step="0.01" value={form.advanceRecovery} disabled={!editable} onChange={(e) => set("advanceRecovery")(e.target.value)} />)}
           {L(t("certificates.other_deductions"), <Input type="number" min="0" step="0.01" value={form.otherDeductions} disabled={!editable} onChange={(e) => set("otherDeductions")(e.target.value)} />)}
           {L(t("certificates.deductions_note"), <Input value={form.deductionsNote} disabled={!editable} onChange={(e) => set("deductionsNote")(e.target.value)} placeholder={t("certificates.deductions_note_placeholder")} />, "sm:col-span-2")}
@@ -524,7 +569,7 @@ export function SubCertDialog({ ctx, defaultProjectId, row, defaultSubcontractor
             <div className={`text-xs flex items-center gap-1 ${overContract ? "text-destructive font-semibold" : "text-muted-foreground"}`}>
               {overContract && <AlertTriangle className="w-3.5 h-3.5" />}
               {t("certificates.cumulative_note", { previous: money(previousGross), cumulative: money(cumulative) })}
-              {num(form.contractValue) > 0 && ` ${t("certificates.contract_note", { value: money(num(form.contractValue)) })}`}
+              {effectiveContractVal > 0 && ` ${t("certificates.contract_note", { value: money(effectiveContractVal) })}`}
               {overContract && ` ${t("certificates.over_contract")}`}
             </div>
           )}

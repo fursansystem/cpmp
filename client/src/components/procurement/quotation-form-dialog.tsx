@@ -16,6 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { DollarSign, FileText, Calendar, Building2, Percent, CheckCircle2, Paperclip, X } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
+import { useSystemVatRate } from "@/components/payments/payments-common";
 import { ProjectStorageModal } from "@/components/ProjectStorageModal";
 import type { Supplier, Document } from "@shared/schema";
 
@@ -46,7 +47,9 @@ export function QuotationFormDialog({
   rfqId: initialRfqId,
   supplierId: initialSupplierId,
 }: QuotationFormDialogProps) {
-  const { t } = useTranslation("procurement");
+  const { t, i18n } = useTranslation("procurement");
+  const isAr = (i18n.language || "ar").startsWith("ar");
+  const systemVatRate = useSystemVatRate(15);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -415,14 +418,22 @@ export function QuotationFormDialog({
 
               <div>
                 <Label className="text-xs mb-1 block">{t("quotation.vat_rate_label")}</Label>
-                <Input
-                  type="number"
-                  min="0"
-                  max="100"
-                  value={taxRate}
-                  onChange={(e) => setTaxRate(e.target.value)}
-                  className="h-8 rounded-lg text-xs bg-white dark:bg-slate-950"
-                />
+                <Select
+                  value={Number(taxRate) > 0 ? "applied" : "not_applied"}
+                  onValueChange={(v) => setTaxRate(v === "applied" ? String(systemVatRate) : "0")}
+                >
+                  <SelectTrigger className="h-8 rounded-lg text-xs bg-white dark:bg-slate-950">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="applied">
+                      {isAr
+                        ? `مطبقة (${Number(taxRate) > 0 ? Number(taxRate) : systemVatRate}%)`
+                        : `Applied (${Number(taxRate) > 0 ? Number(taxRate) : systemVatRate}%)`}
+                    </SelectItem>
+                    <SelectItem value="not_applied">{isAr ? "غير مطبقة (0%)" : "Not Applied (0%)"}</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
 
               <div className="flex flex-col justify-end space-y-1 text-start">

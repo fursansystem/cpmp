@@ -12,6 +12,7 @@ import { MaterialCombobox } from "@/components/procurement/material-combobox";
 import { MaterialFormDialog } from "@/components/material-form-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
+import { useSystemVatRate } from "@/components/payments/payments-common";
 import type { Supplier, Material, Project } from "@shared/schema";
 
 interface PoItemInput {
@@ -26,7 +27,9 @@ interface PoItemInput {
 }
 
 export default function ProjectCreatePo() {
-  const { t } = useTranslation(["procurement", "common"]);
+  const { t, i18n } = useTranslation(["procurement", "common"]);
+  const isAr = (i18n.language || "ar").startsWith("ar");
+  const systemVatRate = useSystemVatRate(15);
   const params = useParams<{ projectId: string }>();
   const projectId = params?.projectId || "";
   const [, setLocation] = useLocation();
@@ -505,14 +508,22 @@ export default function ProjectCreatePo() {
 
             <div>
               <Label className="text-xs mb-1 block">{t("create_po.tax_label")}</Label>
-              <Input
-                type="number"
-                min="0"
-                max="100"
-                value={taxRate}
-                onChange={(e) => setTaxRate(e.target.value)}
-                className="h-8 rounded-lg text-xs bg-white dark:bg-slate-950"
-              />
+              <Select
+                value={Number(taxRate) > 0 ? "applied" : "not_applied"}
+                onValueChange={(v) => setTaxRate(v === "applied" ? String(systemVatRate) : "0")}
+              >
+                <SelectTrigger className="h-8 rounded-lg text-xs bg-white dark:bg-slate-950">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="applied">
+                    {isAr
+                      ? `مطبقة (${Number(taxRate) > 0 ? Number(taxRate) : systemVatRate}%)`
+                      : `Applied (${Number(taxRate) > 0 ? Number(taxRate) : systemVatRate}%)`}
+                  </SelectItem>
+                  <SelectItem value="not_applied">{isAr ? "غير مطبقة (0%)" : "Not Applied (0%)"}</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="flex flex-col justify-end space-y-1 text-left rtl:text-right">
