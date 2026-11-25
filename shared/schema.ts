@@ -3345,3 +3345,50 @@ export type UnitHandover = typeof unitHandovers.$inferSelect;
 export type InsertUnitHandover = typeof unitHandovers.$inferInsert;
 export type HandoverAttachment = typeof handoverAttachments.$inferSelect;
 export type HandoverActivity = typeof handoverActivity.$inferSelect;
+
+// Project Workflow Assignments - تعيين وتفويض مسارات العمل للمشاريع
+export const projectWorkflowAssignments = pgTable(
+  "project_workflow_assignments",
+  {
+    id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+    projectId: varchar("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    module: text("module").notNull(), // 'purchase_orders' | 'warehouse' | 'requests' | 'snag_list'
+    stage: text("stage").notNull(),   // 'po_draft' | 'po_approve' | 'wh_receive' | 'wh_issue_create' | 'wh_issue_approve' | 'wh_adjust' | 'snag_create' | 'snag_close' | 'req_submit' | 'req_inspect' | 'req_approve'
+    teamMemberId: varchar("team_member_id").references(() => teamMembers.id, { onDelete: "cascade" }),
+    positionId: varchar("position_id").references(() => positions.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (table) => ({
+    projModuleStageIdx: index("idx_proj_wf_assign_proj_mod_stage").on(
+      table.projectId,
+      table.module,
+      table.stage
+    ),
+  })
+);
+
+export const projectWorkflowAssignmentsRelations = relations(
+  projectWorkflowAssignments,
+  ({ one }) => ({
+    project: one(projects, {
+      fields: [projectWorkflowAssignments.projectId],
+      references: [projects.id],
+    }),
+    teamMember: one(teamMembers, {
+      fields: [projectWorkflowAssignments.teamMemberId],
+      references: [teamMembers.id],
+    }),
+    position: one(positions, {
+      fields: [projectWorkflowAssignments.positionId],
+      references: [positions.id],
+    }),
+  })
+);
+
+export const insertProjectWorkflowAssignmentSchema = createInsertSchema(projectWorkflowAssignments);
+export type ProjectWorkflowAssignment = typeof projectWorkflowAssignments.$inferSelect;
+export type InsertProjectWorkflowAssignment = typeof projectWorkflowAssignments.$inferInsert;
+

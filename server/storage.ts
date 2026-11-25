@@ -70,6 +70,7 @@ import {
   type PoItem, type InsertPoItem, type UpdatePoItem,
   warehouses, stockMovements, stockTransfers, stockTransferItems,
   materialIssues, materialIssueItems, inventoryApproverPositions, projectSubcontractors, subcontractorContracts,
+  projectWorkflowAssignments,
   STOCK_IN_TYPES, stockDirection, normalizeUnit,
   type Warehouse, type InsertWarehouse, type UpdateWarehouse,
   type StockMovement, type InsertStockMovement,
@@ -84,7 +85,7 @@ import {
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, lt, lte, gte, and, or, isNull, isNotNull, max, sql, desc, inArray, not } from "drizzle-orm";
-import { pgTable, varchar, text, alias } from "drizzle-orm/pg-core";
+import { alias } from "drizzle-orm/pg-core";
 
 // Everything needed to turn an accepted invitation into an organization and its first
 // admin. The email and the sector come from the invitation, not from the submitted form.
@@ -303,6 +304,18 @@ export interface IStorage {
   getProjectPositionCoverage(projectId: string): Promise<{ position: Position; memberCount: number; userCount: number }[]>;
   setInventoryApproverPositions(projectId: string, positionIds: string[]): Promise<void>;
   canUserApproveIssues(userId: string, projectId: string): Promise<boolean>;
+
+  // Project Workflow Assignments (مركز تحكم مسارات العمل)
+  getProjectWorkflowAssignments(projectId: string): Promise<any[]>;
+  saveProjectWorkflowAssignments(
+    projectId: string,
+    assignments: { module: string; stage: string; teamMemberIds: string[] }[]
+  ): Promise<void>;
+  getProjectWorkflowPermissions(
+    userId: string,
+    projectId: string
+  ): Promise<Record<string, { allowed: boolean; hasConfig: boolean; assignedMembers: { id: string; name: string }[] }>>;
+
 
   // Suppliers
   getSupplier(id: string): Promise<Supplier | undefined>;
@@ -6725,6 +6738,153 @@ export class DatabaseStorage implements IStorage {
         .returning();
       return updated;
     });
+  }
+
+  // ==========================================
+  // Project Workflow Assignments Implementation
+  // ==========================================
+  async getProjectWorkflowAssignments(projectId: string): Promise<any[]> {
+    const rows = await db
+      .select({
+        assignment: projectWorkflowAssignments,
+        member: {
+          id: teamMembers.id,
+          name: teamMembers.name,
+          nameArabic: teamMembers.nameArabic,
+          email: teamMembers.email,
+          position: teamMembers.position,
+          organizationId: teamMembers.organizationId,
+        },
+        position: {
+          id: positions.id,
+          titleEnglish: positions.titleEnglish,
+          titleArabic: positions.titleArabic,
+        },
+      })
+      .from(projectWorkflowAssignments)
+      .leftJoin(teamMembers, eq(projectWorkflowAssignments.teamMemberId, teamMembers.id))
+      .leftJoin(positions, eq(projectWorkflowAssignments.positionId, positions.id))
+      .where(eq(projectWorkflowAssignments.projectId, projectId));
+
+    return rows.map((r) => ({
+      ...r.assignment,
+      teamMember: r.member?.id ? r.member : null,
+      position: r.position?.id ? r.position : null,
+    }));
+  }
+
+  async saveProjectWorkflowAssignments(
+    projectId: string,
+    assignments: { module: string; stage: string; teamMemberIds: string[] }[]
+  ): Promise<void> {
+    await db.transaction(async (tx) => {
+      await tx
+        .delete(projectWorkflowAssignments)
+        .where(eq(projectWorkflowAssignments.projectId, projectId));
+
+      const toInsert: any[] = [];
+      for (const item of assignments) {
+        if (!item.teamMemberIds || item.teamMemberIds.length === 0) continue;
+        for (const tmId of item.teamMemberIds) {
+          if (!tmId) continue;
+          toInsert.push({
+            projectId,
+            module: item.module,
+            stage: item.stage,
+            teamMemberId: tmId,
+          });
+        }
+      }
+
+      if (toInsert.length > 0) {
+        await tx.insert(projectWorkflowAssignments).values(toInsert);
+      }
+    });
+  }
+
+  async getProjectWorkflowPermissions(
+    userId: string,
+    projectId: string
+  ): Promise<Record<string, { allowed: boolean; hasConfig: boolean; assignedMembers: { id: string; name: string }[] }>> {
+    const [user] = await db.select().from(users).where(eq(users.id, userId));
+    const isSuperAdmin = user?.role === "super_admin";
+
+    const userLinks = await db
+      .select({ teamMemberId: userTeamMembers.teamMemberId })
+      .from(userTeamMembers)
+      .where(eq(userTeamMembers.userId, userId));
+    const userTeamMemberIds = new Set(userLinks.map((l) => l.teamMemberId));
+
+    const assignments = await this.getProjectWorkflowAssignments(projectId);
+
+    const grouped: Record<string, { assignedMemberIds: Set<string>; assignedMembers: { id: string; name: string }[] }> = {};
+
+    for (const a of assignments) {
+      if (!grouped[a.stage]) {
+        grouped[a.stage] = { assignedMemberIds: new Set(), assignedMembers: [] };
+      }
+      if (a.teamMember) {
+        grouped[a.stage].assignedMemberIds.add(a.teamMember.id);
+        grouped[a.stage].assignedMembers.push({ id: a.teamMember.id, name: a.teamMember.name });
+      }
+    }
+
+    const KNOWN_STAGES = [
+      "po_draft",
+      "po_approve",
+      "wh_receive",
+      "wh_issue_create",
+      "wh_issue_approve",
+      "wh_adjust",
+      "snag_create",
+      "snag_issue",
+      "snag_rectify",
+      "snag_close",
+      "req_submit",
+      "req_inspect",
+      "req_approve",
+      "req_contractor_prep",
+      "req_contractor_submit",
+      "req_contractor_pm",
+      "req_eng_review",
+      "req_site_inspect",
+      "req_consultant_pm",
+      "req_final_approve",
+    ];
+
+    const result: Record<string, { allowed: boolean; hasConfig: boolean; assignedMembers: { id: string; name: string }[] }> = {};
+
+    for (const stage of KNOWN_STAGES) {
+      let stageConfig = grouped[stage];
+
+      // Fallback inheritance between granular 7-steps and legacy 3-stages
+      if (!stageConfig || stageConfig.assignedMemberIds.size === 0) {
+        if (stage === "req_contractor_prep" || stage === "req_contractor_submit" || stage === "req_contractor_pm") {
+          stageConfig = grouped["req_submit"];
+        } else if (stage === "req_eng_review" || stage === "req_site_inspect") {
+          stageConfig = grouped["req_inspect"];
+        } else if (stage === "req_consultant_pm" || stage === "req_final_approve") {
+          stageConfig = grouped["req_approve"];
+        }
+      }
+
+      if (!stageConfig || stageConfig.assignedMemberIds.size === 0) {
+        result[stage] = {
+          allowed: true,
+          hasConfig: false,
+          assignedMembers: [],
+        };
+      } else {
+        const isAllowed = isSuperAdmin || Array.from(userTeamMemberIds).some((id) => stageConfig.assignedMemberIds.has(id));
+        result[stage] = {
+          allowed: isAllowed,
+          hasConfig: true,
+          assignedMembers: stageConfig.assignedMembers,
+        };
+      }
+    }
+
+    return result;
   }
 }
 

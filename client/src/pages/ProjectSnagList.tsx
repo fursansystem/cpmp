@@ -370,6 +370,25 @@ export default function ProjectSnagList() {
     queryKey: ["/api/user-team-members"],
   });
 
+  const { data: workflowPerms } = useQuery<
+    Record<string, { allowed: boolean; hasConfig: boolean; assignedMembers: { id: string; name: string }[] }>
+  >({
+    queryKey: ["/api/projects", projectId, "workflow-permissions"],
+    enabled: !!projectId,
+  });
+
+  const canCreateSnagWf = !workflowPerms?.snag_create?.hasConfig || workflowPerms.snag_create.allowed;
+  const creatorNames = workflowPerms?.snag_create?.assignedMembers?.map((m) => m.name).join("، ");
+
+  const canIssueSnagWf = !workflowPerms?.snag_issue?.hasConfig || workflowPerms.snag_issue.allowed;
+  const issuerNames = workflowPerms?.snag_issue?.assignedMembers?.map((m) => m.name).join("، ");
+
+  const canRectifySnagWf = !workflowPerms?.snag_rectify?.hasConfig || workflowPerms.snag_rectify.allowed;
+  const rectifierNames = workflowPerms?.snag_rectify?.assignedMembers?.map((m) => m.name).join("، ");
+
+  const canCloseSnagWf = !workflowPerms?.snag_close?.hasConfig || workflowPerms.snag_close.allowed;
+  const closerNames = workflowPerms?.snag_close?.assignedMembers?.map((m) => m.name).join("، ");
+
   // Filter purposes for user creation/editing modal: PMs/Admins get all purposes, specialized engineers get only their matched purpose + General
   const availablePurposes = useMemo(() => {
     if (!user) return purposes;
@@ -1080,7 +1099,9 @@ export default function ProjectSnagList() {
                       <div className="flex flex-col gap-2">
                         <Button
                           size="lg"
-                          className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold gap-2 shadow-md rounded-[1rem] transition-all"
+                          disabled={!canCloseSnagWf}
+                          title={!canCloseSnagWf ? `إغلاق الملاحظات مخصص للأعضاء: ${closerNames || "أعضاء محددين"}` : undefined}
+                          className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold gap-2 shadow-md rounded-[1rem] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                           onClick={() => {
                             updateStatusMutation.mutate({
                               itemId: viewItem.id,
@@ -1137,8 +1158,9 @@ export default function ProjectSnagList() {
                           </p>
                           <Button
                             size="lg"
-                            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold gap-2 shadow-md rounded-[1rem] transition-all"
-                            disabled={updateStatusMutation.isPending}
+                            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold gap-2 shadow-md rounded-[1rem] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                            disabled={updateStatusMutation.isPending || !canRectifySnagWf}
+                            title={!canRectifySnagWf ? `تقديم الإصلاحات مخصص للأعضاء: ${rectifierNames || "أعضاء محددين"}` : undefined}
                             onClick={() => {
                               updateStatusMutation.mutate({
                                 itemId: viewItem.id,
@@ -1692,7 +1714,12 @@ export default function ProjectSnagList() {
           {isConsultant && selectedListId === "all" && (
             <Dialog open={createListDialogOpen} onOpenChange={setCreateListDialogOpen}>
               <DialogTrigger asChild>
-                <Button variant="outline" className="gap-2">
+                <Button
+                  variant="outline"
+                  className="gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                  disabled={!canCreateSnagWf}
+                  title={!canCreateSnagWf ? `إضافة الملاحظات مخصص للأعضاء: ${creatorNames || "أعضاء محددين"}` : undefined}
+                >
                   <Plus className="w-4 h-4" />
                   Create New List
                 </Button>
@@ -1768,7 +1795,11 @@ export default function ProjectSnagList() {
               }
             }}>
               <DialogTrigger asChild>
-                <Button className="gap-2 bg-rose-600 hover:bg-rose-700 text-white">
+                <Button
+                  className="gap-2 bg-rose-600 hover:bg-rose-700 text-white disabled:opacity-50 disabled:cursor-not-allowed"
+                  disabled={!canCreateSnagWf}
+                  title={!canCreateSnagWf ? `إضافة الملاحظات مخصص للأعضاء: ${creatorNames || "أعضاء محددين"}` : undefined}
+                >
                   <Plus className="w-4 h-4" />
                   Add Snag Item
                 </Button>
@@ -2015,7 +2046,9 @@ export default function ProjectSnagList() {
                   <Button
                     variant="default"
                     size="sm"
-                    className="h-9 px-4 rounded-full text-xs font-bold flex items-center gap-1.5 shadow-sm bg-blue-600 hover:bg-blue-700 text-white border-none"
+                    className="h-9 px-4 rounded-full text-xs font-bold flex items-center gap-1.5 shadow-sm bg-blue-600 hover:bg-blue-700 text-white border-none disabled:opacity-50 disabled:cursor-not-allowed"
+                    disabled={!canIssueSnagWf}
+                    title={!canIssueSnagWf ? `تصدير القائمة للمقاول مخصص للأعضاء: ${issuerNames || "أعضاء محددين"}` : undefined}
                     onClick={() => setSubmitListDialogOpen(true)}
                   >
                     <CheckCircle2 className="w-4 h-4" />
@@ -2028,8 +2061,8 @@ export default function ProjectSnagList() {
                     variant="default"
                     size="sm"
                     className="h-9 px-4 rounded-full text-xs font-bold flex items-center gap-1.5 shadow-sm bg-emerald-600 hover:bg-emerald-700 text-white border-none disabled:opacity-50 disabled:cursor-not-allowed"
-                    disabled={unclosedItemsCount > 0}
-                    title={unclosedItemsCount > 0 ? `يوجد ${unclosedItemsCount} ملاحظة لم يتم إغلاقها بعد` : undefined}
+                    disabled={unclosedItemsCount > 0 || !canCloseSnagWf}
+                    title={!canCloseSnagWf ? `إغلاق القائمة مخصص للأعضاء: ${closerNames || "أعضاء محددين"}` : unclosedItemsCount > 0 ? `يوجد ${unclosedItemsCount} ملاحظة لم يتم إغلاقها بعد` : undefined}
                     onClick={() => {
                       if (unclosedItemsCount > 0) {
                         toast({
@@ -2163,7 +2196,12 @@ export default function ProjectSnagList() {
                 <p className="text-sm text-muted-foreground">
                   Start by creating a new snag list group to start reporting defects and notes for this project.
                 </p>
-                <Button onClick={() => setCreateListDialogOpen(true)} className="gap-2 bg-rose-600 hover:bg-rose-700 text-white mx-auto">
+                <Button
+                  onClick={() => setCreateListDialogOpen(true)}
+                  disabled={!canCreateSnagWf}
+                  title={!canCreateSnagWf ? `إضافة الملاحظات مخصص للأعضاء: ${creatorNames || "أعضاء محددين"}` : undefined}
+                  className="gap-2 bg-rose-600 hover:bg-rose-700 text-white mx-auto disabled:opacity-50 disabled:cursor-not-allowed"
+                >
                   <Plus className="w-4 h-4" />
                   Create New List
                 </Button>
@@ -3095,7 +3133,9 @@ export default function ProjectSnagList() {
             </Button>
             <Button
               size="sm"
-              className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold gap-1.5 rounded-xl shadow-md transition-all"
+              disabled={!canCloseSnagWf}
+              title={!canCloseSnagWf ? `إغلاق الملاحظات مخصص للأعضاء: ${closerNames || "أعضاء محددين"}` : undefined}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold gap-1.5 rounded-xl shadow-md transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               onClick={() => setBatchCloseDialogOpen(true)}
             >
               <CheckCircle2 className="w-4 h-4" />
