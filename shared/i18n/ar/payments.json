@@ -1087,6 +1087,18 @@
     "subtotal_original": "مجموع بنود العقد الأساسية (Original Scope)",
     "subtotal_variations": "مجموع أوامر التغيير (Variations / VOs)",
     "grand_total_work_value": "الإجمالي العام — قيمة الأعمال للفترة الحالية (Work Value)",
-    "overall_progress": "نسبة الإنجاز الكلي: {{pct}}"
+    "overall_progress": "نسبة الإنجاز الكلي: {{pct}}",
+    "vo_status_approved": "أمر تغيير معتمد",
+    "vo_status_pending": "بانتظار اعتماد أمر التغيير",
+    "vo_status_rejected": "أمر تغيير مرفوض",
+    "vo_pending_banner": "يوجد {{count}} بند أمر تغيير ({{amount}}) يتجاوز حد المشروع ({{threshold}}%) ويتطلب الاعتماد قبل صرفه في المستخلصات.",
+    "vo_approve_all": "اعتماد أوامر التغيير المعلّقة",
+    "vo_approve_one": "اعتماد VO",
+    "vo_reject_one": "رفض VO",
+    "vo_reject_prompt": "اكتب سبب رفض أمر التغيير:",
+    "vo_approved_toast": "تم اعتماد أمر التغيير وإضافته لقيمة العقد",
+    "vo_rejected_toast": "تم رفض أمر التغيير",
+    "vo_threshold_note": "حد اعتماد أوامر التغيير الكبرى: {{threshold}}% من قيمة العقد الأصلي",
+    "workflow_restricted_tip": "مقصور عبر مركز سير العمل على: {{names}}"
   }
 }

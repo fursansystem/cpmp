@@ -15,6 +15,7 @@ import {
   FileText,
   HandCoins,
   HardHat,
+  History,
   PackageOpen,
   Pencil,
   Phone,
@@ -23,6 +24,7 @@ import {
   Search,
   Send,
   ShieldAlert,
+  ShieldCheck,
   Trash2,
   User,
   Wallet,
@@ -40,6 +42,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/lib/auth";
 import { apiRequest } from "@/lib/queryClient";
 import {
   getJson,
@@ -49,9 +52,13 @@ import {
   invalidatePayments,
   paymentsQuery,
   StatusBadge,
+  LatestActivity,
   type PaymentsContext,
   type PaymentsOverview,
 } from "@/components/payments/payments-common";
+import { ProjectWorkflowMatrixDialog } from "@/components/workflow/project-workflow-matrix-dialog";
+import { resolveStageAccess, type WorkflowStagePermission } from "@shared/subcontractor-workflow";
+import { isStandingIpcOrderStatus } from "@shared/payments";
 import {
   SubcontractorDialog,
   SubcontractorContractDialog,
@@ -72,6 +79,7 @@ export default function ProjectSubcontractors() {
   const [, navigate] = useLocation();
   const { t, i18n } = useTranslation(["payments", "warehouse", "projects"]);
   const { toast } = useToast();
+  const { user } = useAuth();
   const queryClient = useQueryClient();
   const isAr = i18n.language?.startsWith("ar");
 
@@ -97,6 +105,7 @@ export default function ProjectSubcontractors() {
   // Selected Subcontractor Profile Drawer / Modal
   const [selectedProfileSub, setSelectedProfileSub] = useState<SubcontractorRow | null>(null);
   const [selectedContract, setSelectedContract] = useState<SubcontractorContractRow | null>(null);
+  const [workflowOpen, setWorkflowOpen] = useState(false);
 
   const removeContract = useMutation({
     mutationFn: async (id: string) => apiRequest("DELETE", `/api/payments/subcontractor-contracts/${id}`),
@@ -123,7 +132,37 @@ export default function ProjectSubcontractors() {
     meta: paymentsQuery,
   });
 
-  const canManageContract = Boolean(ctx?.perms?.isAccounting || ctx?.perms?.canApprove);
+  const { data: wfPerms } = useQuery<Record<string, WorkflowStagePermission>>({
+    queryKey: ["/api/projects", projectId, "workflow-permissions"],
+    enabled: !!projectId,
+  });
+
+  const isSuperAdmin = user?.role === "super_admin";
+  const userOrgId = user?.organizationId;
+  const isConsultant =
+    !isSuperAdmin &&
+    (user?.organizationSectorType === "Consultant" ||
+      (!!project?.consultantId && userOrgId === project.consultantId));
+  const isContractor =
+    user?.organizationSectorType === "Contractor" ||
+    (!!project?.contractorId && userOrgId === project.contractorId);
+  const isOwnerOrDeveloper =
+    user?.role === "developer_admin" ||
+    user?.organizationSectorType === "Developer" ||
+    (!!project?.organizationId && userOrgId === project.organizationId);
+
+  const canManageWorkflow =
+    !isConsultant &&
+    (isSuperAdmin || (user?.role !== "user" && (isOwnerOrDeveloper || isContractor)));
+
+  const contractManageAccess = resolveStageAccess(wfPerms?.sub_contract_manage, !isConsultant, isSuperAdmin);
+  const certPrepareAccess = resolveStageAccess(wfPerms?.sub_cert_prepare, !isConsultant, isSuperAdmin);
+  const settlementAccess = resolveStageAccess(
+    wfPerms?.sub_settlement_chargeback,
+    Boolean(ctx?.perms?.isAccounting || ctx?.perms?.canApprove),
+    isSuperAdmin,
+  );
+  const canManageContract = settlementAccess.allowed;
 
   const { data: overview, isLoading } = useQuery<PaymentsOverview>({
     queryKey: ["payments", "overview", projectId],
@@ -428,6 +467,17 @@ export default function ProjectSubcontractors() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          {canManageWorkflow && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5 font-bold rounded-xl border-primary/25 text-primary hover:bg-primary/5"
+              onClick={() => setWorkflowOpen(true)}
+            >
+              <ShieldCheck className="w-4 h-4 text-primary" />
+              <span>{isAr ? "مركز تحكم سير العمل" : "Workflow Control"}</span>
+            </Button>
+          )}
           <Button variant="outline" size="sm" onClick={() => setIssueOpen(true)}>
             <PackageOpen className="w-4 h-4 me-1 text-primary" />
             {isAr ? "سند صرف مواد" : "Issue Materials"}
@@ -435,6 +485,12 @@ export default function ProjectSubcontractors() {
           <Button
             variant="outline"
             size="sm"
+            disabled={!contractManageAccess.allowed}
+            title={
+              !contractManageAccess.allowed && contractManageAccess.viaDelegation
+                ? t("payments:boq.workflow_restricted_tip", { names: contractManageAccess.assignedNames.join(", ") })
+                : undefined
+            }
             onClick={() => {
               setTargetSubIdForContract(undefined);
               setAddingContract(true);
@@ -443,7 +499,16 @@ export default function ProjectSubcontractors() {
             <FileSignature className="w-4 h-4 me-1" />
             {isAr ? "عقد جديد" : "New Contract"}
           </Button>
-          <Button size="sm" onClick={() => setAddingSub(true)}>
+          <Button
+            size="sm"
+            disabled={!contractManageAccess.allowed}
+            title={
+              !contractManageAccess.allowed && contractManageAccess.viaDelegation
+                ? t("payments:boq.workflow_restricted_tip", { names: contractManageAccess.assignedNames.join(", ") })
+                : undefined
+            }
+            onClick={() => setAddingSub(true)}
+          >
             <Plus className="w-4 h-4 me-1" />
             {isAr ? "مقاول باطن جديد" : "New Subcontractor"}
           </Button>
@@ -1492,6 +1557,11 @@ export default function ProjectSubcontractors() {
                     <Badge variant="secondary" className="ms-1 text-[10px] px-1 h-4">
                       {c.boqItemCount ?? 0}
                     </Badge>
+                    {(c.pendingVoCount ?? 0) > 0 && (
+                      <Badge className="bg-amber-500 text-white text-[9px] px-1.5 h-4">
+                        {c.pendingVoCount} VO
+                      </Badge>
+                    )}
                   </TabsTrigger>
 
                   <TabsTrigger value="locations" className="text-xs rounded-lg gap-1.5">
@@ -1524,11 +1594,21 @@ export default function ProjectSubcontractors() {
                       {isAr ? "معلومات المقاول" : "Subcontractor"}
                     </TabsTrigger>
                   )}
+
+                  <TabsTrigger value="audit" className="text-xs rounded-lg gap-1.5">
+                    <History className="w-3.5 h-3.5" />
+                    {isAr ? "سجل التدقيق والمتابعة" : "Audit Log"}
+                  </TabsTrigger>
                 </TabsList>
 
                 {/* Sub-tab 0: Contract BOQ */}
                 <TabsContent value="boq" className="space-y-3 min-w-0 w-full">
-                  <ContractBoqEditor contractId={c.id} />
+                  <ContractBoqEditor contractId={c.id} readOnly={!contractManageAccess.allowed} />
+                </TabsContent>
+
+                {/* Sub-tab 5: Contract Workflow & Audit Log */}
+                <TabsContent value="audit" className="space-y-3">
+                  <LatestActivity entityType="subcontractor_contract" entityId={c.id} group="sub_cert" />
                 </TabsContent>
 
                 {/* Sub-tab 1: Locations & Units */}
@@ -1590,9 +1670,9 @@ export default function ProjectSubcontractors() {
                             </TableRow>
                           ) : (
                             contractCerts.map((cert: any) => {
-                              const linkedOrder = contractOrders.find(
-                                (o: any) => o.subcontractorCertificateId === cert.id
-                              );
+                              const linkedOrder =
+                                contractOrders.find((o: any) => o.subcontractorCertificateId === cert.id && isStandingIpcOrderStatus(o.status)) ??
+                                contractOrders.find((o: any) => o.subcontractorCertificateId === cert.id);
                               const certDisplayNo = cert.certNo || cert.certificateNo || (cert.id ? cert.id.slice(0, 8) : "—");
                               const certDate = cert.periodTo || cert.createdAt || cert.certificateDate;
                               return (
@@ -2236,7 +2316,9 @@ export default function ProjectSubcontractors() {
                               </TableRow>
                             ) : (
                               subM.subCerts.map((cert: any) => {
-                                const linkedOrder = allOrders.find((o: any) => o.subcontractorCertificateId === cert.id);
+                                const linkedOrder =
+                                  allOrders.find((o: any) => o.subcontractorCertificateId === cert.id && isStandingIpcOrderStatus(o.status)) ??
+                                  allOrders.find((o: any) => o.subcontractorCertificateId === cert.id);
                                 const linkedContract = allContracts.find((c: any) => c.id === cert.contractId);
                                 const certDisplayNo = cert.certNo || cert.certificateNo || (cert.id ? cert.id.slice(0, 8) : "—");
                                 const certDate = cert.periodTo || cert.createdAt || cert.certificateDate;
@@ -2480,6 +2562,13 @@ export default function ProjectSubcontractors() {
         onOpenChange={setIssueOpen}
         projectId={projectId}
         warehouses={warehouses}
+      />
+
+      <ProjectWorkflowMatrixDialog
+        open={workflowOpen}
+        onOpenChange={setWorkflowOpen}
+        projectId={projectId}
+        defaultTab="subcontractors"
       />
     </div>
   );

@@ -46,13 +46,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/lib/auth";
 import { apiRequest } from "@/lib/queryClient";
-import { computeSubCert, OPEN_PAYMENT_ORDER } from "@shared/payments";
+import { computeSubCert, isStandingIpcOrderStatus } from "@shared/payments";
 import {
   computeBoqLine,
   summarizeBoqLines,
   validateCertificateBoqLine,
   type CertificateBoqLineDto,
 } from "@shared/subcontractor-boq";
+import { resolveStageAccess, type WorkflowStagePermission } from "@shared/subcontractor-workflow";
 import { CertificateBoqTable } from "@/components/payments/certificate-boq-table";
 import { ContractBoqEditor } from "@/components/payments/contract-boq-editor";
 import {
@@ -202,8 +203,17 @@ export default function SubcontractorCertificateDetail() {
     enabled: !!effectiveProjectId,
   });
 
-  const isOwner = isNew || certData?.createdBy === user?.id || ctx?.perms?.isAccounting;
-  const editable = isOwner && (isNew || ["draft", "rejected"].includes(certData?.status));
+  const { data: wfPerms } = useQuery<Record<string, WorkflowStagePermission>>({
+    queryKey: ["/api/projects", effectiveProjectId, "workflow-permissions"],
+    enabled: !!effectiveProjectId,
+  });
+
+  const isSuperAdmin = user?.role === "super_admin";
+  const isOwner = isNew || certData?.createdBy === user?.id || Boolean(ctx?.perms?.isAccounting);
+  const certPrepareAccess = resolveStageAccess(wfPerms?.sub_cert_prepare, isOwner, isSuperAdmin);
+  const certApproveAccess = resolveStageAccess(wfPerms?.sub_cert_approve, Boolean(ctx?.perms?.canApprove), isSuperAdmin);
+  const certPaymentAccess = resolveStageAccess(wfPerms?.sub_cert_payment, Boolean(ctx?.perms?.isAccounting), isSuperAdmin);
+  const editable = certPrepareAccess.allowed && (isNew || ["draft", "rejected"].includes(certData?.status));
 
   // 5. Contract BOQ Preview & Strict Sequential Check
   const {
@@ -723,14 +733,14 @@ export default function SubcontractorCertificateDetail() {
     onError: (e) => toast({ title: t("errors.send_submit_failed"), description: errorMessage(e), variant: "destructive" }),
   });
 
-  const hasLiveOrder =
+  const standingOrder =
     !isNew && certData
-      ? overview?.orders?.some(
-          (o) =>
-            o.subcontractorCertificateId === id &&
-            ([...OPEN_PAYMENT_ORDER, "paid"] as string[]).includes(o.status)
-        )
-      : false;
+      ? overview?.orders?.find(
+          (o) => o.subcontractorCertificateId === id && isStandingIpcOrderStatus(o.status),
+        ) ?? null
+      : null;
+
+  const hasLiveOrder = Boolean(standingOrder);
 
   const ownCert = !isNew && certData?.createdBy === user?.id && user?.role !== "super_admin";
 
@@ -894,7 +904,7 @@ export default function SubcontractorCertificateDetail() {
             </Button>
           )}
 
-          {!isNew && certData?.status === "submitted" && ctx?.perms?.canApprove && (
+          {!isNew && certData?.status === "submitted" && certApproveAccess.allowed && (
             <>
               <Button
                 className="gap-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white"
@@ -917,7 +927,19 @@ export default function SubcontractorCertificateDetail() {
             </>
           )}
 
-          {!isNew && certData?.status === "approved" && ctx?.perms?.isAccounting && !hasLiveOrder && (
+          {!isNew && standingOrder && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5 rounded-xl border-emerald-500/40 bg-emerald-500/5 text-emerald-700 dark:text-emerald-300"
+              onClick={() => navigate(`/payments?tab=orders&project=${effectiveProjectId}&focus=${standingOrder.id}`)}
+            >
+              <Banknote className="w-4 h-4" />
+              <span className="font-mono">{standingOrder.orderNo}</span>
+            </Button>
+          )}
+
+          {!isNew && certData?.status === "approved" && certPaymentAccess.allowed && !hasLiveOrder && (
             <Button
               className="gap-1.5 rounded-xl bg-primary text-primary-foreground"
               onClick={() => navigate(`/payments?tab=orders&project=${effectiveProjectId}&focus=${id}`)}
@@ -929,7 +951,7 @@ export default function SubcontractorCertificateDetail() {
 
           {!isNew &&
             certData &&
-            isOwner &&
+            certPrepareAccess.allowed &&
             ["draft", "submitted", "rejected", "approved"].includes(certData.status) &&
             !hasLiveOrder && (
               <Button
@@ -1229,7 +1251,7 @@ export default function SubcontractorCertificateDetail() {
                   <Label>{t("contracts.select_label")}</Label>
                   <Select
                     value={activeContractId || "__none__"}
-                    disabled={!form.subcontractorId}
+                    disabled={!editable || !form.subcontractorId}
                     onValueChange={(v) => {
                       if (v === "__new__") setAddingContract(true);
                       else applyContract(subContracts.find((c) => c.id === v));

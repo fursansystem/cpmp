@@ -315,6 +315,7 @@ export interface IStorage {
     userId: string,
     projectId: string
   ): Promise<Record<string, { allowed: boolean; hasConfig: boolean; assignedMembers: { id: string; name: string }[] }>>;
+  getWorkflowStageUserIds(projectId: string, stage: string): Promise<{ hasConfig: boolean; userIds: string[] }>;
 
 
   // Suppliers
@@ -6850,6 +6851,12 @@ export class DatabaseStorage implements IStorage {
       "req_site_inspect",
       "req_consultant_pm",
       "req_final_approve",
+      "sub_contract_manage",
+      "sub_vo_approve",
+      "sub_cert_prepare",
+      "sub_cert_approve",
+      "sub_cert_payment",
+      "sub_settlement_chargeback",
     ];
 
     const result: Record<string, { allowed: boolean; hasConfig: boolean; assignedMembers: { id: string; name: string }[] }> = {};
@@ -6885,6 +6892,26 @@ export class DatabaseStorage implements IStorage {
     }
 
     return result;
+  }
+
+  async getWorkflowStageUserIds(projectId: string, stage: string): Promise<{ hasConfig: boolean; userIds: string[] }> {
+    const rows = await db
+      .select({ teamMemberId: projectWorkflowAssignments.teamMemberId })
+      .from(projectWorkflowAssignments)
+      .where(and(eq(projectWorkflowAssignments.projectId, projectId), eq(projectWorkflowAssignments.stage, stage)));
+
+    const memberIds = Array.from(new Set(rows.map((r) => r.teamMemberId).filter(Boolean) as string[]));
+    if (memberIds.length === 0) return { hasConfig: false, userIds: [] };
+
+    const links = await db
+      .select({ userId: userTeamMembers.userId })
+      .from(userTeamMembers)
+      .where(inArray(userTeamMembers.teamMemberId, memberIds));
+
+    return {
+      hasConfig: true,
+      userIds: Array.from(new Set(links.map((l) => l.userId).filter(Boolean))),
+    };
   }
 }
 

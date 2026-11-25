@@ -19,7 +19,7 @@ export const PAYMENT_METHODS = ["bank_transfer", "cheque", "cash"] as const;
 export type PaymentMethod = (typeof PAYMENT_METHODS)[number];
 
 // Licence and transaction fees are paid by orders too, but the records themselves live in الرخص والمعاملات (shared/permits.ts)
-export const PAYMENT_ENTITY_TYPES = ["bill_request", "payment_order", "fine", "subcontractor_certificate", "chargeback"] as const;
+export const PAYMENT_ENTITY_TYPES = ["bill_request", "payment_order", "fine", "subcontractor_certificate", "subcontractor_contract", "chargeback"] as const;
 export type PaymentEntityType = (typeof PAYMENT_ENTITY_TYPES)[number];
 
 // مستخلصات مقاولي الباطن: raised on the project side, approved by a project manager,
@@ -82,6 +82,24 @@ export interface PaymentsPermissions {
 export const OPEN_BILL_REQUEST = ["requested", "submitted", "returned"] as const;
 export const OPEN_PAYMENT_ORDER = ["draft", "pending_approval", "approved"] as const;
 export const OPEN_FINE = ["open", "under_appeal", "waiver_requested", "payment_requested"] as const;
+
+// Payment order statuses that occupy a subcontractor certificate (IPC).
+// Only a "cancelled" order releases the IPC so a replacement order can be raised;
+// transfer requests ("requested", "request_approved") and "rejected" orders remain
+// active/resubmittable and must block raising a second payment order for the same IPC.
+export const STANDING_IPC_ORDER_STATUSES = [
+  "requested",
+  "request_approved",
+  "draft",
+  "pending_approval",
+  "approved",
+  "paid",
+  "rejected",
+] as const;
+
+export function isStandingIpcOrderStatus(status: string | null | undefined): boolean {
+  return Boolean(status && (STANDING_IPC_ORDER_STATUSES as readonly string[]).includes(status));
+}
 
 export interface PaymentsProjectSummary {
   projectId: string;

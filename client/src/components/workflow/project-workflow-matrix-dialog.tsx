@@ -16,9 +16,12 @@ import {
   RotateCcw,
   Copy,
   Pencil,
+  HardHat,
+  Percent,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
@@ -46,16 +49,21 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import type { TeamMember } from "@shared/schema";
+import {
+  DEFAULT_VO_THRESHOLD_PERCENT,
+  SUBCONTRACTOR_WORKFLOW_STAGES,
+} from "@shared/subcontractor-workflow";
 
 interface ProjectWorkflowMatrixDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   projectId: string;
+  defaultTab?: string;
 }
 
 interface WorkflowStageDef {
   key: string;
-  module: "purchase_orders" | "warehouse" | "requests" | "snag_list";
+  module: "purchase_orders" | "warehouse" | "requests" | "snag_list" | "subcontractors";
   titleAr: string;
   titleEn: string;
   descriptionAr: string;
@@ -242,12 +250,16 @@ const WORKFLOW_STAGES: WorkflowStageDef[] = [
     defaultRuleAr: "الوضع الافتراضي: مدير مشروع الاستشاري أو من قام برصد الملاحظة.",
     defaultRuleEn: "Default: Consultant Project Manager or Snag Creator.",
   },
+
+  // 5. مقاولو الباطن والعقود والمستخلصات (Subcontractors Standard Workflow)
+  ...SUBCONTRACTOR_WORKFLOW_STAGES,
 ];
 
 export function ProjectWorkflowMatrixDialog({
   open,
   onOpenChange,
   projectId,
+  defaultTab = "purchase_orders",
 }: ProjectWorkflowMatrixDialogProps) {
   const { i18n } = useTranslation(["common", "warehouse"]);
   const isArabic = i18n.language === "ar";
@@ -256,7 +268,14 @@ export function ProjectWorkflowMatrixDialog({
 
   // Selected assignments map: stageKey -> teamMemberIds[]
   const [stageAssignments, setStageAssignments] = useState<Record<string, string[]>>({});
-  const [activeTab, setActiveTab] = useState<string>("purchase_orders");
+  const [activeTab, setActiveTab] = useState<string>(defaultTab);
+  const [voThreshold, setVoThreshold] = useState<number>(DEFAULT_VO_THRESHOLD_PERCENT);
+
+  useEffect(() => {
+    if (open) {
+      setActiveTab(defaultTab || "purchase_orders");
+    }
+  }, [open, defaultTab]);
 
   // Query assignments and candidate members
   const { data, isLoading } = useQuery<{
@@ -266,6 +285,7 @@ export function ProjectWorkflowMatrixDialog({
       string,
       { id: string; name: string; position: string | null; orgType: string }[]
     >;
+    subcontractorPolicy?: { voApprovalThresholdPercent: number };
     canManage: boolean;
   }>({
     queryKey: ["/api/projects", projectId, "workflow-assignments"],
@@ -299,6 +319,9 @@ export function ProjectWorkflowMatrixDialog({
       }
 
       setStageAssignments(map);
+      if (data.subcontractorPolicy && Number.isFinite(data.subcontractorPolicy.voApprovalThresholdPercent)) {
+        setVoThreshold(data.subcontractorPolicy.voApprovalThresholdPercent);
+      }
     }
   }, [open, data]);
 
@@ -317,11 +340,15 @@ export function ProjectWorkflowMatrixDialog({
 
       return await apiRequest("PUT", `/api/projects/${projectId}/workflow-assignments`, {
         assignments: payload,
+        subcontractorPolicy: {
+          voApprovalThresholdPercent: Math.max(0, Math.min(100, Number(voThreshold) || 0)),
+        },
       });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "workflow-assignments"] });
       queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "workflow-permissions"] });
+      queryClient.invalidateQueries({ queryKey: ["payments"] });
       toast({
         title: isArabic ? "تم حفظ إعدادات سير العمل بنجاح" : "Workflow assignments saved successfully",
         description: isArabic
@@ -397,6 +424,7 @@ export function ProjectWorkflowMatrixDialog({
     { key: "warehouse", labelAr: "المستودع والتوريدات", labelEn: "Warehouse", icon: Warehouse },
     { key: "requests", labelAr: "طلبات الفحص الهندسية", labelEn: "Inspection Requests", icon: FileCheck2 },
     { key: "snag_list", labelAr: "قائمة الملاحظات", labelEn: "Snag List", icon: Layers },
+    { key: "subcontractors", labelAr: "مقاولو الباطن", labelEn: "Subcontractors", icon: HardHat },
   ];
 
   return (
@@ -435,17 +463,17 @@ export function ProjectWorkflowMatrixDialog({
             className="flex-1 flex flex-col overflow-hidden"
           >
             <div className="px-6 pt-3 border-b border-border bg-muted/20">
-              <TabsList className="grid grid-cols-4 w-full h-11 bg-muted/60 p-1 rounded-xl">
+              <TabsList className="grid grid-cols-2 sm:grid-cols-5 w-full h-auto min-h-11 bg-muted/60 p-1 rounded-xl gap-1">
                 {modulesTabs.map((tab) => {
                   const Icon = tab.icon;
                   return (
                     <TabsTrigger
                       key={tab.key}
                       value={tab.key}
-                      className="text-xs font-semibold gap-2 rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm"
+                      className="text-xs font-semibold gap-1.5 rounded-lg py-2 data-[state=active]:bg-background data-[state=active]:shadow-sm"
                     >
-                      <Icon className="w-4 h-4 text-primary" />
-                      <span>{isArabic ? tab.labelAr : tab.labelEn}</span>
+                      <Icon className="w-4 h-4 text-primary shrink-0" />
+                      <span className="truncate">{isArabic ? tab.labelAr : tab.labelEn}</span>
                     </TabsTrigger>
                   );
                 })}
@@ -458,6 +486,56 @@ export function ProjectWorkflowMatrixDialog({
 
                 return (
                   <TabsContent key={tab.key} value={tab.key} className="m-0 space-y-4">
+                    {tab.key === "subcontractors" && (
+                      <div className="p-4 rounded-xl border border-primary/25 bg-primary/5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2 font-bold text-sm text-foreground">
+                            <Percent className="w-4 h-4 text-primary" />
+                            <span>
+                              {isArabic
+                                ? "سياسة اعتماد أوامر التغيير الكبرى (Major VO Approval Threshold)"
+                                : "Major Variation Order (VO) Approval Threshold"}
+                            </span>
+                          </div>
+                          <p className="text-xs text-muted-foreground">
+                            {isArabic
+                              ? "العقود تُفعّل مباشرةً لتسريع العمل؛ وعندما يتجاوز إجمالي أوامر التغيير هذه النسبة من قيمة العقد الأصلي يُعلّق الأمر حتى يعتمده المخوّلون في المرحلة (2). القيمة 0% تتطلب اعتماد كل أمر تغيير."
+                              : "Contracts activate directly for operational speed. When cumulative Variation Orders exceed this % of the Original Contract Value, new/edited VOs require approval by Stage 2 assignees before IPC billing (0% = every VO requires approval)."}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0 flex-wrap">
+                          {[0, 5, 10, 15].map((preset) => (
+                            <Button
+                              key={preset}
+                              type="button"
+                              size="sm"
+                              variant={voThreshold === preset ? "default" : "outline"}
+                              disabled={!canManage}
+                              onClick={() => setVoThreshold(preset)}
+                              className="h-7 px-2.5 text-xs rounded-lg tabular-nums"
+                            >
+                              {preset === 0 ? (isArabic ? "الكل (0%)" : "All (0%)") : `${preset}%`}
+                            </Button>
+                          ))}
+                          <div className="relative w-20">
+                            <Input
+                              type="number"
+                              min={0}
+                              max={100}
+                              step="0.5"
+                              disabled={!canManage}
+                              value={voThreshold}
+                              onChange={(e) => {
+                                const v = Number(e.target.value);
+                                setVoThreshold(Number.isFinite(v) ? Math.max(0, Math.min(100, v)) : 0);
+                              }}
+                              className="h-7 text-xs text-end pe-5 rounded-lg bg-background tabular-nums font-bold"
+                            />
+                            <span className="absolute end-2 top-1.5 text-[11px] text-muted-foreground">%</span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
                     {stages.map((stage) => {
                       const assignedMemberIds = stageAssignments[stage.key] || [];
                       const hasAssigned = assignedMemberIds.length > 0;

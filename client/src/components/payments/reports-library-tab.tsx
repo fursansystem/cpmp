@@ -11,6 +11,7 @@ import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@
 import { cn } from "@/lib/utils";
 import {
   OPEN_FINE,
+  isStandingIpcOrderStatus,
   type ApprovalsReport,
   type PaymentsReport,
   type PoSummary,
@@ -665,7 +666,7 @@ function cashFlow(data: PaymentsOverview) {
   }
   for (const c of data.subcontractorCertificates) {
     if (c.status === "submitted") add(c.projectId, c.projectName, "awaitingApproval", num(c.netPayable));
-    if (c.status === "approved" && !data.orders.some((o) => o.subcontractorCertificateId === c.id && live.includes(o.status))) add(c.projectId, c.projectName, "awaitingOrder", num(c.netPayable));
+    if (c.status === "approved" && !data.orders.some((o) => o.subcontractorCertificateId === c.id && isStandingIpcOrderStatus(o.status))) add(c.projectId, c.projectName, "awaitingOrder", num(c.netPayable));
   }
   for (const c of data.permits) {
     if (!c.feePaid && num(c.feeAmount) > 0 && (OPEN_PERMIT as readonly string[]).includes(c.status) && c.dueDate && c.dueDate <= horizon) add(c.projectId, c.projectName, "licences", num(c.feeAmount));

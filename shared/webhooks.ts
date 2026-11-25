@@ -7,6 +7,7 @@ export const WEBHOOK_EVENTS = [
   "payment_order",
   "bill_request",
   "subcontractor_certificate",
+  "subcontractor_contract",
   "chargeback",
   "fine",
   "permit",
@@ -30,6 +31,9 @@ export const WEBHOOK_EVENT_INFO: Record<WebhookEvent, { actions: string[] }> = {
   },
   subcontractor_certificate: {
     actions: ["created", "edited", "submitted", "approved", "rejected", "cancelled", "chargebacks_changed"],
+  },
+  subcontractor_contract: {
+    actions: ["created", "edited", "boq_saved", "vo_approved", "vo_rejected", "settle", "terminate", "reopen", "deleted"],
   },
   chargeback: {
     actions: ["created", "approved", "rejected", "withdrawn", "converted", "applied", "released"],

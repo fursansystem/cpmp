@@ -14,7 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/lib/auth";
 import { apiRequest } from "@/lib/queryClient";
-import { OPEN_PAYMENT_ORDER, SUB_CERT_LABELS, computeSubCert, SUB_CERT_STATUSES } from "@shared/payments";
+import { isStandingIpcOrderStatus, SUB_CERT_LABELS, computeSubCert, SUB_CERT_STATUSES } from "@shared/payments";
 import { ChargebacksPanel } from "./chargebacks";
 import {
   SubcontractorSelect,
@@ -367,7 +367,7 @@ export function SubCertDialog({ ctx, defaultProjectId, row, defaultSubcontractor
     onError: (e) => { invalidatePayments(queryClient); toast({ title: t("errors.send_submit_failed"), description: errorMessage(e), variant: "destructive" }); },
   });
 
-  const hasLiveOrder = isEditing && row ? orders.some((o) => o.subcontractorCertificateId === row.id && ([...OPEN_PAYMENT_ORDER, "paid"] as string[]).includes(o.status)) : false;
+  const hasLiveOrder = isEditing && row ? orders.some((o) => o.subcontractorCertificateId === row.id && isStandingIpcOrderStatus(o.status)) : false;
   const ownCert = isEditing && row?.createdBy === user?.id && user?.role !== "super_admin";
   const L = (label: string, child: React.ReactNode, cls = "") => <div className={`space-y-1.5 ${cls}`}><Label>{label}</Label>{child}</div>;
 

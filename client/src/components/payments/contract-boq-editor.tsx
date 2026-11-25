@@ -5,8 +5,10 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  AlertTriangle,
   ArrowDown,
   ArrowUp,
+  CheckCircle2,
   Copy,
   Download,
   FileSpreadsheet,
@@ -16,6 +18,7 @@ import {
   Sparkles,
   Trash2,
   Upload,
+  XCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -54,10 +57,16 @@ interface ContractBoqApiResponse {
     itemCount: number;
     originalTotal: number;
     variationsTotal: number;
+    pendingVoCount?: number;
+    pendingVoTotal?: number;
     revisedTotal: number;
     certifiedTotal: number;
     remainingTotal: number;
     progressPercent: number;
+  };
+  policy?: {
+    voApprovalThresholdPercent: number;
+    canApproveVo: boolean;
   };
   openCertificate: { id: string; certNo: string; status: string } | null;
 }
@@ -312,6 +321,40 @@ export function ContractBoqEditor({
     },
   });
 
+  const voDecisionMutation = useMutation({
+    mutationFn: async (v: { itemIds: string[]; action: "approve" | "reject"; reason?: string }) => {
+      const res = await apiRequest("POST", `/api/payments/subcontractor-contracts/${contractId}/boq/vo-decision`, v);
+      return res.json();
+    },
+    onSuccess: (_d, v) => {
+      invalidatePayments(queryClient);
+      queryClient.invalidateQueries({ queryKey: ["payments", "contract-boq", contractId] });
+      queryClient.invalidateQueries({ queryKey: ["payments", "contract-boq-preview", contractId] });
+      toast({
+        title: v.action === "approve" ? t("boq.vo_approved_toast") : t("boq.vo_rejected_toast"),
+      });
+      onSaved?.();
+    },
+    onError: (e) => {
+      toast({
+        title: t("errors.action_failed"),
+        description: errorMessage(e),
+        variant: "destructive",
+      });
+    },
+  });
+
+  const pendingVoItems = useMemo(
+    () => rows.filter((r) => r.id && r.isVariation && r.voStatus === "pending_approval"),
+    [rows],
+  );
+  const pendingVoAmount = useMemo(
+    () => roundMoney(pendingVoItems.reduce((s, r) => s + computeBoqContractAmount(r.contractQty, r.unitRate), 0)),
+    [pendingVoItems],
+  );
+  const voThresholdPct = data?.policy?.voApprovalThresholdPercent ?? 10;
+  const canApproveVo = Boolean(data?.policy?.canApproveVo);
+
   if (isLoading) {
     return (
       <div className="space-y-3">
@@ -359,6 +402,38 @@ export function ContractBoqEditor({
           </div>
         </div>
       </div>
+
+      {pendingVoItems.length > 0 && (
+        <div className="rounded-2xl border border-amber-400/50 bg-amber-500/10 p-3.5 flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-start gap-2.5 text-xs">
+            <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+            <span className="font-semibold text-amber-900 dark:text-amber-200">
+              {t("boq.vo_pending_banner", {
+                count: pendingVoItems.length,
+                amount: money(pendingVoAmount),
+                threshold: voThresholdPct,
+              })}
+            </span>
+          </div>
+          {canApproveVo && (
+            <Button
+              type="button"
+              size="sm"
+              className="h-8 rounded-xl gap-1.5 text-xs bg-emerald-600 hover:bg-emerald-700 text-white shrink-0"
+              disabled={voDecisionMutation.isPending}
+              onClick={() =>
+                voDecisionMutation.mutate({
+                  itemIds: pendingVoItems.map((r) => r.id as string),
+                  action: "approve",
+                })
+              }
+            >
+              <CheckCircle2 className="w-3.5 h-3.5" />
+              <span>{t("boq.vo_approve_all")}</span>
+            </Button>
+          )}
+        </div>
+      )}
 
       <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border bg-muted/20 p-2.5">
         <div className="flex flex-wrap items-center gap-2">
@@ -571,17 +646,62 @@ export function ContractBoqEditor({
                       </TableCell>
                       <TableCell className="p-1.5">
                         {row.isVariation ? (
-                          <div className="flex items-center gap-1">
-                            <Badge variant="secondary" className="bg-sky-100 text-sky-800 dark:bg-sky-900/50 dark:text-sky-200 text-[10px] px-1.5 shrink-0">
-                              VO
-                            </Badge>
-                            <Input
-                              value={row.variationRef ?? ""}
-                              disabled={!canEdit}
-                              onChange={(e) => updateRow(row._key, { variationRef: e.target.value })}
-                              className="h-7 text-[11px] font-mono px-1.5"
-                              placeholder="VO-01"
-                            />
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-1">
+                              <Badge variant="secondary" className="bg-sky-100 text-sky-800 dark:bg-sky-900/50 dark:text-sky-200 text-[10px] px-1.5 shrink-0">
+                                VO
+                              </Badge>
+                              <Input
+                                value={row.variationRef ?? ""}
+                                disabled={!canEdit}
+                                onChange={(e) => updateRow(row._key, { variationRef: e.target.value })}
+                                className="h-7 text-[11px] font-mono px-1.5"
+                                placeholder="VO-01"
+                              />
+                            </div>
+                            {row.id && row.voStatus === "pending_approval" && (
+                              <div className="flex items-center gap-1 flex-wrap">
+                                <Badge variant="outline" className="border-amber-500 text-amber-700 dark:text-amber-300 text-[9px] px-1 h-4">
+                                  {t("boq.vo_status_pending")}
+                                </Badge>
+                                {canApproveVo && (
+                                  <>
+                                    <Button
+                                      type="button"
+                                      size="icon"
+                                      variant="ghost"
+                                      className="h-5 w-5 text-emerald-600 hover:bg-emerald-500/10"
+                                      disabled={voDecisionMutation.isPending}
+                                      title={t("boq.vo_approve_one")}
+                                      onClick={() => voDecisionMutation.mutate({ itemIds: [row.id!], action: "approve" })}
+                                    >
+                                      <CheckCircle2 className="w-3.5 h-3.5" />
+                                    </Button>
+                                    <Button
+                                      type="button"
+                                      size="icon"
+                                      variant="ghost"
+                                      className="h-5 w-5 text-destructive hover:bg-destructive/10"
+                                      disabled={voDecisionMutation.isPending}
+                                      title={t("boq.vo_reject_one")}
+                                      onClick={() => {
+                                        const reason = window.prompt(t("boq.vo_reject_prompt"));
+                                        if (reason && reason.trim()) {
+                                          voDecisionMutation.mutate({ itemIds: [row.id!], action: "reject", reason: reason.trim() });
+                                        }
+                                      }}
+                                    >
+                                      <XCircle className="w-3.5 h-3.5" />
+                                    </Button>
+                                  </>
+                                )}
+                              </div>
+                            )}
+                            {row.id && row.voStatus === "rejected" && (
+                              <Badge variant="destructive" className="text-[9px] px-1 h-4" title={row.voRejectReason ?? undefined}>
+                                {t("boq.vo_status_rejected")}
+                              </Badge>
+                            )}
                           </div>
                         ) : (
                           <Badge variant="outline" className="text-[10px] font-normal">

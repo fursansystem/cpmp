@@ -2827,6 +2827,10 @@ export const subcontractorContractBoqItems = pgTable("subcontractor_contract_boq
   contractAmount: decimal("contract_amount", { precision: 14, scale: 2 }).notNull().default("0"),
   isVariation: boolean("is_variation").notNull().default(false),
   variationRef: text("variation_ref"),
+  voStatus: text("vo_status").notNull().default("approved"), // approved | pending_approval | rejected
+  voApprovedBy: varchar("vo_approved_by").references(() => users.id, { onDelete: "set null" }),
+  voApprovedAt: timestamp("vo_approved_at"),
+  voRejectReason: text("vo_reject_reason"),
   notes: text("notes"),
   createdBy: varchar("created_by").references(() => users.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at").notNull().defaultNow(),

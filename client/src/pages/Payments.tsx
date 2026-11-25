@@ -13,6 +13,7 @@ import { BillRequestsTab } from "@/components/payments/bill-requests-tab";
 import { OrdersTab, type OrderDraft } from "@/components/payments/orders-tab";
 import { FinesTab } from "@/components/payments/clearances-fines-tab";
 import { OPEN_PERMIT } from "@shared/permits";
+import { isStandingIpcOrderStatus } from "@shared/payments";
 import { SubcontractorCertificatesTab } from "@/components/payments/subcontractor-certificates-tab";
 import { ReportsTab } from "@/components/payments/reports-tab";
 import type { ReportId } from "@/components/payments/reports-library-tab";
@@ -105,7 +106,8 @@ export default function Payments() {
   const actionable = {
     // certificates waiting on this user: approvers decide, accounting pays what is approved
     subCerts: overview.subcontractorCertificates.filter((c) =>
-      (ctx.perms.canApprove && c.status === "submitted") || (ctx.perms.isAccounting && c.status === "approved")).length,
+      (ctx.perms.canApprove && c.status === "submitted") ||
+      (ctx.perms.isAccounting && c.status === "approved" && !overview.orders.some((o) => o.subcontractorCertificateId === c.id && isStandingIpcOrderStatus(o.status)))).length,
     bills: overview.billRequests.filter((b) => ["requested", "returned"].includes(b.status) || (ctx.perms.isAccounting && b.status === "submitted")).length,
     orders: overview.orders.filter((o) =>
       (ctx.perms.canApprove && (o.status === "pending_approval" || o.status === "requested")) ||

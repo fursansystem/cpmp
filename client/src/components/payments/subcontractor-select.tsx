@@ -46,6 +46,7 @@ export interface SubcontractorContractRow {
   boqItemCount?: number;
   boqOriginalTotal?: number;
   boqVariationsTotal?: number;
+  pendingVoCount?: number;
   startDate: string | null;
   endDate: string | null;
   workLocationIds: string[];

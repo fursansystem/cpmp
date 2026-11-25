@@ -366,12 +366,20 @@ async function main() {
       contract_amount DECIMAL(14, 2) NOT NULL DEFAULT 0,
       is_variation BOOLEAN NOT NULL DEFAULT false,
       variation_ref TEXT,
+      vo_status TEXT NOT NULL DEFAULT 'approved',
+      vo_approved_by VARCHAR REFERENCES users(id) ON DELETE SET NULL,
+      vo_approved_at TIMESTAMP,
+      vo_reject_reason TEXT,
       notes TEXT,
       created_by VARCHAR REFERENCES users(id) ON DELETE SET NULL,
       created_at TIMESTAMP NOT NULL DEFAULT NOW(),
       updated_at TIMESTAMP NOT NULL DEFAULT NOW()
     );
   `);
+  await db.execute(sql`ALTER TABLE subcontractor_contract_boq_items ADD COLUMN IF NOT EXISTS vo_status TEXT NOT NULL DEFAULT 'approved';`);
+  await db.execute(sql`ALTER TABLE subcontractor_contract_boq_items ADD COLUMN IF NOT EXISTS vo_approved_by VARCHAR REFERENCES users(id) ON DELETE SET NULL;`);
+  await db.execute(sql`ALTER TABLE subcontractor_contract_boq_items ADD COLUMN IF NOT EXISTS vo_approved_at TIMESTAMP;`);
+  await db.execute(sql`ALTER TABLE subcontractor_contract_boq_items ADD COLUMN IF NOT EXISTS vo_reject_reason TEXT;`);
   await db.execute(sql`CREATE INDEX IF NOT EXISTS sub_contract_boq_contract_idx ON subcontractor_contract_boq_items (contract_id, sort_order);`);
   await db.execute(sql`CREATE INDEX IF NOT EXISTS sub_contract_boq_project_idx ON subcontractor_contract_boq_items (project_id);`);
   await db.execute(sql`CREATE INDEX IF NOT EXISTS sub_contract_boq_master_idx ON subcontractor_contract_boq_items (project_boq_item_id);`);
@@ -411,6 +419,18 @@ async function main() {
   await db.execute(sql`CREATE INDEX IF NOT EXISTS sub_cert_boq_lines_cert_idx ON subcontractor_certificate_boq_lines (certificate_id, sort_order);`);
   await db.execute(sql`CREATE INDEX IF NOT EXISTS sub_cert_boq_lines_item_idx ON subcontractor_certificate_boq_lines (contract_boq_item_id);`);
   console.log("Tables 'project_boq_items', 'subcontractor_contract_boq_items', 'subcontractor_certificate_boq_lines' ready.");
+
+  // Enforce at most one non-cancelled payment order per subcontractor certificate (IPC)
+  try {
+    await db.execute(sql`
+      CREATE UNIQUE INDEX IF NOT EXISTS payment_orders_one_active_per_sub_cert_uq
+      ON payment_orders (subcontractor_certificate_id)
+      WHERE subcontractor_certificate_id IS NOT NULL AND status <> 'cancelled';
+    `);
+    console.log("Unique index 'payment_orders_one_active_per_sub_cert_uq' ready.");
+  } catch (err: any) {
+    console.warn("Could not create unique index 'payment_orders_one_active_per_sub_cert_uq' (existing duplicate rows may need cancelling first):", err?.message);
+  }
 }
 
 main().then(() => {

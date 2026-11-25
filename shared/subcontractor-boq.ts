@@ -41,6 +41,10 @@ export interface ContractBoqItemDto {
   contractAmount: number;
   isVariation: boolean;
   variationRef?: string | null;
+  voStatus?: "approved" | "pending_approval" | "rejected";
+  voApprovedByName?: string | null;
+  voApprovedAt?: string | null;
+  voRejectReason?: string | null;
   notes?: string | null;
   // Server-enriched certification metadata (read-only)
   certifiedQty?: number;

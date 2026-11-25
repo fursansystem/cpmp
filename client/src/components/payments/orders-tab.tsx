@@ -18,6 +18,7 @@ import { apiRequest } from "@/lib/queryClient";
 import {
   BILL_REQUEST_LABELS,
   OPEN_PAYMENT_ORDER,
+  isStandingIpcOrderStatus,
   isPoOver,
   poCommitted,
   PAYMENT_METHODS,
@@ -246,7 +247,16 @@ export function CreateOrderDialog({ ctx, defaultProjectId, data, draft, onClose 
   });
 
   const hasLive = (key: "billRequestId" | "fineId" | "permitTransactionId" | "subcontractorCertificateId", id: string) =>
-    data.orders.some((o) => o[key] === id && LIVE.includes(o.status));
+    data.orders.some((o) =>
+      o[key] === id && (key === "subcontractorCertificateId" ? isStandingIpcOrderStatus(o.status) : LIVE.includes(o.status)),
+    );
+
+  const selectedCertHasOrder =
+    (kind === "subcontractor" && Boolean(sourceId) && hasLive("subcontractorCertificateId", sourceId)) ||
+    ((kind === "advance" || kind === "other") &&
+      beneficiaryType === "subcontractor" &&
+      Boolean(subcontractorCertificateId) &&
+      hasLive("subcontractorCertificateId", subcontractorCertificateId));
 
   const options = useMemo(() => {
     const inProject = (r: any) => r.projectId === projectId;
@@ -343,7 +353,7 @@ export function CreateOrderDialog({ ctx, defaultProjectId, data, draft, onClose 
       footer={
         <>
           <Button
-            disabled={create.isPending || !projectId || !payeeName.trim() || !(Number(amount) > 0) || (isSourced(kind) ? !sourceId : !reason.trim())}
+            disabled={create.isPending || selectedCertHasOrder || !projectId || !payeeName.trim() || !(Number(amount) > 0) || (isSourced(kind) ? !sourceId : !reason.trim())}
             onClick={() => create.mutate()}
           >
             <Plus className="w-4 h-4 me-1" /> {t("orders.create_btn")}
@@ -544,7 +554,12 @@ export function CreateOrderDialog({ ctx, defaultProjectId, data, draft, onClose 
                       <SelectContent>
                         <SelectItem value="none">{t("common.unspecified")}</SelectItem>
                         {(sources?.subcontractorCertificates ?? [])
-                          .filter((c) => c.subcontractorId === subcontractorId && (!subcontractorContractId || c.contractId === subcontractorContractId))
+                          .filter(
+                            (c) =>
+                              c.subcontractorId === subcontractorId &&
+                              (!subcontractorContractId || c.contractId === subcontractorContractId) &&
+                              !hasLive("subcontractorCertificateId", c.id),
+                          )
                           .map((c) => (
                             <SelectItem key={c.id} value={c.id}>
                               {c.certNo} — {money(Number(c.netPayable) || 0)}
@@ -593,7 +608,7 @@ export function CreateOrderDialog({ ctx, defaultProjectId, data, draft, onClose 
             </div>
             <div className="space-y-1.5">
               <Label>{t("common.amount")}</Label>
-              <Input type="number" min="0" step="0.01" value={amount} disabled={kind === "subcontractor"} onChange={(e) => setAmount(e.target.value)} />
+              <Input type="number" min="0" step="0.01" value={amount} disabled={kind === "subcontractor" || (beneficiaryType === "subcontractor" && Boolean(subcontractorCertificateId))} onChange={(e) => setAmount(e.target.value)} />
             </div>
           </div>
           <div className="space-y-1.5">

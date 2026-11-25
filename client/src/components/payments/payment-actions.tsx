@@ -416,7 +416,7 @@ function RequestTransferDialog({ ctx, context, onClose }: { ctx: PaymentsContext
 
           <div className="grid sm:grid-cols-2 gap-3">
             <Field label={t("common.payee")}><Input value={form.payeeName} onChange={(e) => set("payeeName")(e.target.value)} /></Field>
-            <Field label={t("transfer.requested_amount")}><Input type="number" min="0" step="0.01" value={form.amount} onChange={(e) => set("amount")(e.target.value)} /></Field>
+            <Field label={t("transfer.requested_amount")}><Input type="number" min="0" step="0.01" value={form.amount} disabled={beneficiaryType === "subcontractor" && Boolean(form.subcontractorCertificateId)} onChange={(e) => set("amount")(e.target.value)} /></Field>
           </div>
           {po && <p className="text-xs text-muted-foreground">{t("transfer.po_value_hint", { poNumber: po.poNumber, amount: money(po.totalAmount) })}</p>}
           <Field label={t("transfer.reason_label")}>

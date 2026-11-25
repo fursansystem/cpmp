@@ -1087,6 +1087,18 @@
     "subtotal_original": "Original Scope Subtotal",
     "subtotal_variations": "Variations (VO) Subtotal",
     "grand_total_work_value": "GRAND TOTAL — Certificate Work Value",
-    "overall_progress": "Overall: {{pct}}"
+    "overall_progress": "Overall: {{pct}}",
+    "vo_status_approved": "VO Approved",
+    "vo_status_pending": "Pending VO Approval",
+    "vo_status_rejected": "VO Rejected",
+    "vo_pending_banner": "{{count}} Major Variation item(s) ({{amount}}) exceed the {{threshold}}% project threshold and require approval before IPC billing.",
+    "vo_approve_all": "Approve Pending VOs",
+    "vo_approve_one": "Approve VO",
+    "vo_reject_one": "Reject VO",
+    "vo_reject_prompt": "Reason for rejecting this Variation Order:",
+    "vo_approved_toast": "Variation Order approved and added to Contract Value",
+    "vo_rejected_toast": "Variation Order rejected",
+    "vo_threshold_note": "Major VO approval threshold: {{threshold}}% of Original Scope",
+    "workflow_restricted_tip": "Restricted by Workflow Control to: {{names}}"
   }
 }

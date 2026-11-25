@@ -3737,6 +3737,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
       );
     };
 
+    const isQSOrTechOffice = (p: string) => {
+      const s = (p || "").toLowerCase();
+      return (
+        s.includes("quantity surveyor") ||
+        s.includes("محاسب كميات") ||
+        s.includes("technical office") ||
+        s.includes("المكتب الفني") ||
+        s.includes("commercial") ||
+        s.includes("تجاري") ||
+        s.includes("construction manager") ||
+        s.includes("مدير التشييد")
+      );
+    };
+
+    const isAccountant = (p: string) => {
+      const s = (p || "").trim().toLowerCase();
+      return s === "accountant" || s === "محاسب";
+    };
+
     const format = (m: any) => ({
       id: m.id,
       name: m.nameArabic || m.name,
@@ -3880,6 +3899,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
         (m) => isPM(m.position) || isEngineer(m.position),
         consultantMembers
       ),
+
+      // 5. مقاولو الباطن والعقود والمستخلصات (Subcontractors Standard Workflow)
+      sub_contract_manage: filterOrFallback(
+        [...contractorMembers, ...developerMembers],
+        (m) => isQSOrTechOffice(m.position) || isEngineer(m.position) || isPM(m.position),
+        [...contractorMembers, ...developerMembers]
+      ),
+      sub_vo_approve: filterOrFallback(
+        [...contractorMembers, ...developerMembers],
+        (m) => isPM(m.position) || isExecOrAdmin(m.position),
+        [...contractorMembers, ...developerMembers].filter((m) => isPM(m.position))
+      ),
+      sub_cert_prepare: filterOrFallback(
+        [...contractorMembers, ...developerMembers],
+        (m) => isQSOrTechOffice(m.position) || isEngineer(m.position) || isPM(m.position) || isAccountant(m.position),
+        [...contractorMembers, ...developerMembers]
+      ),
+      sub_cert_approve: filterOrFallback(
+        [...contractorMembers, ...developerMembers],
+        (m) => isPM(m.position) || isExecOrAdmin(m.position),
+        [...contractorMembers, ...developerMembers].filter((m) => isPM(m.position))
+      ),
+      sub_cert_payment: filterOrFallback(
+        [...contractorMembers, ...developerMembers],
+        (m) => isAccountant(m.position) || isExecOrAdmin(m.position),
+        [...contractorMembers, ...developerMembers].filter((m) => isAccountant(m.position))
+      ),
+      sub_settlement_chargeback: filterOrFallback(
+        [...contractorMembers, ...developerMembers],
+        (m) => isPM(m.position) || isExecOrAdmin(m.position),
+        [...contractorMembers, ...developerMembers].filter((m) => isPM(m.position))
+      ),
     };
   }
 
@@ -3951,11 +4002,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Compute default qualified members per stage
       const defaultMembers = computeDefaultWorkflowMembers(enrichedCandidates, project);
 
+      // Load per-project Subcontractor commercial policy (Major VO Approval Threshold %)
+      let voApprovalThresholdPercent = 10;
+      try {
+        const settingKey = `sub_vo_threshold_pct:${req.params.projectId}`;
+        const policyRes = await db.execute(sql`SELECT value FROM system_settings WHERE key = ${settingKey} LIMIT 1`);
+        const rawVal = Number((policyRes.rows?.[0] as any)?.value);
+        if (Number.isFinite(rawVal) && rawVal >= 0 && rawVal <= 100) {
+          voApprovalThresholdPercent = rawVal;
+        }
+      } catch {
+        // system_settings table not yet initialized or empty — keep default 10%
+      }
+
       res.json({
         assignments,
         candidates: enrichedCandidates,
         defaultMembers,
         positions: allPositions,
+        subcontractorPolicy: { voApprovalThresholdPercent },
         canManage,
       });
     } catch (error) {
@@ -4008,10 +4073,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
             teamMemberIds: z.array(z.string()),
           })
         ),
+        subcontractorPolicy: z
+          .object({
+            voApprovalThresholdPercent: z.coerce.number().min(0).max(100),
+          })
+          .optional(),
       });
 
-      const { assignments } = bodySchema.parse(req.body);
+      const { assignments, subcontractorPolicy } = bodySchema.parse(req.body);
       await storage.saveProjectWorkflowAssignments(req.params.projectId, assignments);
+      if (subcontractorPolicy) {
+        const settingKey = `sub_vo_threshold_pct:${req.params.projectId}`;
+        const val = String(Math.round(subcontractorPolicy.voApprovalThresholdPercent * 100) / 100);
+        await db.execute(sql`
+          CREATE TABLE IF NOT EXISTS system_settings (
+            key VARCHAR PRIMARY KEY,
+            value TEXT NOT NULL,
+            updated_by VARCHAR REFERENCES users(id) ON DELETE SET NULL,
+            updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+          );
+          INSERT INTO system_settings (key, value, updated_by, updated_at)
+          VALUES (${settingKey}, ${val}, ${currentUser.user.id}, NOW())
+          ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_by = EXCLUDED.updated_by, updated_at = NOW();
+        `);
+      }
       const updated = await storage.getProjectWorkflowAssignments(req.params.projectId);
       res.json(updated);
     } catch (error) {
