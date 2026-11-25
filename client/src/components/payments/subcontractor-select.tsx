@@ -42,6 +42,10 @@ export interface SubcontractorContractRow {
   contractValue: string | number;
   retentionPercent: string | number;
   vatPercent: string | number;
+  defaultBillingMode?: "qty" | "progress" | string;
+  boqItemCount?: number;
+  boqOriginalTotal?: number;
+  boqVariationsTotal?: number;
   startDate: string | null;
   endDate: string | null;
   workLocationIds: string[];
@@ -744,11 +748,13 @@ export function SubcontractorContractDialog({
     contractValue: row && row.contractValue ? String(Number(row.contractValue || 0) || "") : "",
     retentionPercent: row && row.retentionPercent !== undefined ? String(Number(row.retentionPercent ?? 10)) : "10",
     vatPercent: row && row.vatPercent !== undefined ? String(Number(row.vatPercent ?? 15)) : "15",
+    defaultBillingMode: (row?.defaultBillingMode === "progress" ? "progress" : "qty") as "qty" | "progress",
     startDate: row?.startDate ?? "",
     endDate: row?.endDate ?? "",
     workLocationIds: row?.workLocationIds ?? ([] as string[]),
     notes: row?.notes ?? "",
   });
+  const hasBoqItems = Boolean(row && (row.boqItemCount ?? 0) > 0);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [transitionMode, setTransitionMode] = useState<"settle" | "terminate" | null>(null);
   const [settlementDate, setSettlementDate] = useState(() => new Date().toISOString().slice(0, 10));
@@ -941,9 +947,30 @@ export function SubcontractorContractDialog({
             min="0"
             step="0.01"
             value={form.contractValue}
-            disabled={!isActive}
+            disabled={!isActive || hasBoqItems}
             onChange={(e) => setForm((f) => ({ ...f, contractValue: e.target.value }))}
           />
+          {hasBoqItems && (
+            <p className="text-[11px] text-primary">
+              {t("boq.auto_synced_from_boq", { count: row?.boqItemCount ?? 0 })}
+            </p>
+          )}
+        </div>
+        <div className="space-y-1.5">
+          <Label>{t("boq.default_billing_mode")}</Label>
+          <Select
+            value={form.defaultBillingMode}
+            disabled={!isActive}
+            onValueChange={(v) => setForm((f) => ({ ...f, defaultBillingMode: v as "qty" | "progress" }))}
+          >
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="qty">{t("boq.mode_qty")}</SelectItem>
+              <SelectItem value="progress">{t("boq.mode_progress")}</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
         <div className="space-y-1.5">
           <Label>{t("certificates.retention_pct")}</Label>

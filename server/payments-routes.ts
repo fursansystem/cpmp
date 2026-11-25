@@ -8,7 +8,7 @@
 // (the licences themselves live in الرخص والمعاملات, see permits-routes.ts).
 import type { Express, Request, Response } from "express";
 import { z } from "zod";
-import { and, desc, eq, inArray, isNotNull, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNotNull, ne, sql } from "drizzle-orm";
 import { db } from "./db";
 import { storage } from "./storage";
 import {
@@ -22,6 +22,8 @@ import {
   paymentChargebacks,
   projectSubcontractors,
   subcontractorContracts,
+  subcontractorContractBoqItems,
+  subcontractorCertificateBoqLines,
   paymentOrders,
   paymentSubcontractorCertificates,
   materialIssues,
@@ -32,6 +34,18 @@ import {
   users,
   type Project,
 } from "@shared/schema";
+import {
+  BOQ_BILLING_MODES,
+  computeBoqContractAmount,
+  computeBoqLine,
+  roundMoney,
+  roundPct,
+  roundQty,
+  summarizeBoqLines,
+  validateCertificateBoqLine,
+  type BoqBillingMode,
+  type CertificateBoqLineDto,
+} from "@shared/subcontractor-boq";
 import { ProjectPermissions, type PermissionUser } from "@shared/permissions";
 import {
   computeSubCert,
@@ -70,13 +84,13 @@ interface Deps {
 }
 
 class PaymentsError extends Error {
-  constructor(public status: number, message: string) {
+  constructor(public status: number, message: string, public extra?: Record<string, unknown>) {
     super(message);
   }
 }
 
-const fail = (status: number, message: string): never => {
-  throw new PaymentsError(status, message);
+const fail = (status: number, message: string, extra?: Record<string, unknown>): never => {
+  throw new PaymentsError(status, message, extra);
 };
 
 // Only the exact job title "Accountant" counts. "محاسب كميات" (quantity surveyor) contains the
@@ -167,6 +181,39 @@ const invoiceSchema = z.object({
   notes: optText(500),
 });
 
+const boqBillingModeSchema = z.enum(BOQ_BILLING_MODES as unknown as [string, ...string[]]).default("qty");
+
+const contractBoqItemInputSchema = z.object({
+  id: z.string().min(1).optional(),
+  projectBoqItemId: z.string().nullish().transform((v) => v || null),
+  sortOrder: z.coerce.number().int().min(0).default(0),
+  section: optText(200),
+  itemCode: z.string().trim().min(1, "Item code is required").max(80),
+  costCode: optText(80),
+  description: z.string().trim().min(1, "Description is required").max(1000),
+  unit: z.string().trim().min(1, "Unit is required").max(40).default("LS"),
+  billingMode: boqBillingModeSchema,
+  contractQty: z.coerce.number().min(0).max(1e12).default(1),
+  unitRate: z.coerce.number().min(0).max(1e12).default(0),
+  isVariation: z.boolean().default(false),
+  variationRef: optText(80),
+  notes: optText(1000),
+});
+
+const contractBoqBulkSaveSchema = z.object({
+  items: z.array(contractBoqItemInputSchema).max(1000),
+});
+
+const certBoqLineInputSchema = z.object({
+  contractBoqItemId: z.string().min(1),
+  source: z.enum(["current", "cumulative"]).optional(),
+  currentQty: z.coerce.number().min(-1e12).max(1e12).optional(),
+  cumulativeQty: z.coerce.number().min(-1e12).max(1e12).optional(),
+  currentPercent: z.coerce.number().min(-1000).max(1000).optional(),
+  cumulativePercent: z.coerce.number().min(-1000).max(1000).optional(),
+  notes: optText(1000),
+});
+
 const subCertBase = {
   subcontractorId: z.string().min(1, "Subcontractor is required"),
   contractId: z.string().nullish().transform((v) => v || null),
@@ -182,6 +229,7 @@ const subCertBase = {
   deductionsNote: optText(1000),
   vatPercent: z.coerce.number().min(0).max(100).default(0),
   notes: optText(),
+  boqLines: z.array(certBoqLineInputSchema).max(1000).optional(),
 };
 const subCertCreateSchema = z.object({ projectId: z.string().min(1), ...subCertBase });
 const subCertUpdateSchema = z.object(subCertBase);
@@ -193,6 +241,7 @@ const subContractBase = {
   contractValue: money.default(0),
   retentionPercent: z.coerce.number().min(0).max(100).default(10),
   vatPercent: z.coerce.number().min(0).max(100).default(15),
+  defaultBillingMode: boqBillingModeSchema,
   startDate: optDate,
   endDate: optDate,
   workLocationIds: z.array(z.string().min(1)).max(500).optional().default([]),
@@ -353,8 +402,86 @@ export function registerPaymentsRoutes(app: Express, deps: Deps) {
     );
   `).then(() => {
     return db.execute(sql`
+      ALTER TABLE subcontractor_contracts ADD COLUMN IF NOT EXISTS default_billing_mode TEXT NOT NULL DEFAULT 'qty';
       ALTER TABLE payment_subcontractor_certificates ADD COLUMN IF NOT EXISTS contract_id VARCHAR REFERENCES subcontractor_contracts(id) ON DELETE SET NULL;
       ALTER TABLE payment_subcontractor_certificates ADD COLUMN IF NOT EXISTS work_location_ids TEXT[] NOT NULL DEFAULT '{}'::text[];
+      ALTER TABLE payment_subcontractor_certificates ADD COLUMN IF NOT EXISTS boq_mode TEXT NOT NULL DEFAULT 'manual';
+      CREATE TABLE IF NOT EXISTS project_boq_items (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        project_id VARCHAR NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+        sort_order INTEGER NOT NULL DEFAULT 0,
+        section TEXT,
+        item_code TEXT NOT NULL,
+        cost_code TEXT,
+        description TEXT NOT NULL,
+        unit TEXT NOT NULL DEFAULT 'LS',
+        billing_mode TEXT NOT NULL DEFAULT 'qty',
+        contract_qty DECIMAL(14, 4) NOT NULL DEFAULT 1,
+        unit_rate DECIMAL(14, 2) NOT NULL DEFAULT 0,
+        total_amount DECIMAL(14, 2) NOT NULL DEFAULT 0,
+        notes TEXT,
+        created_by VARCHAR REFERENCES users(id) ON DELETE SET NULL,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS project_boq_items_project_idx ON project_boq_items (project_id, sort_order);
+      CREATE TABLE IF NOT EXISTS subcontractor_contract_boq_items (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        project_id VARCHAR NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+        contract_id VARCHAR NOT NULL REFERENCES subcontractor_contracts(id) ON DELETE CASCADE,
+        project_boq_item_id VARCHAR REFERENCES project_boq_items(id) ON DELETE SET NULL,
+        sort_order INTEGER NOT NULL DEFAULT 0,
+        section TEXT,
+        item_code TEXT NOT NULL,
+        cost_code TEXT,
+        description TEXT NOT NULL,
+        unit TEXT NOT NULL DEFAULT 'LS',
+        billing_mode TEXT NOT NULL DEFAULT 'qty',
+        contract_qty DECIMAL(14, 4) NOT NULL DEFAULT 1,
+        unit_rate DECIMAL(14, 2) NOT NULL DEFAULT 0,
+        contract_amount DECIMAL(14, 2) NOT NULL DEFAULT 0,
+        is_variation BOOLEAN NOT NULL DEFAULT false,
+        variation_ref TEXT,
+        notes TEXT,
+        created_by VARCHAR REFERENCES users(id) ON DELETE SET NULL,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS sub_contract_boq_contract_idx ON subcontractor_contract_boq_items (contract_id, sort_order);
+      CREATE INDEX IF NOT EXISTS sub_contract_boq_project_idx ON subcontractor_contract_boq_items (project_id);
+      CREATE INDEX IF NOT EXISTS sub_contract_boq_master_idx ON subcontractor_contract_boq_items (project_boq_item_id);
+      CREATE TABLE IF NOT EXISTS subcontractor_certificate_boq_lines (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        project_id VARCHAR NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+        certificate_id VARCHAR NOT NULL REFERENCES payment_subcontractor_certificates(id) ON DELETE CASCADE,
+        contract_boq_item_id VARCHAR REFERENCES subcontractor_contract_boq_items(id) ON DELETE SET NULL,
+        sort_order INTEGER NOT NULL DEFAULT 0,
+        section TEXT,
+        item_code TEXT NOT NULL,
+        cost_code TEXT,
+        description TEXT NOT NULL,
+        unit TEXT NOT NULL DEFAULT 'LS',
+        billing_mode TEXT NOT NULL DEFAULT 'qty',
+        is_variation BOOLEAN NOT NULL DEFAULT false,
+        variation_ref TEXT,
+        contract_qty DECIMAL(14, 4) NOT NULL DEFAULT 1,
+        unit_rate DECIMAL(14, 2) NOT NULL DEFAULT 0,
+        contract_amount DECIMAL(14, 2) NOT NULL DEFAULT 0,
+        previous_qty DECIMAL(14, 4) NOT NULL DEFAULT 0,
+        current_qty DECIMAL(14, 4) NOT NULL DEFAULT 0,
+        cumulative_qty DECIMAL(14, 4) NOT NULL DEFAULT 0,
+        previous_percent DECIMAL(7, 4) NOT NULL DEFAULT 0,
+        current_percent DECIMAL(7, 4) NOT NULL DEFAULT 0,
+        cumulative_percent DECIMAL(7, 4) NOT NULL DEFAULT 0,
+        previous_amount DECIMAL(14, 2) NOT NULL DEFAULT 0,
+        current_amount DECIMAL(14, 2) NOT NULL DEFAULT 0,
+        cumulative_amount DECIMAL(14, 2) NOT NULL DEFAULT 0,
+        notes TEXT,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS sub_cert_boq_lines_cert_idx ON subcontractor_certificate_boq_lines (certificate_id, sort_order);
+      CREATE INDEX IF NOT EXISTS sub_cert_boq_lines_item_idx ON subcontractor_certificate_boq_lines (contract_boq_item_id);
     `);
   }).catch((err) => {
     console.error("[Payments] Could not ensure subcontractor_contracts table:", err?.message);
@@ -401,7 +528,7 @@ export function registerPaymentsRoutes(app: Express, deps: Deps) {
         const [perms, visible] = await Promise.all([computePerms(cu), loadVisibleProjects(cu)]);
         await handler(req, res, { cu, perms, projects: visible, projectIds: new Set(visible.map((p) => p.id)) });
       } catch (error) {
-        if (error instanceof PaymentsError) return res.status(error.status).json({ error: error.message });
+        if (error instanceof PaymentsError) return res.status(error.status).json({ error: error.message, ...(error.extra ?? {}) });
         if (error instanceof z.ZodError) {
           return res.status(400).json({ error: error.issues.map((e: any) => e.message).join("; ") });
         }
@@ -855,7 +982,7 @@ export function registerPaymentsRoutes(app: Express, deps: Deps) {
         approvedByName: userName.get(c.approvedBy ?? "") ?? null,
       })),
       subcontractors: decorate(subcontractorRows),
-      subcontractorContracts: decorate(contractRows),
+      subcontractorContracts: await enrichContractsWithBoqStats(decorate(contractRows)),
       chargebacks: (await withAttachments("chargeback", decorate(chargebackRows))).map((c) => {
         const invoice = invoiceRows.find((i) => i.id === c.invoiceId);
         const bill = bills.find((b) => b.id === c.billRequestId);
@@ -1565,7 +1692,214 @@ export function registerPaymentsRoutes(app: Express, deps: Deps) {
     res.status(204).send();
   }));
 
-  // ---- Subcontractor Contracts (عقود مقاولي الباطن) ----
+  // ---- Subcontractor Contracts & BOQ (عقود مقاولي الباطن وجداول الكميات) ----
+  const enrichContractsWithBoqStats = async <T extends { id: string }>(rows: T[]) => {
+    if (rows.length === 0) return [] as (T & { boqItemCount: number; boqOriginalTotal: number; boqVariationsTotal: number })[];
+    const contractIds = rows.map((r) => r.id);
+    const boqRows = await db
+      .select({
+        contractId: subcontractorContractBoqItems.contractId,
+        contractAmount: subcontractorContractBoqItems.contractAmount,
+        isVariation: subcontractorContractBoqItems.isVariation,
+      })
+      .from(subcontractorContractBoqItems)
+      .where(inArray(subcontractorContractBoqItems.contractId, contractIds))
+      .catch(() => []);
+    const statsByContract = new Map<string, { count: number; orig: number; vo: number }>();
+    for (const b of boqRows) {
+      const cur = statsByContract.get(b.contractId) ?? { count: 0, orig: 0, vo: 0 };
+      cur.count += 1;
+      if (b.isVariation) cur.vo += n(b.contractAmount);
+      else cur.orig += n(b.contractAmount);
+      statsByContract.set(b.contractId, cur);
+    }
+    return rows.map((r) => {
+      const s = statsByContract.get(r.id);
+      return {
+        ...r,
+        boqItemCount: s?.count ?? 0,
+        boqOriginalTotal: roundMoney(s?.orig ?? 0),
+        boqVariationsTotal: roundMoney(s?.vo ?? 0),
+      };
+    });
+  };
+
+  // Certified totals per contract BOQ item aggregated from all approved & paid certificates on the contract
+  const getCertifiedBoqAggregates = async (contractId: string, excludeCertId?: string) => {
+    const certConds = [
+      eq(paymentSubcontractorCertificates.contractId, contractId),
+      inArray(paymentSubcontractorCertificates.status, ["approved", "paid"]),
+    ];
+    if (excludeCertId) certConds.push(ne(paymentSubcontractorCertificates.id, excludeCertId));
+    const approvedCerts = await db
+      .select({ id: paymentSubcontractorCertificates.id })
+      .from(paymentSubcontractorCertificates)
+      .where(and(...certConds));
+    const map = new Map<
+      string,
+      { previousQty: number; previousPercent: number; previousAmount: number; certIds: Set<string> }
+    >();
+    if (approvedCerts.length === 0) return map;
+
+    const lines = await db
+      .select()
+      .from(subcontractorCertificateBoqLines)
+      .where(
+        inArray(
+          subcontractorCertificateBoqLines.certificateId,
+          approvedCerts.map((c) => c.id),
+        ),
+      );
+
+    for (const l of lines) {
+      if (!l.contractBoqItemId) continue;
+      const cur = map.get(l.contractBoqItemId) ?? {
+        previousQty: 0,
+        previousPercent: 0,
+        previousAmount: 0,
+        certIds: new Set<string>(),
+      };
+      cur.previousQty = roundQty(cur.previousQty + n(l.currentQty));
+      cur.previousPercent = roundPct(cur.previousPercent + n(l.currentPercent));
+      cur.previousAmount = roundMoney(cur.previousAmount + n(l.currentAmount));
+      cur.certIds.add(l.certificateId);
+      map.set(l.contractBoqItemId, cur);
+    }
+    return map;
+  };
+
+  const findOpenContractCert = async (contractId: string, excludeCertId?: string) => {
+    const conds = [
+      eq(paymentSubcontractorCertificates.contractId, contractId),
+      inArray(paymentSubcontractorCertificates.status, ["draft", "submitted", "rejected"]),
+    ];
+    if (excludeCertId) conds.push(ne(paymentSubcontractorCertificates.id, excludeCertId));
+    const [open] = await db
+      .select({
+        id: paymentSubcontractorCertificates.id,
+        certNo: paymentSubcontractorCertificates.certNo,
+        status: paymentSubcontractorCertificates.status,
+      })
+      .from(paymentSubcontractorCertificates)
+      .where(and(...conds))
+      .orderBy(desc(paymentSubcontractorCertificates.createdAt))
+      .limit(1);
+    return open ?? null;
+  };
+
+  const serializeBoqLineRow = (l: typeof subcontractorCertificateBoqLines.$inferSelect): CertificateBoqLineDto => ({
+    id: l.id,
+    contractBoqItemId: l.contractBoqItemId ?? null,
+    sortOrder: l.sortOrder,
+    section: l.section,
+    itemCode: l.itemCode,
+    costCode: l.costCode,
+    description: l.description,
+    unit: l.unit,
+    billingMode: (l.billingMode === "progress" ? "progress" : "qty") as BoqBillingMode,
+    isVariation: Boolean(l.isVariation),
+    variationRef: l.variationRef,
+    contractQty: n(l.contractQty),
+    unitRate: n(l.unitRate),
+    contractAmount: n(l.contractAmount),
+    previousQty: n(l.previousQty),
+    currentQty: n(l.currentQty),
+    cumulativeQty: n(l.cumulativeQty),
+    previousPercent: n(l.previousPercent),
+    currentPercent: n(l.currentPercent),
+    cumulativePercent: n(l.cumulativePercent),
+    previousAmount: n(l.previousAmount),
+    currentAmount: n(l.currentAmount),
+    cumulativeAmount: n(l.cumulativeAmount),
+    notes: l.notes,
+  });
+
+  const buildCertBoqLinesFromContract = async (
+    contractId: string,
+    inputs: z.infer<typeof certBoqLineInputSchema>[] | undefined,
+    excludeCertId?: string,
+  ) => {
+    const boqItems = await db
+      .select()
+      .from(subcontractorContractBoqItems)
+      .where(eq(subcontractorContractBoqItems.contractId, contractId))
+      .orderBy(asc(subcontractorContractBoqItems.sortOrder), asc(subcontractorContractBoqItems.createdAt));
+
+    if (boqItems.length === 0) {
+      return { hasBoq: false as const, lines: [] as CertificateBoqLineDto[], summary: null };
+    }
+
+    const prevAgg = await getCertifiedBoqAggregates(contractId, excludeCertId);
+    const inputByItemId = new Map((inputs ?? []).map((i) => [i.contractBoqItemId, i]));
+
+    const lines: CertificateBoqLineDto[] = boqItems.map((item, idx) => {
+      const mode: BoqBillingMode = item.billingMode === "progress" ? "progress" : "qty";
+      const contractQty = n(item.contractQty);
+      const unitRate = n(item.unitRate);
+      const contractAmount = n(item.contractAmount) || computeBoqContractAmount(contractQty, unitRate);
+      const prev = prevAgg.get(item.id);
+      const prevQty = prev?.previousQty ?? 0;
+      const prevPct = prev?.previousPercent ?? 0;
+      const prevAmt = prev?.previousAmount ?? 0;
+      const inp = inputByItemId.get(item.id);
+
+      const computed = computeBoqLine({
+        billingMode: mode,
+        contractQty,
+        unitRate,
+        contractAmount,
+        previousQty: prevQty,
+        previousPercent: prevPct,
+        previousAmount: prevAmt,
+        source: inp?.source,
+        currentQty: inp?.currentQty,
+        cumulativeQty: inp?.cumulativeQty,
+        currentPercent: inp?.currentPercent,
+        cumulativePercent: inp?.cumulativePercent,
+      });
+
+      const errs = validateCertificateBoqLine({
+        billingMode: mode,
+        cumulativeQty: computed.cumulativeQty,
+        cumulativePercent: computed.cumulativePercent,
+      });
+      if (errs.includes("cumulative_below_zero")) {
+        fail(400, `BOQ item ${item.itemCode}: cumulative value cannot be negative`);
+      }
+      if (errs.includes("progress_exceeds_100")) {
+        fail(400, `BOQ item ${item.itemCode}: progress percentage cannot exceed 100%`);
+      }
+
+      return {
+        contractBoqItemId: item.id,
+        sortOrder: idx,
+        section: item.section,
+        itemCode: item.itemCode,
+        costCode: item.costCode,
+        description: item.description,
+        unit: item.unit,
+        billingMode: mode,
+        isVariation: Boolean(item.isVariation),
+        variationRef: item.variationRef,
+        contractQty,
+        unitRate,
+        contractAmount: computed.contractAmount,
+        previousQty: computed.previousQty,
+        currentQty: computed.currentQty,
+        cumulativeQty: computed.cumulativeQty,
+        previousPercent: computed.previousPercent,
+        currentPercent: computed.currentPercent,
+        cumulativePercent: computed.cumulativePercent,
+        previousAmount: computed.previousAmount,
+        currentAmount: computed.currentAmount,
+        cumulativeAmount: computed.cumulativeAmount,
+        notes: inp?.notes ?? null,
+      };
+    });
+
+    return { hasBoq: true as const, lines, summary: summarizeBoqLines(lines) };
+  };
+
   const loadSubContract = async (ctx: Ctx, id: string) => {
     const [row] = await db.select().from(subcontractorContracts).where(eq(subcontractorContracts.id, id));
     if (!row || !ctx.projectIds.has(row.projectId)) return fail(404, "Subcontractor contract not found");
@@ -1575,13 +1909,12 @@ export function registerPaymentsRoutes(app: Express, deps: Deps) {
   app.get(`${base}/subcontractor-contracts`, route(async (req, res, ctx) => {
     const ids = scopedIds(ctx, req.query.projectId);
     if (ids.length === 0) return res.json([]);
-    res.json(
-      await db
-        .select()
-        .from(subcontractorContracts)
-        .where(inArray(subcontractorContracts.projectId, ids))
-        .orderBy(desc(subcontractorContracts.createdAt))
-    );
+    const rows = await db
+      .select()
+      .from(subcontractorContracts)
+      .where(inArray(subcontractorContracts.projectId, ids))
+      .orderBy(desc(subcontractorContracts.createdAt));
+    res.json(await enrichContractsWithBoqStats(rows));
   }));
 
   app.post(`${base}/subcontractor-contracts`, route(async (req, res, ctx) => {
@@ -1601,6 +1934,7 @@ export function registerPaymentsRoutes(app: Express, deps: Deps) {
         contractValue: String(rest.contractValue),
         retentionPercent: String(rest.retentionPercent),
         vatPercent: String(rest.vatPercent),
+        defaultBillingMode: rest.defaultBillingMode,
         startDate: rest.startDate,
         endDate: rest.endDate,
         workLocationIds: rest.workLocationIds ?? [],
@@ -1611,7 +1945,7 @@ export function registerPaymentsRoutes(app: Express, deps: Deps) {
       return row;
     });
     broadcast(projectId, ctx);
-    res.status(201).json(created);
+    res.status(201).json({ ...created, boqItemCount: 0, boqOriginalTotal: 0, boqVariationsTotal: 0 });
   }));
 
   app.patch(`${base}/subcontractor-contracts/:id`, route(async (req, res, ctx) => {
@@ -1619,14 +1953,24 @@ export function registerPaymentsRoutes(app: Express, deps: Deps) {
     if (row.status !== "active") return fail(409, "A settled or terminated contract cannot be edited");
     const d = subContractUpdateSchema.parse(req.body);
     const sub = await resolveSubcontractor(row.projectId, d.subcontractorId);
+    // If contract has BOQ items, keep contractValue synced to the BOQ revised total
+    const existingBoq = await db
+      .select({ contractAmount: subcontractorContractBoqItems.contractAmount })
+      .from(subcontractorContractBoqItems)
+      .where(eq(subcontractorContractBoqItems.contractId, row.id));
+    const effectiveContractValue =
+      existingBoq.length > 0
+        ? roundMoney(existingBoq.reduce((s, x) => s + n(x.contractAmount), 0))
+        : d.contractValue;
     await db.update(subcontractorContracts).set({
       subcontractorId: sub.id,
       subcontractorName: sub.name,
       title: d.title,
       scope: d.scope,
-      contractValue: String(d.contractValue),
+      contractValue: String(effectiveContractValue),
       retentionPercent: String(d.retentionPercent),
       vatPercent: String(d.vatPercent),
+      defaultBillingMode: d.defaultBillingMode,
       startDate: d.startDate,
       endDate: d.endDate,
       workLocationIds: d.workLocationIds ?? [],
@@ -1635,6 +1979,228 @@ export function registerPaymentsRoutes(app: Express, deps: Deps) {
     }).where(eq(subcontractorContracts.id, row.id));
     broadcast(row.projectId, ctx);
     res.json({ ok: true });
+  }));
+
+  // ---- Contract BOQ Management Endpoints ----
+  app.get(`${base}/subcontractor-contracts/:id/boq`, route(async (req, res, ctx) => {
+    const contract = await loadSubContract(ctx, req.params.id);
+    const [boqRows, prevAgg, openCert] = await Promise.all([
+      db
+        .select()
+        .from(subcontractorContractBoqItems)
+        .where(eq(subcontractorContractBoqItems.contractId, contract.id))
+        .orderBy(asc(subcontractorContractBoqItems.sortOrder), asc(subcontractorContractBoqItems.createdAt)),
+      getCertifiedBoqAggregates(contract.id),
+      findOpenContractCert(contract.id),
+    ]);
+
+    let originalTotal = 0;
+    let variationsTotal = 0;
+    let certifiedTotal = 0;
+
+    const items = boqRows.map((item) => {
+      const mode: BoqBillingMode = item.billingMode === "progress" ? "progress" : "qty";
+      const contractQty = n(item.contractQty);
+      const unitRate = n(item.unitRate);
+      const contractAmount = n(item.contractAmount) || computeBoqContractAmount(contractQty, unitRate);
+      const agg = prevAgg.get(item.id);
+      const certifiedQty = agg?.previousQty ?? 0;
+      const certifiedAmount = agg?.previousAmount ?? 0;
+      const certifiedPercent =
+        mode === "progress"
+          ? agg?.previousPercent ?? 0
+          : contractQty > 0
+            ? roundPct((certifiedQty / contractQty) * 100)
+            : 0;
+      const certifiedCertCount = agg?.certIds.size ?? 0;
+
+      if (item.isVariation) variationsTotal += contractAmount;
+      else originalTotal += contractAmount;
+      certifiedTotal += certifiedAmount;
+
+      return {
+        id: item.id,
+        projectBoqItemId: item.projectBoqItemId,
+        sortOrder: item.sortOrder,
+        section: item.section,
+        itemCode: item.itemCode,
+        costCode: item.costCode,
+        description: item.description,
+        unit: item.unit,
+        billingMode: mode,
+        contractQty,
+        unitRate,
+        contractAmount,
+        isVariation: Boolean(item.isVariation),
+        variationRef: item.variationRef,
+        notes: item.notes,
+        certifiedQty,
+        certifiedPercent,
+        certifiedAmount,
+        certifiedCertCount,
+        isLocked: certifiedCertCount > 0,
+      };
+    });
+
+    originalTotal = roundMoney(originalTotal);
+    variationsTotal = roundMoney(variationsTotal);
+    const revisedTotal = roundMoney(originalTotal + variationsTotal);
+    certifiedTotal = roundMoney(certifiedTotal);
+
+    res.json({
+      contract: {
+        id: contract.id,
+        contractNo: contract.contractNo,
+        title: contract.title,
+        subcontractorName: contract.subcontractorName,
+        status: contract.status,
+        defaultBillingMode: contract.defaultBillingMode || "qty",
+        contractValue: n(contract.contractValue),
+      },
+      items,
+      summary: {
+        itemCount: items.length,
+        originalTotal,
+        variationsTotal,
+        revisedTotal,
+        certifiedTotal,
+        remainingTotal: roundMoney(revisedTotal - certifiedTotal),
+        progressPercent: revisedTotal > 0 ? roundMoney((certifiedTotal / revisedTotal) * 100) : 0,
+      },
+      openCertificate: openCert,
+    });
+  }));
+
+  app.put(`${base}/subcontractor-contracts/:id/boq`, route(async (req, res, ctx) => {
+    const contract = await loadSubContract(ctx, req.params.id);
+    if (contract.status !== "active") return fail(409, "A settled or terminated contract BOQ cannot be edited");
+    const { items } = contractBoqBulkSaveSchema.parse(req.body);
+
+    const [existingRows, prevAgg] = await Promise.all([
+      db
+        .select()
+        .from(subcontractorContractBoqItems)
+        .where(eq(subcontractorContractBoqItems.contractId, contract.id)),
+      getCertifiedBoqAggregates(contract.id),
+    ]);
+
+    const existingById = new Map(existingRows.map((r) => [r.id, r]));
+    const incomingIds = new Set(items.map((i) => i.id).filter(Boolean) as string[]);
+
+    // Commercial integrity guard: certified BOQ items cannot be deleted or have billingMode/unitRate mutated
+    for (const ex of existingRows) {
+      const isCertified = (prevAgg.get(ex.id)?.certIds.size ?? 0) > 0;
+      if (!isCertified) continue;
+      if (!incomingIds.has(ex.id)) {
+        return fail(409, `BOQ item "${ex.itemCode}" is already certified on an approved/paid certificate and cannot be deleted.`);
+      }
+      const next = items.find((i) => i.id === ex.id);
+      if (next) {
+        if (next.billingMode !== ex.billingMode) {
+          return fail(409, `BOQ item "${ex.itemCode}" is already certified; its billing mode cannot be changed. Add a Variation (VO) item instead.`);
+        }
+        if (Math.abs(roundMoney(next.unitRate) - roundMoney(n(ex.unitRate))) > 0.005) {
+          return fail(409, `BOQ item "${ex.itemCode}" is already certified; its unit rate cannot be altered. Add a Variation (VO) item instead.`);
+        }
+      }
+    }
+
+    const now = new Date();
+    let revisedTotal = 0;
+
+    await db.transaction(async (tx) => {
+      // Delete uncertified removed items
+      const toDelete = existingRows.filter((ex) => !incomingIds.has(ex.id)).map((ex) => ex.id);
+      if (toDelete.length > 0) {
+        await tx
+          .delete(subcontractorContractBoqItems)
+          .where(and(eq(subcontractorContractBoqItems.contractId, contract.id), inArray(subcontractorContractBoqItems.id, toDelete)));
+      }
+
+      for (let idx = 0; idx < items.length; idx++) {
+        const it = items[idx];
+        const qty = roundQty(it.contractQty);
+        const rate = roundMoney(it.unitRate);
+        const amt = computeBoqContractAmount(qty, rate);
+        revisedTotal += amt;
+
+        const existing = it.id ? existingById.get(it.id) : undefined;
+        if (existing) {
+          await tx
+            .update(subcontractorContractBoqItems)
+            .set({
+              projectBoqItemId: it.projectBoqItemId ?? null,
+              sortOrder: idx,
+              section: it.section ?? null,
+              itemCode: it.itemCode,
+              costCode: it.costCode ?? null,
+              description: it.description,
+              unit: it.unit,
+              billingMode: it.billingMode,
+              contractQty: String(qty),
+              unitRate: String(rate),
+              contractAmount: String(amt),
+              isVariation: it.isVariation,
+              variationRef: it.isVariation ? it.variationRef ?? null : null,
+              notes: it.notes ?? null,
+              updatedAt: now,
+            })
+            .where(eq(subcontractorContractBoqItems.id, existing.id));
+        } else {
+          await tx.insert(subcontractorContractBoqItems).values({
+            projectId: contract.projectId,
+            contractId: contract.id,
+            projectBoqItemId: it.projectBoqItemId ?? null,
+            sortOrder: idx,
+            section: it.section ?? null,
+            itemCode: it.itemCode,
+            costCode: it.costCode ?? null,
+            description: it.description,
+            unit: it.unit,
+            billingMode: it.billingMode,
+            contractQty: String(qty),
+            unitRate: String(rate),
+            contractAmount: String(amt),
+            isVariation: it.isVariation,
+            variationRef: it.isVariation ? it.variationRef ?? null : null,
+            notes: it.notes ?? null,
+            createdBy: ctx.cu.user.id,
+            createdAt: now,
+            updatedAt: now,
+          });
+        }
+      }
+
+      // Auto-sync contractValue whenever BOQ has >= 1 item
+      if (items.length > 0) {
+        await tx
+          .update(subcontractorContracts)
+          .set({ contractValue: String(roundMoney(revisedTotal)), updatedAt: now })
+          .where(eq(subcontractorContracts.id, contract.id));
+      }
+    });
+
+    broadcast(contract.projectId, ctx);
+    res.json({ ok: true, itemCount: items.length, revisedTotal: roundMoney(revisedTotal) });
+  }));
+
+  // Preview ready-to-fill Certificate BOQ lines (with authoritative Previous from approved/paid certs) + Strict Sequential check
+  app.get(`${base}/subcontractor-contracts/:id/boq-preview`, route(async (req, res, ctx) => {
+    const contract = await loadSubContract(ctx, req.params.id);
+    const excludeCertId = typeof req.query.excludeCertId === "string" && req.query.excludeCertId ? req.query.excludeCertId : undefined;
+    const [openCert, built] = await Promise.all([
+      findOpenContractCert(contract.id, excludeCertId),
+      buildCertBoqLinesFromContract(contract.id, undefined, excludeCertId),
+    ]);
+    res.json({
+      contractId: contract.id,
+      contractNo: contract.contractNo,
+      defaultBillingMode: contract.defaultBillingMode || "qty",
+      hasBoq: built.hasBoq,
+      lines: built.lines,
+      summary: built.summary,
+      openCertificate: openCert,
+    });
   }));
 
   app.post(`${base}/subcontractor-contracts/:id/transition`, route(async (req, res, ctx) => {
@@ -1728,8 +2294,27 @@ export function registerPaymentsRoutes(app: Express, deps: Deps) {
       if (cnt.status !== "active") {
         return fail(409, "Cannot raise a new certificate on a settled or terminated contract");
       }
+      // Strict Sequential Guard: only one open (draft/submitted/rejected) certificate allowed per contract
+      const openCert = await findOpenContractCert(cnt.id);
+      if (openCert) {
+        return fail(
+          409,
+          `An open certificate (${openCert.certNo}) already exists for this contract. Approve or cancel it before creating a new certificate.`,
+          { code: "OPEN_CERTIFICATE_EXISTS", openCertificateId: openCert.id, openCertNo: openCert.certNo, openStatus: openCert.status },
+        );
+      }
       contractId = cnt.id;
     }
+
+    // If linked contract has a BOQ, compute lines & Work Value (grossAmount) authoritatively on the server
+    const boqResult = contractId
+      ? await buildCertBoqLinesFromContract(contractId, rest.boqLines)
+      : { hasBoq: false as const, lines: [] as CertificateBoqLineDto[], summary: null };
+
+    const effectiveRest = boqResult.hasBoq && boqResult.summary
+      ? { ...rest, contractValue: boqResult.summary.revisedContractTotal, grossAmount: boqResult.summary.currentTotal }
+      : rest;
+
     const created = await insertNumbered(paymentSubcontractorCertificates, projectId, async (seq) => {
       const [row] = await db.insert(paymentSubcontractorCertificates).values({
         projectId,
@@ -1738,34 +2323,85 @@ export function registerPaymentsRoutes(app: Express, deps: Deps) {
         subcontractorId: sub.id,
         subcontractorName: sub.name,
         contractId,
-        workLocationIds: rest.workLocationIds ?? [],
-        scope: rest.scope,
-        contractValue: String(rest.contractValue),
-        periodFrom: rest.periodFrom,
-        periodTo: rest.periodTo,
-        deductionsNote: rest.deductionsNote,
-        notes: rest.notes,
-        ...subCertFigures(rest),
+        workLocationIds: effectiveRest.workLocationIds ?? [],
+        scope: effectiveRest.scope,
+        contractValue: String(effectiveRest.contractValue),
+        boqMode: boqResult.hasBoq ? "boq" : "manual",
+        periodFrom: effectiveRest.periodFrom,
+        periodTo: effectiveRest.periodTo,
+        deductionsNote: effectiveRest.deductionsNote,
+        notes: effectiveRest.notes,
+        ...subCertFigures(effectiveRest),
         createdBy: ctx.cu.user.id,
       }).returning();
       return row;
     });
+
+    if (boqResult.hasBoq && boqResult.lines.length > 0) {
+      await db.insert(subcontractorCertificateBoqLines).values(
+        boqResult.lines.map((l, idx) => ({
+          projectId,
+          certificateId: created.id,
+          contractBoqItemId: l.contractBoqItemId,
+          sortOrder: idx,
+          section: l.section ?? null,
+          itemCode: l.itemCode,
+          costCode: l.costCode ?? null,
+          description: l.description,
+          unit: l.unit,
+          billingMode: l.billingMode,
+          isVariation: l.isVariation,
+          variationRef: l.variationRef ?? null,
+          contractQty: String(l.contractQty),
+          unitRate: String(l.unitRate),
+          contractAmount: String(l.contractAmount),
+          previousQty: String(l.previousQty),
+          currentQty: String(l.currentQty),
+          cumulativeQty: String(l.cumulativeQty),
+          previousPercent: String(l.previousPercent),
+          currentPercent: String(l.currentPercent),
+          cumulativePercent: String(l.cumulativePercent),
+          previousAmount: String(l.previousAmount),
+          currentAmount: String(l.currentAmount),
+          cumulativeAmount: String(l.cumulativeAmount),
+          notes: l.notes ?? null,
+        })),
+      );
+    }
+
     await log(projectId, "subcontractor_certificate", created.id, "created", ctx.cu.user.id, { to: "draft" });
     broadcast(projectId, ctx);
-    res.status(201).json(created);
+    res.status(201).json({ ...created, boqLines: boqResult.lines });
   }));
 
   app.get(`${base}/subcontractor-certificates/:id`, route(async (req, res, ctx) => {
     const row = await loadSubCert(ctx, req.params.id);
     const [withAtt] = await withAttachments("subcontractor_certificate", [row]);
-    const [user] = row.createdBy ? await db.select({ name: users.username }).from(users).where(eq(users.id, row.createdBy)) : [null];
-    const [approver] = row.approvedBy ? await db.select({ name: users.username }).from(users).where(eq(users.id, row.approvedBy)) : [null];
+    const [[user], [approver], boqLineRows, contractBoqInfo] = await Promise.all([
+      row.createdBy ? db.select({ name: users.username }).from(users).where(eq(users.id, row.createdBy)) : Promise.resolve([null]),
+      row.approvedBy ? db.select({ name: users.username }).from(users).where(eq(users.id, row.approvedBy)) : Promise.resolve([null]),
+      db
+        .select()
+        .from(subcontractorCertificateBoqLines)
+        .where(eq(subcontractorCertificateBoqLines.certificateId, row.id))
+        .orderBy(asc(subcontractorCertificateBoqLines.sortOrder), asc(subcontractorCertificateBoqLines.createdAt))
+        .catch(() => []),
+      row.contractId
+        ? db
+            .select({ count: sql<number>`COUNT(*)::int` })
+            .from(subcontractorContractBoqItems)
+            .where(eq(subcontractorContractBoqItems.contractId, row.contractId))
+            .catch(() => [{ count: 0 }])
+        : Promise.resolve([{ count: 0 }]),
+    ]);
     const project = ctx.projects.find((p) => p.id === row.projectId);
     res.json({
       ...withAtt,
       projectName: project?.name ?? "",
       createdByName: user?.name ?? null,
       approvedByName: approver?.name ?? null,
+      boqLines: boqLineRows.map(serializeBoqLineRow),
+      contractBoqCount: Number(contractBoqInfo[0]?.count ?? 0),
     });
   }));
 
@@ -1782,25 +2418,103 @@ export function registerPaymentsRoutes(app: Express, deps: Deps) {
       if (!cnt || cnt.projectId !== row.projectId || cnt.subcontractorId !== sub.id) {
         return fail(400, "Selected contract does not belong to this subcontractor");
       }
+      // Strict Sequential Guard when switching or saving against a contract
+      const openCert = await findOpenContractCert(cnt.id, row.id);
+      if (openCert) {
+        return fail(
+          409,
+          `An open certificate (${openCert.certNo}) already exists for this contract. Approve or cancel it before editing another certificate on this contract.`,
+          { code: "OPEN_CERTIFICATE_EXISTS", openCertificateId: openCert.id, openCertNo: openCert.certNo, openStatus: openCert.status },
+        );
+      }
       contractId = cnt.id;
     }
-    await db.update(paymentSubcontractorCertificates).set({
-      subcontractorId: sub.id,
-      subcontractorName: sub.name,
-      contractId,
-      workLocationIds: d.workLocationIds ?? [],
-      scope: d.scope,
-      contractValue: String(d.contractValue),
-      periodFrom: d.periodFrom,
-      periodTo: d.periodTo,
-      deductionsNote: d.deductionsNote,
-      notes: d.notes,
-      ...subCertFigures(d, n(row.chargebackDeductions)),
-      updatedAt: new Date(),
-    }).where(eq(paymentSubcontractorCertificates.id, row.id));
+
+    // If caller omitted boqLines on a legacy PATCH, reuse existing saved line inputs so nothing is zeroed out
+    let effectiveLineInputs = d.boqLines;
+    if (contractId && effectiveLineInputs === undefined) {
+      const savedLines = await db
+        .select()
+        .from(subcontractorCertificateBoqLines)
+        .where(eq(subcontractorCertificateBoqLines.certificateId, row.id));
+      if (savedLines.length > 0) {
+        effectiveLineInputs = savedLines
+          .filter((sl) => Boolean(sl.contractBoqItemId))
+          .map((sl) => ({
+            contractBoqItemId: sl.contractBoqItemId as string,
+            source: "current" as const,
+            currentQty: n(sl.currentQty),
+            currentPercent: n(sl.currentPercent),
+            notes: sl.notes,
+          }));
+      }
+    }
+
+    const boqResult = contractId
+      ? await buildCertBoqLinesFromContract(contractId, effectiveLineInputs, row.id)
+      : { hasBoq: false as const, lines: [] as CertificateBoqLineDto[], summary: null };
+
+    const effectiveD = boqResult.hasBoq && boqResult.summary
+      ? { ...d, contractValue: boqResult.summary.revisedContractTotal, grossAmount: boqResult.summary.currentTotal }
+      : d;
+
+    const now = new Date();
+    await db.transaction(async (tx) => {
+      await tx.update(paymentSubcontractorCertificates).set({
+        subcontractorId: sub.id,
+        subcontractorName: sub.name,
+        contractId,
+        workLocationIds: effectiveD.workLocationIds ?? [],
+        scope: effectiveD.scope,
+        contractValue: String(effectiveD.contractValue),
+        boqMode: boqResult.hasBoq ? "boq" : "manual",
+        periodFrom: effectiveD.periodFrom,
+        periodTo: effectiveD.periodTo,
+        deductionsNote: effectiveD.deductionsNote,
+        notes: effectiveD.notes,
+        ...subCertFigures(effectiveD, n(row.chargebackDeductions)),
+        updatedAt: now,
+      }).where(eq(paymentSubcontractorCertificates.id, row.id));
+
+      await tx.delete(subcontractorCertificateBoqLines).where(eq(subcontractorCertificateBoqLines.certificateId, row.id));
+      if (boqResult.hasBoq && boqResult.lines.length > 0) {
+        await tx.insert(subcontractorCertificateBoqLines).values(
+          boqResult.lines.map((l, idx) => ({
+            projectId: row.projectId,
+            certificateId: row.id,
+            contractBoqItemId: l.contractBoqItemId,
+            sortOrder: idx,
+            section: l.section ?? null,
+            itemCode: l.itemCode,
+            costCode: l.costCode ?? null,
+            description: l.description,
+            unit: l.unit,
+            billingMode: l.billingMode,
+            isVariation: l.isVariation,
+            variationRef: l.variationRef ?? null,
+            contractQty: String(l.contractQty),
+            unitRate: String(l.unitRate),
+            contractAmount: String(l.contractAmount),
+            previousQty: String(l.previousQty),
+            currentQty: String(l.currentQty),
+            cumulativeQty: String(l.cumulativeQty),
+            previousPercent: String(l.previousPercent),
+            currentPercent: String(l.currentPercent),
+            cumulativePercent: String(l.cumulativePercent),
+            previousAmount: String(l.previousAmount),
+            currentAmount: String(l.currentAmount),
+            cumulativeAmount: String(l.cumulativeAmount),
+            notes: l.notes ?? null,
+            createdAt: now,
+            updatedAt: now,
+          })),
+        );
+      }
+    });
+
     await log(row.projectId, "subcontractor_certificate", row.id, "edited", ctx.cu.user.id);
     broadcast(row.projectId, ctx);
-    res.json({ ok: true });
+    res.json({ ok: true, boqMode: boqResult.hasBoq ? "boq" : "manual", grossAmount: effectiveD.grossAmount });
   }));
 
   app.post(`${base}/subcontractor-certificates/:id/transition`, route(async (req, res, ctx) => {

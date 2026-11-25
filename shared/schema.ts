@@ -2768,6 +2768,7 @@ export const subcontractorContracts = pgTable("subcontractor_contracts", {
   contractValue: decimal("contract_value", { precision: 14, scale: 2 }).notNull().default("0"),
   retentionPercent: decimal("retention_percent", { precision: 5, scale: 2 }).notNull().default("10"),
   vatPercent: decimal("vat_percent", { precision: 5, scale: 2 }).notNull().default("15"),
+  defaultBillingMode: text("default_billing_mode").notNull().default("qty"), // qty | progress
   startDate: date("start_date"),
   endDate: date("end_date"),
   workLocationIds: text("work_location_ids").array().notNull().default(sql`'{}'::text[]`),
@@ -2784,6 +2785,56 @@ export const subcontractorContracts = pgTable("subcontractor_contracts", {
   seqUq: uniqueIndex("subcontractor_contracts_seq_uq").on(table.projectId, table.seq),
   projectIdx: index("subcontractor_contracts_project_idx").on(table.projectId),
   subIdx: index("subcontractor_contracts_sub_idx").on(table.subcontractorId),
+}));
+
+// جدول الكميات الرئيسي للمشروع: enterprise foundation for a project-level Master BOQ that contract BOQ items can link to
+export const projectBoqItems = pgTable("project_boq_items", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  projectId: varchar("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
+  sortOrder: integer("sort_order").notNull().default(0),
+  section: text("section"),
+  itemCode: text("item_code").notNull(),
+  costCode: text("cost_code"),
+  description: text("description").notNull(),
+  unit: text("unit").notNull().default("LS"),
+  billingMode: text("billing_mode").notNull().default("qty"), // qty | progress
+  contractQty: decimal("contract_qty", { precision: 14, scale: 4 }).notNull().default("1"),
+  unitRate: decimal("unit_rate", { precision: 14, scale: 2 }).notNull().default("0"),
+  totalAmount: decimal("total_amount", { precision: 14, scale: 2 }).notNull().default("0"),
+  notes: text("notes"),
+  createdBy: varchar("created_by").references(() => users.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => ({
+  projectIdx: index("project_boq_items_project_idx").on(table.projectId, table.sortOrder),
+}));
+
+// جدول كميات عقد مقاول الباطن: contract-level BOQ supporting hybrid Qty-based and Progress %-based billing + Variations (VOs)
+export const subcontractorContractBoqItems = pgTable("subcontractor_contract_boq_items", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  projectId: varchar("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
+  contractId: varchar("contract_id").notNull().references(() => subcontractorContracts.id, { onDelete: "cascade" }),
+  projectBoqItemId: varchar("project_boq_item_id").references(() => projectBoqItems.id, { onDelete: "set null" }),
+  sortOrder: integer("sort_order").notNull().default(0),
+  section: text("section"),
+  itemCode: text("item_code").notNull(),
+  costCode: text("cost_code"),
+  description: text("description").notNull(),
+  unit: text("unit").notNull().default("LS"),
+  billingMode: text("billing_mode").notNull().default("qty"), // qty | progress
+  contractQty: decimal("contract_qty", { precision: 14, scale: 4 }).notNull().default("1"),
+  unitRate: decimal("unit_rate", { precision: 14, scale: 2 }).notNull().default("0"),
+  contractAmount: decimal("contract_amount", { precision: 14, scale: 2 }).notNull().default("0"),
+  isVariation: boolean("is_variation").notNull().default(false),
+  variationRef: text("variation_ref"),
+  notes: text("notes"),
+  createdBy: varchar("created_by").references(() => users.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => ({
+  contractIdx: index("sub_contract_boq_contract_idx").on(table.contractId, table.sortOrder),
+  projectIdx: index("sub_contract_boq_project_idx").on(table.projectId),
+  masterBoqIdx: index("sub_contract_boq_master_idx").on(table.projectBoqItemId),
 }));
 
 // Part or all of a supplier invoice charged to a subcontractor. Leaves the invoice's own workflow untouched.
@@ -2867,6 +2918,7 @@ export const paymentSubcontractorCertificates = pgTable("payment_subcontractor_c
   workLocationIds: text("work_location_ids").array().notNull().default(sql`'{}'::text[]`),
   scope: text("scope"), // trade / work covered by the subcontract
   contractValue: decimal("contract_value", { precision: 14, scale: 2 }).notNull().default("0"),
+  boqMode: text("boq_mode").notNull().default("manual"), // manual | boq
   periodFrom: date("period_from"),
   periodTo: date("period_to"),
   grossAmount: decimal("gross_amount", { precision: 14, scale: 2 }).notNull().default("0"), // value of work this period
@@ -2892,6 +2944,41 @@ export const paymentSubcontractorCertificates = pgTable("payment_subcontractor_c
 }, (table) => ({
   seqUq: uniqueIndex("payment_sub_certs_seq_uq").on(table.projectId, table.seq),
   projectIdx: index("payment_sub_certs_project_idx").on(table.projectId),
+}));
+
+// بنود تقييم جدول الكميات في المستخلص: immutable valuation snapshot lines for each subcontractor certificate
+export const subcontractorCertificateBoqLines = pgTable("subcontractor_certificate_boq_lines", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  projectId: varchar("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
+  certificateId: varchar("certificate_id").notNull().references(() => paymentSubcontractorCertificates.id, { onDelete: "cascade" }),
+  contractBoqItemId: varchar("contract_boq_item_id").references(() => subcontractorContractBoqItems.id, { onDelete: "set null" }),
+  sortOrder: integer("sort_order").notNull().default(0),
+  section: text("section"),
+  itemCode: text("item_code").notNull(),
+  costCode: text("cost_code"),
+  description: text("description").notNull(),
+  unit: text("unit").notNull().default("LS"),
+  billingMode: text("billing_mode").notNull().default("qty"), // qty | progress
+  isVariation: boolean("is_variation").notNull().default(false),
+  variationRef: text("variation_ref"),
+  contractQty: decimal("contract_qty", { precision: 14, scale: 4 }).notNull().default("1"),
+  unitRate: decimal("unit_rate", { precision: 14, scale: 2 }).notNull().default("0"),
+  contractAmount: decimal("contract_amount", { precision: 14, scale: 2 }).notNull().default("0"),
+  previousQty: decimal("previous_qty", { precision: 14, scale: 4 }).notNull().default("0"),
+  currentQty: decimal("current_qty", { precision: 14, scale: 4 }).notNull().default("0"),
+  cumulativeQty: decimal("cumulative_qty", { precision: 14, scale: 4 }).notNull().default("0"),
+  previousPercent: decimal("previous_percent", { precision: 7, scale: 4 }).notNull().default("0"),
+  currentPercent: decimal("current_percent", { precision: 7, scale: 4 }).notNull().default("0"),
+  cumulativePercent: decimal("cumulative_percent", { precision: 7, scale: 4 }).notNull().default("0"),
+  previousAmount: decimal("previous_amount", { precision: 14, scale: 2 }).notNull().default("0"),
+  currentAmount: decimal("current_amount", { precision: 14, scale: 2 }).notNull().default("0"),
+  cumulativeAmount: decimal("cumulative_amount", { precision: 14, scale: 2 }).notNull().default("0"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => ({
+  certIdx: index("sub_cert_boq_lines_cert_idx").on(table.certificateId, table.sortOrder),
+  itemIdx: index("sub_cert_boq_lines_item_idx").on(table.contractBoqItemId),
 }));
 
 export const paymentFines = pgTable("payment_fines", {
@@ -2965,6 +3052,9 @@ export type PaymentInvoice = typeof paymentInvoices.$inferSelect;
 export type PaymentChargeback = typeof paymentChargebacks.$inferSelect;
 export type ProjectSubcontractor = typeof projectSubcontractors.$inferSelect;
 export type SubcontractorContract = typeof subcontractorContracts.$inferSelect;
+export type ProjectBoqItem = typeof projectBoqItems.$inferSelect;
+export type SubcontractorContractBoqItem = typeof subcontractorContractBoqItems.$inferSelect;
+export type SubcontractorCertificateBoqLine = typeof subcontractorCertificateBoqLines.$inferSelect;
 export type PaymentOrder = typeof paymentOrders.$inferSelect;
 export type PaymentSubcontractorCertificate = typeof paymentSubcontractorCertificates.$inferSelect;
 export type PaymentFine = typeof paymentFines.$inferSelect;

@@ -238,7 +238,7 @@ export default function Home() {
 
             {summary.viewer.canSeeProjectTable && <ProjectsTable className="lg:col-span-12" summary={summary} />}
 
-            {summary.requests.byStep.length > 0 && (
+            {summary.requests.byStep.length > 0 && ["manager", "quality"].includes(summary.viewer.kpiSet) && (
               <>
                 <FormsPanel className="lg:col-span-6" summary={summary} />
                 <StepsPanel className="lg:col-span-6" summary={summary} />

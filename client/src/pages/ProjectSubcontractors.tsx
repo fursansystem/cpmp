@@ -10,6 +10,7 @@ import {
   CheckCircle2,
   ChevronDown,
   ChevronUp,
+  ClipboardList,
   FileSignature,
   FileText,
   HandCoins,
@@ -59,6 +60,7 @@ import {
   type SubcontractorRow,
 } from "@/components/payments/subcontractor-select";
 import { SubcontractorCertificatesTab, SubCertDialog } from "@/components/payments/subcontractor-certificates-tab";
+import { ContractBoqEditor } from "@/components/payments/contract-boq-editor";
 import { ChargebacksPanel } from "@/components/payments/chargebacks";
 import { MaterialIssueDialog } from "@/components/warehouse/material-issue-dialog";
 import type { Project } from "@shared/schema";
@@ -1041,7 +1043,13 @@ export default function ProjectSubcontractors() {
                       </div>
 
                       {/* Operations Stats */}
-                      <div className="flex items-center justify-between text-xs font-medium text-muted-foreground px-0.5">
+                      <div className="flex items-center justify-between text-xs font-medium text-muted-foreground px-0.5 flex-wrap gap-2">
+                        <span className="flex items-center gap-1.5">
+                          <ClipboardList className="w-4 h-4 text-primary" />
+                          <span>
+                            {c.boqItemCount ?? 0} {isAr ? "بند BOQ" : "BOQ"}
+                          </span>
+                        </span>
                         <span className="flex items-center gap-1.5">
                           <Receipt className="w-4 h-4 text-muted-foreground" />
                           <span>{contractCerts.length} {isAr ? "مستخلص" : "certs"}</span>
@@ -1333,7 +1341,7 @@ export default function ProjectSubcontractors() {
       {/* CONTRACT DETAILS MODAL (تفاصيل العقد الشاملة والمخالصة)              */}
       {/* ===================================================================== */}
       {selectedContract && (() => {
-        const c = selectedContract;
+        const c = allContracts.find((x) => x.id === selectedContract.id) ?? selectedContract;
         const sub = subcontractors.find((s) => s.id === c.subcontractorId);
         const contractCerts = allCertificates.filter(
           (cert: any) => cert.contractId === c.id && cert.status !== "cancelled"
@@ -1342,7 +1350,7 @@ export default function ProjectSubcontractors() {
           .filter((cert: any) => ["approved", "paid"].includes(cert.status))
           .reduce((s: number, cert: any) => s + num(cert.grossAmount), 0);
 
-        const contractOrders = subPaymentOrders.filter(
+        const contractOrders = allOrders.filter(
           (o: any) =>
             o.subcontractorContractId === c.id ||
             (o.subcontractorCertificateId && contractCerts.some((cert: any) => cert.id === o.subcontractorCertificateId))
@@ -1364,7 +1372,7 @@ export default function ProjectSubcontractors() {
 
         return (
           <Dialog open={!!selectedContract} onOpenChange={(open) => !open && setSelectedContract(null)}>
-            <DialogContent className="max-w-4xl w-full max-h-[92vh] overflow-y-auto rounded-3xl p-6">
+            <DialogContent className="flex flex-col max-w-[95vw] w-[1400px] max-h-[92vh] overflow-y-auto overflow-x-hidden rounded-3xl p-6">
               <DialogHeader className="space-y-3 pb-4 border-b border-border/60">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div className="flex items-center gap-3">
@@ -1464,19 +1472,28 @@ export default function ProjectSubcontractors() {
                   </div>
                   <div>
                     <span className="text-muted-foreground block text-[11px] mb-0.5">
-                      {isAr ? "المستخلصات وسندات الصرف" : "Certs & Issues"}
+                      {isAr ? "المستخلصات والدفعات والصرف" : "Certs, Payments & Issues"}
                     </span>
                     <b className="text-base tabular-nums font-black text-amber-600">
-                      {contractCerts.length} <span className="text-xs font-normal">{isAr ? "مستخلص" : "certs"}</span> · {contractIssues.length}{" "}
-                      <span className="text-xs font-normal">{isAr ? "سند" : "issues"}</span>
+                      {contractCerts.length} <span className="text-xs font-normal">{isAr ? "مستخلص" : "certs"}</span> ·{" "}
+                      {contractOrders.length} <span className="text-xs font-normal">{isAr ? "دفعة" : "payments"}</span> ·{" "}
+                      {contractIssues.length} <span className="text-xs font-normal">{isAr ? "سند" : "issues"}</span>
                     </b>
                   </div>
                 </div>
               </DialogHeader>
 
               {/* Detail Tabs inside Dialog */}
-              <Tabs defaultValue="locations" className="space-y-4 pt-2">
-                <TabsList className="bg-muted/50 rounded-xl p-1">
+              <Tabs defaultValue="boq" className="space-y-4 pt-2 min-w-0 w-full">
+                <TabsList className="bg-muted/50 rounded-xl p-1 flex-wrap h-auto">
+                  <TabsTrigger value="boq" className="text-xs rounded-lg gap-1.5 font-bold">
+                    <ClipboardList className="w-3.5 h-3.5 text-primary" />
+                    {isAr ? "جدول الكميات (BOQ)" : "Contract BOQ"}
+                    <Badge variant="secondary" className="ms-1 text-[10px] px-1 h-4">
+                      {c.boqItemCount ?? 0}
+                    </Badge>
+                  </TabsTrigger>
+
                   <TabsTrigger value="locations" className="text-xs rounded-lg gap-1.5">
                     <Building2 className="w-3.5 h-3.5" />
                     {isAr ? "المباني والوحدات المشمولة" : "Assigned Buildings & Units"}
@@ -1489,7 +1506,7 @@ export default function ProjectSubcontractors() {
                     <Receipt className="w-3.5 h-3.5" />
                     {isAr ? "المستخلصات والدفعات" : "Certificates & Payments"}
                     <Badge variant="secondary" className="ms-1 text-[10px] px-1 h-4">
-                      {contractCerts.length}
+                      {contractCerts.length + contractOrders.length}
                     </Badge>
                   </TabsTrigger>
 
@@ -1508,6 +1525,11 @@ export default function ProjectSubcontractors() {
                     </TabsTrigger>
                   )}
                 </TabsList>
+
+                {/* Sub-tab 0: Contract BOQ */}
+                <TabsContent value="boq" className="space-y-3 min-w-0 w-full">
+                  <ContractBoqEditor contractId={c.id} />
+                </TabsContent>
 
                 {/* Sub-tab 1: Locations & Units */}
                 <TabsContent value="locations" className="space-y-3">
@@ -1536,69 +1558,166 @@ export default function ProjectSubcontractors() {
                 </TabsContent>
 
                 {/* Sub-tab 2: Certificates & Orders */}
-                <TabsContent value="certs" className="space-y-3">
-                  <div className="rounded-2xl border overflow-hidden">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead className="text-start">{isAr ? "رقم المستخلص" : "Cert No"}</TableHead>
-                          <TableHead className="text-start">{isAr ? "التاريخ" : "Date"}</TableHead>
-                          <TableHead className="text-start">{isAr ? "قيمة الأعمال" : "Gross"}</TableHead>
-                          <TableHead className="text-start">{isAr ? "الصافي المستحق" : "Net Payable"}</TableHead>
-                          <TableHead className="text-start">{isAr ? "أمر الدفع" : "Payment Order"}</TableHead>
-                          <TableHead className="text-start">{isAr ? "الحالة" : "Status"}</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {contractCerts.length === 0 ? (
+                <TabsContent value="certs" className="space-y-5">
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-xs font-bold flex items-center gap-1.5">
+                        <Receipt className="w-3.5 h-3.5 text-primary" />
+                        <span>{isAr ? "المستخلصات" : "Certificates"}</span>
+                        <Badge variant="secondary" className="text-[10px] px-1.5 h-4">
+                          {contractCerts.length}
+                        </Badge>
+                      </h4>
+                    </div>
+                    <div className="rounded-2xl border overflow-hidden">
+                      <Table>
+                        <TableHeader>
                           <TableRow>
-                            <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
-                              {isAr ? "لا توجد مستخلصات مسجلة لهذا العقد بعد" : "No certificates registered for this contract"}
-                            </TableCell>
+                            <TableHead className="text-start">{isAr ? "رقم المستخلص" : "Cert No"}</TableHead>
+                            <TableHead className="text-start">{isAr ? "التاريخ" : "Date"}</TableHead>
+                            <TableHead className="text-start">{isAr ? "قيمة الأعمال" : "Gross"}</TableHead>
+                            <TableHead className="text-start">{isAr ? "الصافي المستحق" : "Net Payable"}</TableHead>
+                            <TableHead className="text-start">{isAr ? "أمر الدفع" : "Payment Order"}</TableHead>
+                            <TableHead className="text-start">{isAr ? "الحالة" : "Status"}</TableHead>
                           </TableRow>
-                        ) : (
-                          contractCerts.map((cert: any) => {
-                            const linkedOrder = subPaymentOrders.find(
-                              (o: any) => o.subcontractorCertificateId === cert.id
-                            );
-                            const certDisplayNo = cert.certNo || cert.certificateNo || (cert.id ? cert.id.slice(0, 8) : "—");
-                            const certDate = cert.periodTo || cert.createdAt || cert.certificateDate;
-                            return (
-                              <TableRow
-                                key={cert.id}
-                                className="cursor-pointer hover:bg-muted/50"
-                                onClick={() => {
-                                  setSelectedContract(null);
-                                  navigate(`/payments/certificates/${cert.id}`);
-                                }}
-                              >
-                                <TableCell className="font-mono text-xs font-bold text-primary">{certDisplayNo}</TableCell>
-                                <TableCell className="text-xs">{fmtDate(certDate)}</TableCell>
-                                <TableCell className="text-xs tabular-nums font-bold">{money(cert.grossAmount)}</TableCell>
-                                <TableCell className="text-xs tabular-nums font-bold text-emerald-600">{money(cert.netPayable)}</TableCell>
-                                <TableCell className="text-xs">
-                                  {linkedOrder ? (
-                                    <Badge variant="outline" className="font-mono text-[11px] border-emerald-300 text-emerald-700 bg-emerald-50/50">
-                                      {linkedOrder.orderNo}
-                                    </Badge>
-                                  ) : (
-                                    <span className="text-[11px] text-muted-foreground">{isAr ? "لم يصدر أمر دفع" : "No order"}</span>
-                                  )}
-                                </TableCell>
-                                <TableCell>
-                                  <Badge
-                                    variant={cert.status === "paid" ? "default" : cert.status === "approved" ? "secondary" : "outline"}
-                                    className={`text-[11px] ${cert.status === "paid" ? "bg-emerald-600" : ""}`}
-                                  >
-                                    {cert.status === "paid" ? (isAr ? "مدفوع" : "Paid") : cert.status === "approved" ? (isAr ? "معتمد" : "Approved") : cert.status}
-                                  </Badge>
-                                </TableCell>
-                              </TableRow>
-                            );
-                          })
-                        )}
-                      </TableBody>
-                    </Table>
+                        </TableHeader>
+                        <TableBody>
+                          {contractCerts.length === 0 ? (
+                            <TableRow>
+                              <TableCell colSpan={6} className="text-center text-muted-foreground py-6 text-xs">
+                                {isAr ? "لا توجد مستخلصات مسجلة لهذا العقد بعد" : "No certificates registered for this contract"}
+                              </TableCell>
+                            </TableRow>
+                          ) : (
+                            contractCerts.map((cert: any) => {
+                              const linkedOrder = contractOrders.find(
+                                (o: any) => o.subcontractorCertificateId === cert.id
+                              );
+                              const certDisplayNo = cert.certNo || cert.certificateNo || (cert.id ? cert.id.slice(0, 8) : "—");
+                              const certDate = cert.periodTo || cert.createdAt || cert.certificateDate;
+                              return (
+                                <TableRow
+                                  key={cert.id}
+                                  className="cursor-pointer hover:bg-muted/50"
+                                  onClick={() => {
+                                    setSelectedContract(null);
+                                    navigate(`/payments/certificates/${cert.id}`);
+                                  }}
+                                >
+                                  <TableCell className="font-mono text-xs font-bold text-primary">{certDisplayNo}</TableCell>
+                                  <TableCell className="text-xs">{fmtDate(certDate)}</TableCell>
+                                  <TableCell className="text-xs tabular-nums font-bold">{money(cert.grossAmount)}</TableCell>
+                                  <TableCell className="text-xs tabular-nums font-bold text-emerald-600">{money(cert.netPayable)}</TableCell>
+                                  <TableCell className="text-xs">
+                                    {linkedOrder ? (
+                                      <Badge variant="outline" className="font-mono text-[11px] border-emerald-300 text-emerald-700 bg-emerald-50/50">
+                                        {linkedOrder.orderNo}
+                                      </Badge>
+                                    ) : (
+                                      <span className="text-[11px] text-muted-foreground">{isAr ? "لم يصدر أمر دفع" : "No order"}</span>
+                                    )}
+                                  </TableCell>
+                                  <TableCell>
+                                    <StatusBadge status={cert.status} group="sub_cert" />
+                                  </TableCell>
+                                </TableRow>
+                              );
+                            })
+                          )}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  </div>
+
+                  {/* Payment Orders & Direct Transfers linked to this Contract */}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-xs font-bold flex items-center gap-1.5">
+                        <Banknote className="w-3.5 h-3.5 text-emerald-600" />
+                        <span>{isAr ? "الدفعات وأوامر الصرف والتحويلات على العقد" : "Payment Orders & Direct Transfers"}</span>
+                        <Badge variant="secondary" className="text-[10px] px-1.5 h-4">
+                          {contractOrders.length}
+                        </Badge>
+                      </h4>
+                    </div>
+                    <div className="rounded-2xl border overflow-hidden">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead className="text-start">{isAr ? "رقم الأمر" : "Order No"}</TableHead>
+                            <TableHead className="text-start">{isAr ? "التاريخ" : "Date"}</TableHead>
+                            <TableHead className="text-start">{isAr ? "البيان / السبب" : "Reason / Purpose"}</TableHead>
+                            <TableHead className="text-start">{isAr ? "المستخلص المرتبط" : "Linked Cert"}</TableHead>
+                            <TableHead className="text-start">{isAr ? "المبلغ" : "Amount"}</TableHead>
+                            <TableHead className="text-start">{isAr ? "طريقة السداد" : "Method"}</TableHead>
+                            <TableHead className="text-start">{isAr ? "الحالة" : "Status"}</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {contractOrders.length === 0 ? (
+                            <TableRow>
+                              <TableCell colSpan={7} className="text-center text-muted-foreground py-6 text-xs">
+                                {isAr ? "لا توجد أوامر دفع أو دفعات مسجلة لهذا العقد" : "No payment orders or direct transfers recorded for this contract"}
+                              </TableCell>
+                            </TableRow>
+                          ) : (
+                            contractOrders.map((order: any) => {
+                              const linkedCert = contractCerts.find((cert: any) => cert.id === order.subcontractorCertificateId);
+                              return (
+                                <TableRow
+                                  key={order.id}
+                                  className="cursor-pointer hover:bg-muted/50"
+                                  onClick={() => {
+                                    setSelectedContract(null);
+                                    navigate(`/payments?tab=orders&project=${projectId}&focus=${order.id}`);
+                                  }}
+                                >
+                                  <TableCell className="font-mono text-xs font-bold text-primary">{order.orderNo}</TableCell>
+                                  <TableCell className="text-xs whitespace-nowrap">{fmtDate(order.paidDate || order.createdAt)}</TableCell>
+                                  <TableCell className="text-xs max-w-xs truncate" title={order.reason || order.purpose}>
+                                    {order.reason ||
+                                      (order.purpose === "advance"
+                                        ? isAr
+                                          ? "دفعة مقدمة"
+                                          : "Advance"
+                                        : isAr
+                                          ? "تحويل مالي"
+                                          : "Transfer")}
+                                  </TableCell>
+                                  <TableCell className="text-xs">
+                                    {linkedCert ? (
+                                      <Badge variant="outline" className="border-blue-300 text-blue-700 bg-blue-50/50 text-[11px] font-mono">
+                                        {linkedCert.certNo || linkedCert.certificateNo}
+                                      </Badge>
+                                    ) : (
+                                      <span className="text-[11px] text-muted-foreground">
+                                        {isAr ? "تحويل مباشر / مقدمة" : "Direct / Advance"}
+                                      </span>
+                                    )}
+                                  </TableCell>
+                                  <TableCell className="text-xs tabular-nums font-bold text-emerald-600">
+                                    {money(order.amount)}
+                                  </TableCell>
+                                  <TableCell className="text-xs text-muted-foreground">
+                                    {order.paymentMethod ? (
+                                      <span className="font-mono text-[11px]">
+                                        {order.paymentMethod}
+                                        {order.paymentReference ? ` (${order.paymentReference})` : ""}
+                                      </span>
+                                    ) : (
+                                      "—"
+                                    )}
+                                  </TableCell>
+                                  <TableCell>
+                                    <StatusBadge status={order.status} group="payment_order" />
+                                  </TableCell>
+                                </TableRow>
+                              );
+                            })
+                          )}
+                        </TableBody>
+                      </Table>
+                    </div>
                   </div>
                 </TabsContent>
 

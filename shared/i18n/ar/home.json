@@ -156,8 +156,14 @@
     "approved": "معتمد ولم يُصرف",
     "orders": "أوامر: {{count}}",
     "delayed": "قرارات متأخرة أكثر من {{days}} أيام: {{count}}",
+    "delayed_label": "قرارات متأخرة",
+    "delayed_sub": "أكثر من {{days}} أيام",
     "bills": "طلبات أصول الفواتير المفتوحة: {{open}} · المتأخرة: {{overdue}}",
+    "bills_label": "أصول الفواتير المفتوحة",
+    "bills_overdue": "المتأخرة: {{overdue}}",
     "fines": "حسميات مفتوحة: {{count}} بقيمة {{amount}} ريال",
+    "fines_label": "حسميات مفتوحة",
+    "fines_amount": "بقيمة {{amount}} ريال",
     "empty": "لا توجد أوامر دفع ضمن الفلاتر الحالية."
   },
   "activity": {

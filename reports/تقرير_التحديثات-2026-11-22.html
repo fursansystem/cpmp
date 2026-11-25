@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>تقرير التحديثات - الملخص التنفيذي حتى 22 نوفمبر 2026</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #ffffff;
+      --ink: #1e1e20;
+      --body: #52525b;
+      --muted: #71717a;
+      --gold: #9e7b3b;
+      --gold-soft: #b6924f;
+      --border: #e4e4e7;
+      --surface: #fcfcfd;
+      --green: #15803d;
+      --amber: #b45309;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: "Tajawal", "Segoe UI", Tahoma, Arial, sans-serif;
+      background: #f4f4f5;
+      color: var(--ink);
+      -webkit-font-smoothing: antialiased;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+      line-height: 1.6;
+    }
+
+    @page {
+      size: A4;
+      margin: 0;
+    }
+
+    .page {
+      width: 210mm;
+      height: 297mm;
+      background: var(--bg);
+      margin: 12px auto;
+      padding: 15mm 16mm 13mm 16mm;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      overflow: hidden;
+      box-shadow: 0 2px 16px rgba(0, 0, 0, 0.08);
+    }
+
+    @media print {
+      body {
+        background: #ffffff;
+      }
+      .page {
+        margin: 0;
+        box-shadow: none;
+        page-break-after: always;
+      }
+      .page:last-child {
+        page-break-after: auto;
+      }
+    }
+
+    /* Header */
+    .doc-header {
+      margin-bottom: 18px;
+    }
+
+    .meta-date {
+      font-size: 12.5px;
+      font-weight: 700;
+      color: var(--gold);
+      margin-bottom: 6px;
+    }
+
+    .meta-kicker {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--gold);
+      margin-bottom: 10px;
+    }
+
+    .doc-title {
+      font-size: 26.5px;
+      font-weight: 800;
+      color: var(--ink);
+      line-height: 1.25;
+      margin-bottom: 14px;
+      letter-spacing: -0.01em;
+    }
+
+    .intro-label {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--gold);
+      margin-bottom: 5px;
+    }
+
+    .intro-text {
+      font-size: 14.5px;
+      color: var(--body);
+      line-height: 1.7;
+      max-width: 98%;
+    }
+
+    .divider {
+      border-top: 1.75px solid var(--ink);
+      margin: 18px 0 20px 0;
+      width: 100%;
+    }
+
+    /* Section Headings */
+    .section-title {
+      font-size: 18px;
+      font-weight: 800;
+      color: var(--ink);
+      margin-bottom: 13px;
+    }
+
+    /* 2x4 Card Grid */
+    .cards-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    .card {
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 14px 16px;
+      background: var(--bg);
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+
+    .card-title {
+      font-size: 15px;
+      font-weight: 800;
+      color: var(--ink);
+    }
+
+    .card-desc {
+      font-size: 13px;
+      color: var(--body);
+      line-height: 1.6;
+    }
+
+    /* Page 2 Sections */
+    .section-block {
+      margin-bottom: 22px;
+    }
+
+    .flow-row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 7px 15px;
+      border-radius: 999px;
+      border: 1.25px solid var(--border);
+      background: var(--bg);
+      font-size: 13.5px;
+      font-weight: 700;
+      color: var(--ink);
+      white-space: nowrap;
+    }
+
+    .pill.accent {
+      border-color: var(--gold);
+      border-width: 1.5px;
+      color: var(--ink);
+    }
+
+    .arrow {
+      color: var(--muted);
+      font-size: 14px;
+      font-weight: 500;
+      user-select: none;
+    }
+
+    .flow-note {
+      font-size: 13.5px;
+      color: var(--body);
+      margin-top: 4px;
+    }
+
+    /* Bullet List */
+    .exec-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      padding-right: 4px;
+    }
+
+    .exec-list li {
+      position: relative;
+      padding-right: 16px;
+      font-size: 14px;
+      color: var(--body);
+      line-height: 1.6;
+    }
+
+    .exec-list li::before {
+      content: "•";
+      position: absolute;
+      right: 0;
+      top: 0;
+      color: var(--ink);
+      font-weight: 800;
+      font-size: 15px;
+    }
+
+    .stage-desc {
+      font-size: 14px;
+      color: var(--body);
+      line-height: 1.65;
+      margin-bottom: 12px;
+    }
+
+    /* Bottom Two Columns */
+    .status-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+      margin-top: 6px;
+    }
+
+    .status-box {
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 15px 18px;
+      background: var(--surface);
+    }
+
+    .status-box-title {
+      font-size: 15px;
+      font-weight: 800;
+      margin-bottom: 10px;
+    }
+
+    .status-box-title.done {
+      color: var(--green);
+    }
+
+    .status-box-title.pending {
+      color: var(--amber);
+    }
+
+    .status-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 7px;
+    }
+
+    .status-list li {
+      position: relative;
+      padding-right: 15px;
+      font-size: 13.2px;
+      color: var(--body);
+      line-height: 1.55;
+    }
+
+    .status-list li::before {
+      content: "•";
+      position: absolute;
+      right: 0;
+      top: 0;
+      color: var(--ink);
+      font-weight: 800;
+    }
+
+    .page-footer {
+      margin-top: auto;
+      padding-top: 12px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 11.5px;
+      color: var(--muted);
+      border-top: 1px solid #f0f0f2;
+    }
+  </style>
+</head>
+<body>
+  <!-- PAGE 1 -->
+  <section class="page">
+    <header class="doc-header">
+      <div class="meta-date">الفترة: 11 – 22 نوفمبر 2026</div>
+      <div class="meta-kicker">ProjectManager Pro · الملخص التنفيذي للتحديثات</div>
+      <h1 class="doc-title">تقرير التحديثات - ملخص الأعمال (11 – 22 نوفمبر 2026)</h1>
+      <div class="intro-label">مقدمة</div>
+      <p class="intro-text">
+        خلال الفترة من 11 إلى 22 نوفمبر 2026، تم إطلاق وحدات عمل جديدة وتحديثات جوهرية ركزت على إدارة تسليم الوحدات العقارية، حوكمة عقود مقاولي الباطن والدفعات المالية، إعادة بناء الشاشة الرئيسية (Project Pulse)، تطوير دورة المشتريات والمستودعات، وتفعيل واختبار الربط الحي مع نظام ERPNext.
+      </p>
+    </header>
+
+    <div class="divider"></div>
+
+    <h2 class="section-title">ما تغطيه التحديثات</h2>
+
+    <div class="cards-grid">
+      <article class="card">
+        <h3 class="card-title">قسم تسليم الوحدات (Unit Handover)</h3>
+        <p class="card-desc">
+          شاشات متكاملة لربط بيانات العملاء والوحدات السكنية، تسجيل ومتابعة قوائم الملاحظات والعيوب (Snags)، وتوثيق نقل عدادات الكهرباء (SEC) حتى التوقيع النهائي.
+        </p>
+      </article>
+
+      <article class="card">
+        <h3 class="card-title">مقاولو الباطن والعقود والمستخلصات</h3>
+        <p class="card-desc">
+          مساحة عمل موحدة بعرض كامل لإدارة المقاولين والعقود والمستخلصات والخصومات، مع ربط تلقائي بأوامر الصرف وضبط احتساب الصافي لمنع ازدواجية الدفعات.
+        </p>
+      </article>
+
+      <article class="card">
+        <h3 class="card-title">الشاشة الرئيسية (Project Pulse)</h3>
+        <p class="card-desc">
+          لوحة مؤشرات لحظية لصحة المشاريع عبر الجدول الزمني والميزانية والمخاطر، مع صندوق «بانتظار إجرائي» وترحيب شخصي وتخصيص المحتوى حسب الدور الوظيفي.
+        </p>
+      </article>
+
+      <article class="card">
+        <h3 class="card-title">تطوير دورة المشتريات (Procurement)</h3>
+        <p class="card-desc">
+          إلزام تاريخ التوريد المتوقع لجميع أوامر الشراء، مرونة تعديل المسودات قبل الاعتماد، ربط الأرقام المرجعية بسجلاتها مباشرة، وإشعارات فورية للمعنيين.
+        </p>
+      </article>
+
+      <article class="card">
+        <h3 class="card-title">لوحات إشرافية للمستودعات والمخزون</h3>
+        <p class="card-desc">
+          إعادة بناء نظرة المستودعات حول ما يتطلب إجراءً فورياً، مع تتبع المواد الراكدة، الأيام المتبقية لتغطية المخزون (Days of Cover)، والشحنات المتوقعة.
+        </p>
+      </article>
+
+      <article class="card">
+        <h3 class="card-title">التكامل الحي مع نظام ERPNext</h3>
+        <p class="card-desc">
+          تفعيل الربط الحي عبر Webhooks موقّعة لمزامنة الموردين وأوامر الدفع وكشوف الحسابات بين النظامين، مع إتمام اختبارات التحقق والموثوقية بنجاح.
+        </p>
+      </article>
+
+      <article class="card">
+        <h3 class="card-title">تجربة المستخدم والعرض الكامل (UX)</h3>
+        <p class="card-desc">
+          توسيع صفحات العمل للعرض الكامل، تثبيت شريط الفلاتر العلوي أثناء التمرير، وتحسين مسار العودة المباشرة من تفاصيل المستخلص إلى تبويب المستخلصات.
+        </p>
+      </article>
+
+      <article class="card">
+        <h3 class="card-title">تخصيص الأدوار والصلاحيات</h3>
+        <p class="card-desc">
+          إضافة دور «خدمة العملاء» ضمن قسم تسليم الوحدات، وإخفاء لوحات النماذج والخطوات تلقائياً لمن ليس لديه مهام مرتبطة بها لتقليل التشتت في الواجهة.
+        </p>
+      </article>
+    </div>
+
+    <footer class="page-footer">
+      <span>ProjectManager Pro · التقرير التنفيذي الدوري</span>
+      <span>صفحة 1 من 2</span>
+    </footer>
+  </section>
+
+  <!-- PAGE 2 -->
+  <section class="page">
+    <div class="section-block">
+      <h2 class="section-title">الترابط التشغيلي للوحدات</h2>
+      <div class="flow-row">
+        <span class="pill">المشتريات والمستودعات</span>
+        <span class="arrow">←</span>
+        <span class="pill accent">مقاولو الباطن والمستخلصات</span>
+        <span class="arrow">←</span>
+        <span class="pill">المالية و ERPNext</span>
+        <span class="arrow">←</span>
+        <span class="pill">تسليم الوحدات (Handover)</span>
+        <span class="arrow">←</span>
+        <span class="pill accent">لوحة الإدارة (Project Pulse)</span>
+      </div>
+      <p class="flow-note">
+        كل إجراء يُسجَّل باسم صاحبه وتاريخه، وتصل إشعارات فورية وموجهة فقط للأشخاص المخوّلين دون تشتيت أو تعطل في المعاملات.
+      </p>
+    </div>
+
+    <div class="section-block">
+      <h2 class="section-title">ما تحصل عليه الإدارة (الأثر التنفيذي)</h2>
+      <ul class="exec-list">
+        <li>رؤية لحظية لصحة المشاريع فور الدخول عبر 3 محاور: الالتزام بالجدول الزمني، الميزانية والتكاليف، والمهام المتأخرة.</li>
+        <li>ضبط التدفقات النقدية الخارجية وحماية الشركة من أخطاء ازدواجية الصرف لمقاولي الباطن، مع مزامنة حية مع نظام ERPNext.</li>
+        <li>تقليص زمن إجراءات تسليم الوحدات السكنية وتوثيق العيوب ونقل عدادات الكهرباء بما يحفظ حقوق المشروع والعميل.</li>
+        <li>الحد من الهدر المالي وتجنب توقف الأعمال الميدانية عبر مراقبة المخزون الراكد وإلزام الموردين بمواعيد توريد واضحة.</li>
+        <li>القضاء على تعطل المعاملات عبر صندوق «بانتظار إجرائي» المخصص لكل موظف ومدير حسب دوره الوظيفي وصلاحياته.</li>
+      </ul>
+    </div>
+
+    <div class="section-block">
+      <h2 class="section-title">المرحلة الحالية: جاهزية التشغيل والمراجعة</h2>
+      <p class="stage-desc">
+        تم الانتهاء من تطوير ودمج كافة الوحدات والتحديثات المذكورة للفترة من 11 إلى 22 نوفمبر 2026، وتفعيل واختبار الربط الحي مع ERPNext بنجاح، وهي جاهزة حالياً للمراجعة النهائية مع الإدارات المعنية تمهيداً للتعميم الكامل.
+      </p>
+      <div class="flow-row">
+        <span class="pill">التطوير والدمج</span>
+        <span class="arrow">←</span>
+        <span class="pill accent">تفعيل واختبار الربط الحي</span>
+        <span class="arrow">←</span>
+        <span class="pill">مراجعة الإدارات</span>
+        <span class="arrow">←</span>
+        <span class="pill accent">التعميم والتشغيل الشامل</span>
+      </div>
+    </div>
+
+    <div class="status-grid">
+      <div class="status-box">
+        <h3 class="status-box-title done">ما اكتمل</h3>
+        <ul class="status-list">
+          <li>إطلاق قسم تسليم الوحدات (العملاء، الملاحظات، ونقل عدادات الكهرباء).</li>
+          <li>مساحة مقاولي الباطن والعقود، وربط أوامر الصرف وضبط عدم ازدواجية الدفعات.</li>
+          <li>إعادة بناء الشاشة الرئيسية ولوحات المشتريات والمستودعات وتوسيع العرض الكامل.</li>
+          <li>تفعيل الربط الحي (Production) عبر Webhooks مع نظام ERPNext وإتمام الاختبارات بنجاح.</li>
+        </ul>
+      </div>
+
+      <div class="status-box">
+        <h3 class="status-box-title pending">ما ينتظر</h3>
+        <ul class="status-list">
+          <li>إضافة جدول كميات وبنود تفصيلي (BOQ) لعقد مقاول الباطن والمستخلص (البند، الوحدة، الكمية التعاقدية، السعر، والإنجاز السابق والحالي والتراكمي).</li>
+          <li>السحب الآلي لجدول الكميات من العقد إلى المستخلص مع الاحتساب التلقائي للقيمة الإجمالية.</li>
+          <li>جمع الملاحظات التشغيلية النهائية من الإدارات المعنية والنشر الشامل على الموقع الرئيسي.</li>
+        </ul>
+      </div>
+    </div>
+
+    <footer class="page-footer">
+      <span>ProjectManager Pro · التقرير التنفيذي الدوري</span>
+      <span>صفحة 2 من 2</span>
+    </footer>
+  </section>
+</body>
+</html>

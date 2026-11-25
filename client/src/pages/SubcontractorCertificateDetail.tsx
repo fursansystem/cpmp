@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useLocation, useParams } from "wouter";
@@ -26,10 +26,16 @@ import {
   Pencil,
   Check,
   Percent,
+  ClipboardList,
+  Download,
+  Printer,
+  ExternalLink,
+  Lock,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -41,6 +47,19 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/lib/auth";
 import { apiRequest } from "@/lib/queryClient";
 import { computeSubCert, OPEN_PAYMENT_ORDER } from "@shared/payments";
+import {
+  computeBoqLine,
+  summarizeBoqLines,
+  validateCertificateBoqLine,
+  type CertificateBoqLineDto,
+} from "@shared/subcontractor-boq";
+import { CertificateBoqTable } from "@/components/payments/certificate-boq-table";
+import { ContractBoqEditor } from "@/components/payments/contract-boq-editor";
+import {
+  exportCertificateBoqExcel,
+  printSubcontractorCertificate,
+  type CertExportMeta,
+} from "@/components/payments/subcontractor-cert-export";
 import {
   SubcontractorSelect,
   SubcontractorContractDialog,
@@ -124,6 +143,9 @@ export default function SubcontractorCertificateDetail() {
   const [viewContractId, setViewContractId] = useState<string>("");
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [pickedFines, setPickedFines] = useState<Set<string>>(new Set());
+  const [boqLines, setBoqLines] = useState<CertificateBoqLineDto[]>([]);
+  const [managingContractBoq, setManagingContractBoq] = useState(false);
+  const loadedBoqKeyRef = useRef<string>("");
 
   const [form, setForm] = useState(emptyForm());
 
@@ -147,6 +169,10 @@ export default function SubcontractorCertificateDetail() {
         vatPercent: String(num(certData.vatPercent)),
         notes: certData.notes ?? "",
       });
+      if (Array.isArray(certData.boqLines)) {
+        setBoqLines(certData.boqLines);
+        loadedBoqKeyRef.current = `${id}:${certData.contractId ?? ""}`;
+      }
     } else if (isNew) {
       if (initialProjectId) setProjectId(initialProjectId);
       if (initialSubId) setForm((f) => ({ ...f, subcontractorId: initialSubId }));
@@ -156,7 +182,7 @@ export default function SubcontractorCertificateDetail() {
       }
       setForm((f) => ({ ...f, vatPercent: String(systemVatRate) }));
     }
-  }, [certData, isNew, initialProjectId, initialSubId, initialContractId, systemVatRate]);
+  }, [certData, isNew, id, initialProjectId, initialSubId, initialContractId, systemVatRate]);
 
   const setField = (k: keyof typeof form) => (v: string) => setForm((f) => ({ ...f, [k]: v }));
 
@@ -178,6 +204,116 @@ export default function SubcontractorCertificateDetail() {
 
   const isOwner = isNew || certData?.createdBy === user?.id || ctx?.perms?.isAccounting;
   const editable = isOwner && (isNew || ["draft", "rejected"].includes(certData?.status));
+
+  // 5. Contract BOQ Preview & Strict Sequential Check
+  const {
+    data: boqPreview,
+    refetch: refetchBoqPreview,
+    isFetching: boqPreviewFetching,
+  } = useQuery<{
+    contractId: string;
+    contractNo: string;
+    defaultBillingMode: string;
+    hasBoq: boolean;
+    lines: CertificateBoqLineDto[];
+    openCertificate: { id: string; certNo: string; status: string } | null;
+  }>({
+    queryKey: ["payments", "contract-boq-preview", form.contractId, isNew ? "new" : id],
+    queryFn: () =>
+      getJson(
+        `/api/payments/subcontractor-contracts/${form.contractId}/boq-preview${!isNew && id ? `?excludeCertId=${id}` : ""}`,
+      ),
+    enabled: Boolean(form.contractId && editable),
+    meta: paymentsQuery,
+  });
+
+  // Load contract BOQ into certificate automatically when selecting a contract on a new/draft certificate
+  useEffect(() => {
+    if (!editable) return;
+    if (!form.contractId) {
+      if (boqLines.length > 0) setBoqLines([]);
+      loadedBoqKeyRef.current = "";
+      return;
+    }
+    if (!boqPreview || boqPreview.contractId !== form.contractId) return;
+    const key = `${isNew ? "new" : id}:${form.contractId}`;
+    const alreadyLoadedSavedLines =
+      !isNew && certData?.contractId === form.contractId && Array.isArray(certData?.boqLines) && certData.boqLines.length > 0;
+
+    if (loadedBoqKeyRef.current !== key) {
+      loadedBoqKeyRef.current = key;
+      if (!alreadyLoadedSavedLines) {
+        setBoqLines(boqPreview.hasBoq ? boqPreview.lines : []);
+      }
+    } else if (!alreadyLoadedSavedLines && boqLines.length === 0 && boqPreview.hasBoq && boqPreview.lines.length > 0) {
+      setBoqLines(boqPreview.lines);
+    }
+  }, [editable, form.contractId, boqPreview, isNew, id, certData, boqLines.length]);
+
+  // Merge fresh contract BOQ (e.g. newly added VOs or updated Previous) while preserving user's current period inputs
+  const syncBoqFromContract = async () => {
+    if (!form.contractId) return;
+    const res = await refetchBoqPreview();
+    const fresh = res.data;
+    if (!fresh) return;
+    if (!fresh.hasBoq) {
+      setBoqLines([]);
+      return;
+    }
+    const existingByItemId = new Map(
+      boqLines.filter((l) => l.contractBoqItemId).map((l) => [l.contractBoqItemId as string, l]),
+    );
+    const merged: CertificateBoqLineDto[] = fresh.lines.map((fl) => {
+      const ex = fl.contractBoqItemId ? existingByItemId.get(fl.contractBoqItemId) : undefined;
+      if (!ex) return fl;
+      const computed = computeBoqLine({
+        billingMode: fl.billingMode,
+        contractQty: fl.contractQty,
+        unitRate: fl.unitRate,
+        contractAmount: fl.contractAmount,
+        previousQty: fl.previousQty,
+        previousPercent: fl.previousPercent,
+        previousAmount: fl.previousAmount,
+        source: "current",
+        currentQty: ex.currentQty,
+        currentPercent: ex.currentPercent,
+      });
+      return {
+        ...fl,
+        previousQty: computed.previousQty,
+        currentQty: computed.currentQty,
+        cumulativeQty: computed.cumulativeQty,
+        previousPercent: computed.previousPercent,
+        currentPercent: computed.currentPercent,
+        cumulativePercent: computed.cumulativePercent,
+        previousAmount: computed.previousAmount,
+        currentAmount: computed.currentAmount,
+        cumulativeAmount: computed.cumulativeAmount,
+        notes: ex.notes ?? fl.notes,
+      };
+    });
+    setBoqLines(merged);
+    toast({
+      title: isAr ? "تمت مزامنة جدول الكميات مع العقد" : "Synced BOQ lines with Contract",
+    });
+  };
+
+  const hasBoq = boqLines.length > 0;
+  const boqSummary = useMemo(() => (hasBoq ? summarizeBoqLines(boqLines) : null), [hasBoq, boqLines]);
+  const hasBoqValidationErrors = useMemo(
+    () =>
+      hasBoq &&
+      boqLines.some(
+        (l) =>
+          validateCertificateBoqLine({
+            billingMode: l.billingMode,
+            cumulativeQty: l.cumulativeQty,
+            cumulativePercent: l.cumulativePercent,
+          }).length > 0,
+      ),
+    [hasBoq, boqLines],
+  );
+  const openCertBlocker = editable && boqPreview?.openCertificate ? boqPreview.openCertificate : null;
 
   const subContracts = useMemo(
     () =>
@@ -359,9 +495,10 @@ export default function SubcontractorCertificateDetail() {
       ? num(certData.chargebackDeductions)
       : pickedTotal + pickedFinesTotal;
 
-  // Certificate computations
+  // Certificate computations (BOQ Current Total drives Work Value automatically when BOQ is present)
+  const effectiveGrossAmount = hasBoq && boqSummary ? boqSummary.currentTotal : num(form.grossAmount);
   const figures = computeSubCert({
-    grossAmount: num(form.grossAmount),
+    grossAmount: effectiveGrossAmount,
     retentionPercent: num(form.retentionPercent),
     advanceRecovery: num(form.advanceRecovery),
     otherDeductions: num(form.otherDeductions),
@@ -394,15 +531,18 @@ export default function SubcontractorCertificateDetail() {
   );
 
   const currentGrossForScope =
-    !activeContractId || !form.contractId || activeContractId === form.contractId ? num(form.grossAmount) : 0;
-  const cumulativeGross = previousGross + currentGrossForScope;
-  const contractVal = selectedContract
-    ? editable
-      ? num(form.contractValue) || num(selectedContract.contractValue)
-      : num(selectedContract.contractValue) || num(form.contractValue)
-    : sumOfSubContractsValue > 0
-      ? sumOfSubContractsValue
-      : num(form.contractValue);
+    !activeContractId || !form.contractId || activeContractId === form.contractId ? effectiveGrossAmount : 0;
+  const cumulativeGross = hasBoq && boqSummary ? boqSummary.cumulativeTotal : previousGross + currentGrossForScope;
+  const contractVal =
+    hasBoq && boqSummary
+      ? boqSummary.revisedContractTotal
+      : selectedContract
+        ? editable
+          ? num(form.contractValue) || num(selectedContract.contractValue)
+          : num(selectedContract.contractValue) || num(form.contractValue)
+        : sumOfSubContractsValue > 0
+          ? sumOfSubContractsValue
+          : num(form.contractValue);
   const overContract = contractVal > 0 && cumulativeGross > contractVal + 0.005;
   const remainingContractVal = contractVal > 0 ? Math.max(0, contractVal - cumulativeGross) : 0;
   const progressPercent = contractVal > 0 ? Math.min(100, Math.round((cumulativeGross / contractVal) * 100)) : 0;
@@ -482,10 +622,23 @@ export default function SubcontractorCertificateDetail() {
     periodTo: form.periodTo || null,
     deductionsNote: form.deductionsNote || null,
     notes: form.notes || null,
-    contractValue: form.contractValue || 0,
-    grossAmount: form.grossAmount || 0,
+    contractValue: hasBoq && boqSummary ? boqSummary.revisedContractTotal : form.contractValue || 0,
+    grossAmount: hasBoq && boqSummary ? boqSummary.currentTotal : form.grossAmount || 0,
     advanceRecovery: form.advanceRecovery || 0,
     otherDeductions: form.otherDeductions || 0,
+    ...(hasBoq
+      ? {
+          boqLines: boqLines
+            .filter((l) => Boolean(l.contractBoqItemId))
+            .map((l) => ({
+              contractBoqItemId: l.contractBoqItemId as string,
+              source: "current" as const,
+              currentQty: l.currentQty,
+              currentPercent: l.currentPercent,
+              notes: l.notes ?? null,
+            })),
+        }
+      : {}),
   });
 
   const syncChargebacks = async (targetId: string) => {
@@ -598,6 +751,32 @@ export default function SubcontractorCertificateDetail() {
     certData?.subcontractorName ||
     "";
 
+  const exportMeta: CertExportMeta = {
+    certNo: isNew ? (isAr ? "مسودة" : "DRAFT") : certData?.certNo || id || "",
+    projectName,
+    subcontractorName: subName || "—",
+    contractNo: selectedContract?.contractNo ?? null,
+    contractTitle: selectedContract?.title ?? null,
+    scope: form.scope || null,
+    periodFrom: form.periodFrom || null,
+    periodTo: form.periodTo || null,
+    status: isNew ? "draft" : certData?.status || "draft",
+    contractValue: contractVal,
+    grossAmount: effectiveGrossAmount,
+    retentionPercent: num(form.retentionPercent),
+    retentionAmount: figures.retentionAmount,
+    advanceRecovery: num(form.advanceRecovery),
+    otherDeductions: num(form.otherDeductions),
+    chargebackDeductions: chargebackTotal,
+    vatPercent: num(form.vatPercent),
+    vatAmount: figures.vatAmount,
+    netPayable: figures.netPayable,
+    previousGross,
+    cumulativeGross,
+    createdByName: certData?.createdByName ?? user?.username ?? null,
+    approvedByName: certData?.approvedByName ?? null,
+  };
+
   return (
     <div className="p-6 lg:p-8 space-y-6 max-w-[1600px] mx-auto" data-testid="page-subcontractor-certificate-detail">
       {/* 1. Header & Actions Bar */}
@@ -638,6 +817,12 @@ export default function SubcontractorCertificateDetail() {
                   {isAr ? "مسودة جديدة" : "New Draft"}
                 </Badge>
               )}
+              {hasBoq && (
+                <Badge variant="outline" className="border-primary/40 bg-primary/5 text-primary gap-1 text-[11px]">
+                  <ClipboardList className="w-3 h-3" />
+                  {isAr ? `مرتبط بجدول الكميات (${boqLines.length})` : `BOQ-Driven (${boqLines.length})`}
+                </Badge>
+              )}
             </div>
             <p className="text-xs text-muted-foreground mt-0.5">
               {projectName} {subName ? ` · ${subName}` : ""}
@@ -647,10 +832,41 @@ export default function SubcontractorCertificateDetail() {
 
         {/* Action Buttons */}
         <div className="flex items-center gap-2 flex-wrap">
+          {(hasBoq || !isNew) && (
+            <>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="gap-1.5 rounded-xl"
+                onClick={() => exportCertificateBoqExcel(exportMeta, boqLines, boqSummary, isAr)}
+              >
+                <Download className="w-4 h-4" />
+                <span>{t("boq.export_excel", { defaultValue: isAr ? "تصدير إكسل" : "Export Excel" })}</span>
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="gap-1.5 rounded-xl"
+                onClick={() => printSubcontractorCertificate(exportMeta, boqLines, boqSummary, isAr)}
+              >
+                <Printer className="w-4 h-4" />
+                <span>{t("boq.print_ipc", { defaultValue: isAr ? "طباعة المستخلص" : "Print IPC" })}</span>
+              </Button>
+            </>
+          )}
+
           {editable && (
             <Button
               className="gap-1.5 rounded-xl shadow-sm"
-              disabled={saveMutation.isPending || !effectiveProjectId || !form.subcontractorId}
+              disabled={
+                saveMutation.isPending ||
+                !effectiveProjectId ||
+                !form.subcontractorId ||
+                Boolean(openCertBlocker) ||
+                hasBoqValidationErrors
+              }
               onClick={() => saveMutation.mutate()}
             >
               <Save className="w-4 h-4" />
@@ -667,7 +883,9 @@ export default function SubcontractorCertificateDetail() {
                 saveMutation.isPending ||
                 actMutation.isPending ||
                 !effectiveProjectId ||
-                !form.subcontractorId
+                !form.subcontractorId ||
+                Boolean(openCertBlocker) ||
+                hasBoqValidationErrors
               }
               onClick={() => saveAndSubmitMutation.mutate()}
             >
@@ -767,6 +985,39 @@ export default function SubcontractorCertificateDetail() {
             <div className="font-bold">{t("certificates.reject_reason_prefix")}</div>
             <div className="mt-1">{certData.rejectReason}</div>
           </div>
+        </div>
+      )}
+
+      {/* Strict Sequential Lock Banner */}
+      {openCertBlocker && (
+        <div
+          className="rounded-2xl border-2 border-amber-500/50 bg-amber-500/10 p-4 flex flex-wrap items-center justify-between gap-3"
+          data-testid="strict-sequential-banner"
+        >
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+            <div className="space-y-0.5 text-sm">
+              <div className="font-bold text-amber-900 dark:text-amber-200">
+                {isAr
+                  ? `لا يمكن إنشاء مستخلص جديد: يوجد مستخلص مفتوح (${openCertBlocker.certNo}) على هذا العقد`
+                  : `Strict Sequential Lock: Open Certificate (${openCertBlocker.certNo}) already exists on this contract`}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {isAr
+                  ? "لضمان دقة الحصر التراكمي وعدم تكرار الصرف، يجب اعتماد المستخلص المفتوح أو إلغاؤه قبل فتح مستخلص جديد."
+                  : "To guarantee accurate Previous vs Current BOQ carry-over and prevent double-billing, approve or cancel the open certificate first."}
+              </p>
+            </div>
+          </div>
+          <Button
+            size="sm"
+            variant="default"
+            className="rounded-xl gap-1.5 shrink-0"
+            onClick={() => navigate(`/payments/certificates/${openCertBlocker.id}`)}
+          >
+            <ExternalLink className="w-3.5 h-3.5" />
+            <span>{isAr ? `فتح ${openCertBlocker.certNo}` : `Open ${openCertBlocker.certNo}`}</span>
+          </Button>
         </div>
       )}
 
@@ -880,6 +1131,47 @@ export default function SubcontractorCertificateDetail() {
           </CardContent>
         </Card>
       </div>
+
+      {/* 2.5 Full-Width BOQ Valuation Section (Drives Work Value automatically when Contract has a BOQ) */}
+      {hasBoq ? (
+        <CertificateBoqTable
+          lines={boqLines}
+          editable={Boolean(editable && !openCertBlocker)}
+          onChangeLines={setBoqLines}
+          onSyncFromContract={editable && form.contractId ? syncBoqFromContract : undefined}
+          syncing={boqPreviewFetching}
+          onManageContractBoq={form.contractId ? () => setManagingContractBoq(true) : undefined}
+          contractNo={selectedContract?.contractNo ?? null}
+        />
+      ) : editable && form.contractId && !openCertBlocker ? (
+        <div className="rounded-2xl border border-dashed border-primary/30 bg-primary/[0.03] px-5 py-3.5 flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-3 text-sm">
+            <div className="w-9 h-9 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
+              <ClipboardList className="w-4 h-4" />
+            </div>
+            <div>
+              <div className="font-bold text-foreground">
+                {isAr ? "لا يوجد جدول كميات (BOQ) مرتبط بهذا العقد بعد" : "No BOQ defined for this contract yet"}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {isAr
+                  ? "يمكنك إدخال قيمة الأعمال يدوياً أدناه، أو إنشاء جدول كميات (كميات أو نسب إنجاز) ليحتسب المستخلصات تلقائياً."
+                  : "You can enter Work Value manually below, or set up a Contract BOQ (Qty / Progress %) to auto-calculate Work Value across certificates."}
+              </p>
+            </div>
+          </div>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="rounded-xl gap-1.5 border-primary/40 text-primary hover:bg-primary/10"
+            onClick={() => setManagingContractBoq(true)}
+          >
+            <Plus className="w-4 h-4" />
+            <span>{isAr ? "إعداد جدول كميات العقد (BOQ)" : "Setup Contract BOQ"}</span>
+          </Button>
+        </div>
+      ) : null}
 
       {/* 3. Main Grid: Left Column (Certificate Form & Calculations) / Right Column (Financial History & Context) */}
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
@@ -1081,28 +1373,44 @@ export default function SubcontractorCertificateDetail() {
               <div className="grid sm:grid-cols-2 gap-4">
                 {/* Contract Value */}
                 <div className="space-y-1.5 sm:col-span-1">
-                  <Label>{t("certificates.contract_value")}</Label>
+                  <div className="flex items-center justify-between gap-2">
+                    <Label>{t("certificates.contract_value")}</Label>
+                    {hasBoq && (
+                      <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-primary">
+                        <Lock className="w-3 h-3" />
+                        {t("boq.derived_from_boq", { defaultValue: isAr ? "من جدول الكميات" : "From BOQ" })}
+                      </span>
+                    )}
+                  </div>
                   <Input
                     type="number"
                     min="0"
                     step="0.01"
                     className="rounded-xl"
-                    value={form.contractValue}
-                    disabled={!editable}
+                    value={hasBoq && boqSummary ? String(boqSummary.revisedContractTotal) : form.contractValue}
+                    disabled={!editable || hasBoq}
                     onChange={(e) => setField("contractValue")(e.target.value)}
                   />
                 </div>
 
                 {/* Gross Amount (Work Value in this certificate) */}
                 <div className="space-y-1.5 sm:col-span-1">
-                  <Label className="font-bold text-primary">{t("certificates.work_value")}</Label>
+                  <div className="flex items-center justify-between gap-2">
+                    <Label className="font-bold text-primary">{t("certificates.work_value")}</Label>
+                    {hasBoq && (
+                      <Badge variant="secondary" className="text-[10px] h-5 bg-primary/10 text-primary gap-1">
+                        <Lock className="w-2.5 h-2.5" />
+                        {t("boq.derived_from_boq", { defaultValue: isAr ? "محسوبة من BOQ" : "Calculated from BOQ" })}
+                      </Badge>
+                    )}
+                  </div>
                   <Input
                     type="number"
                     min="0"
                     step="0.01"
                     className="rounded-xl font-bold border-primary/40 focus:border-primary"
-                    value={form.grossAmount}
-                    disabled={!editable}
+                    value={hasBoq && boqSummary ? String(boqSummary.currentTotal) : form.grossAmount}
+                    disabled={!editable || hasBoq}
                     onChange={(e) => setField("grossAmount")(e.target.value)}
                   />
                 </div>
@@ -1308,7 +1616,7 @@ export default function SubcontractorCertificateDetail() {
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center pt-1">
                   <div className="p-2 rounded-lg bg-card/80 border">
                     <div className="text-[10px] text-muted-foreground">{t("certificates.tile_work_value")}</div>
-                    <div className="text-sm font-black tabular-nums">{money(num(form.grossAmount))}</div>
+                    <div className="text-sm font-black tabular-nums">{money(effectiveGrossAmount)}</div>
                   </div>
                   <div className="p-2 rounded-lg bg-card/80 border text-destructive">
                     <div className="text-[10px] text-muted-foreground">{t("certificates.tile_retention")}</div>
@@ -1544,6 +1852,29 @@ export default function SubcontractorCertificateDetail() {
           </Card>
         </div>
       </div>
+      {/* Manage Contract BOQ Modal (inline access from Certificate Detail) */}
+      {managingContractBoq && form.contractId && (
+        <Dialog open={managingContractBoq} onOpenChange={setManagingContractBoq}>
+          <DialogContent className="flex flex-col max-w-[95vw] w-[1400px] max-h-[92vh] overflow-y-auto overflow-x-hidden rounded-3xl p-6">
+            <DialogHeader className="pb-3 border-b border-border/50">
+              <DialogTitle className="flex items-center gap-2 text-lg font-black">
+                <ClipboardList className="w-5 h-5 text-primary" />
+                <span>
+                  {isAr ? "جدول كميات العقد" : "Contract BOQ"}
+                  {selectedContract ? ` — ${selectedContract.contractNo} (${selectedContract.title})` : ""}
+                </span>
+              </DialogTitle>
+            </DialogHeader>
+            <ContractBoqEditor
+              contractId={form.contractId}
+              readOnly={!editable}
+              onSaved={() => {
+                void syncBoqFromContract();
+              }}
+            />
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 }

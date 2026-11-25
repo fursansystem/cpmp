@@ -290,6 +290,127 @@ async function main() {
   await db.execute(sql`UPDATE notifications n SET link = n.link || '&focus=' || r.id FROM payment_bill_requests r WHERE n.link LIKE '/payments?%' AND n.link NOT LIKE '%focus=%' AND n.project_id = r.project_id AND r.request_no = split_part(n.message, ' ', 1)`);
   await db.execute(sql`UPDATE notifications n SET link = n.link || '&focus=' || r.id FROM payment_chargebacks r WHERE n.link LIKE '/payments?%' AND n.link NOT LIKE '%focus=%' AND n.project_id = r.project_id AND r.charge_no = split_part(n.message, ' ', 1)`);
   console.log("Table 'project_subcontractors' ready.");
+
+  // Subcontractor Contracts BOQ + Certificate Valuation Lines + Project Master BOQ foundation
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS subcontractor_contracts (
+      id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+      project_id VARCHAR NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+      seq INTEGER NOT NULL,
+      contract_no TEXT NOT NULL,
+      subcontractor_id VARCHAR NOT NULL REFERENCES project_subcontractors(id) ON DELETE RESTRICT,
+      subcontractor_name TEXT NOT NULL,
+      title TEXT NOT NULL,
+      scope TEXT,
+      contract_value DECIMAL(14, 2) NOT NULL DEFAULT 0,
+      retention_percent DECIMAL(5, 2) NOT NULL DEFAULT 10,
+      vat_percent DECIMAL(5, 2) NOT NULL DEFAULT 15,
+      default_billing_mode TEXT NOT NULL DEFAULT 'qty',
+      start_date DATE,
+      end_date DATE,
+      work_location_ids TEXT[] NOT NULL DEFAULT '{}'::text[],
+      status TEXT NOT NULL DEFAULT 'active',
+      settlement_date DATE,
+      settlement_note TEXT,
+      settled_by VARCHAR REFERENCES users(id) ON DELETE SET NULL,
+      settled_at TIMESTAMP,
+      notes TEXT,
+      created_by VARCHAR REFERENCES users(id) ON DELETE SET NULL,
+      created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+      UNIQUE(project_id, seq)
+    );
+  `);
+  await db.execute(sql`ALTER TABLE subcontractor_contracts ADD COLUMN IF NOT EXISTS default_billing_mode TEXT NOT NULL DEFAULT 'qty';`);
+  await db.execute(sql`ALTER TABLE payment_subcontractor_certificates ADD COLUMN IF NOT EXISTS contract_id VARCHAR REFERENCES subcontractor_contracts(id) ON DELETE SET NULL;`);
+  await db.execute(sql`ALTER TABLE payment_subcontractor_certificates ADD COLUMN IF NOT EXISTS work_location_ids TEXT[] NOT NULL DEFAULT '{}'::text[];`);
+  await db.execute(sql`ALTER TABLE payment_subcontractor_certificates ADD COLUMN IF NOT EXISTS boq_mode TEXT NOT NULL DEFAULT 'manual';`);
+
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS project_boq_items (
+      id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+      project_id VARCHAR NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+      sort_order INTEGER NOT NULL DEFAULT 0,
+      section TEXT,
+      item_code TEXT NOT NULL,
+      cost_code TEXT,
+      description TEXT NOT NULL,
+      unit TEXT NOT NULL DEFAULT 'LS',
+      billing_mode TEXT NOT NULL DEFAULT 'qty',
+      contract_qty DECIMAL(14, 4) NOT NULL DEFAULT 1,
+      unit_rate DECIMAL(14, 2) NOT NULL DEFAULT 0,
+      total_amount DECIMAL(14, 2) NOT NULL DEFAULT 0,
+      notes TEXT,
+      created_by VARCHAR REFERENCES users(id) ON DELETE SET NULL,
+      created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+    );
+  `);
+  await db.execute(sql`CREATE INDEX IF NOT EXISTS project_boq_items_project_idx ON project_boq_items (project_id, sort_order);`);
+
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS subcontractor_contract_boq_items (
+      id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+      project_id VARCHAR NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+      contract_id VARCHAR NOT NULL REFERENCES subcontractor_contracts(id) ON DELETE CASCADE,
+      project_boq_item_id VARCHAR REFERENCES project_boq_items(id) ON DELETE SET NULL,
+      sort_order INTEGER NOT NULL DEFAULT 0,
+      section TEXT,
+      item_code TEXT NOT NULL,
+      cost_code TEXT,
+      description TEXT NOT NULL,
+      unit TEXT NOT NULL DEFAULT 'LS',
+      billing_mode TEXT NOT NULL DEFAULT 'qty',
+      contract_qty DECIMAL(14, 4) NOT NULL DEFAULT 1,
+      unit_rate DECIMAL(14, 2) NOT NULL DEFAULT 0,
+      contract_amount DECIMAL(14, 2) NOT NULL DEFAULT 0,
+      is_variation BOOLEAN NOT NULL DEFAULT false,
+      variation_ref TEXT,
+      notes TEXT,
+      created_by VARCHAR REFERENCES users(id) ON DELETE SET NULL,
+      created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+    );
+  `);
+  await db.execute(sql`CREATE INDEX IF NOT EXISTS sub_contract_boq_contract_idx ON subcontractor_contract_boq_items (contract_id, sort_order);`);
+  await db.execute(sql`CREATE INDEX IF NOT EXISTS sub_contract_boq_project_idx ON subcontractor_contract_boq_items (project_id);`);
+  await db.execute(sql`CREATE INDEX IF NOT EXISTS sub_contract_boq_master_idx ON subcontractor_contract_boq_items (project_boq_item_id);`);
+
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS subcontractor_certificate_boq_lines (
+      id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+      project_id VARCHAR NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+      certificate_id VARCHAR NOT NULL REFERENCES payment_subcontractor_certificates(id) ON DELETE CASCADE,
+      contract_boq_item_id VARCHAR REFERENCES subcontractor_contract_boq_items(id) ON DELETE SET NULL,
+      sort_order INTEGER NOT NULL DEFAULT 0,
+      section TEXT,
+      item_code TEXT NOT NULL,
+      cost_code TEXT,
+      description TEXT NOT NULL,
+      unit TEXT NOT NULL DEFAULT 'LS',
+      billing_mode TEXT NOT NULL DEFAULT 'qty',
+      is_variation BOOLEAN NOT NULL DEFAULT false,
+      variation_ref TEXT,
+      contract_qty DECIMAL(14, 4) NOT NULL DEFAULT 1,
+      unit_rate DECIMAL(14, 2) NOT NULL DEFAULT 0,
+      contract_amount DECIMAL(14, 2) NOT NULL DEFAULT 0,
+      previous_qty DECIMAL(14, 4) NOT NULL DEFAULT 0,
+      current_qty DECIMAL(14, 4) NOT NULL DEFAULT 0,
+      cumulative_qty DECIMAL(14, 4) NOT NULL DEFAULT 0,
+      previous_percent DECIMAL(7, 4) NOT NULL DEFAULT 0,
+      current_percent DECIMAL(7, 4) NOT NULL DEFAULT 0,
+      cumulative_percent DECIMAL(7, 4) NOT NULL DEFAULT 0,
+      previous_amount DECIMAL(14, 2) NOT NULL DEFAULT 0,
+      current_amount DECIMAL(14, 2) NOT NULL DEFAULT 0,
+      cumulative_amount DECIMAL(14, 2) NOT NULL DEFAULT 0,
+      notes TEXT,
+      created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+    );
+  `);
+  await db.execute(sql`CREATE INDEX IF NOT EXISTS sub_cert_boq_lines_cert_idx ON subcontractor_certificate_boq_lines (certificate_id, sort_order);`);
+  await db.execute(sql`CREATE INDEX IF NOT EXISTS sub_cert_boq_lines_item_idx ON subcontractor_certificate_boq_lines (contract_boq_item_id);`);
+  console.log("Tables 'project_boq_items', 'subcontractor_contract_boq_items', 'subcontractor_certificate_boq_lines' ready.");
 }
 
 main().then(() => {

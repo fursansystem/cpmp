@@ -150,8 +150,14 @@
     "approved": "Approved, not yet paid",
     "orders": "Orders: {{count}}",
     "delayed": "Decisions waiting over {{days}} days: {{count}}",
+    "delayed_label": "Delayed decisions",
+    "delayed_sub": "Over {{days}} days",
     "bills": "Open invoice-original requests: {{open}} · overdue: {{overdue}}",
+    "bills_label": "Open bill requests",
+    "bills_overdue": "Overdue: {{overdue}}",
     "fines": "Open deductions: {{count}}, worth {{amount}} SAR",
+    "fines_label": "Open deductions",
+    "fines_amount": "Worth {{amount}} SAR",
     "empty": "No payment orders match the current filters."
   },
   "activity": {
