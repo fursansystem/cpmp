@@ -3653,6 +3653,384 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ==========================================
+  // Project Workflow Assignments Endpoints (مركز تحكم مسارات العمل)
+  // ==========================================
+  function computeDefaultWorkflowMembers(
+    candidates: any[],
+    _project?: any
+  ): Record<string, { id: string; name: string; position: string | null; orgType: string }[]> {
+    const contractorMembers = candidates.filter((m) => m.orgType === "contractor");
+    const consultantMembers = candidates.filter((m) => m.orgType === "consultant");
+    const developerMembers = candidates.filter((m) => m.orgType === "developer");
+
+    const isPM = (p: string) => {
+      const s = (p || "").toLowerCase();
+      return (
+        s.includes("project manager") ||
+        s.includes("مدير مشروع") ||
+        s.includes("مدير المشروعات") ||
+        s.includes("pm") ||
+        s.includes("construction manager") ||
+        s.includes("مدير التشييد")
+      );
+    };
+
+    const isStorekeeper = (p: string) => {
+      const s = (p || "").toLowerCase();
+      return (
+        s.includes("store") ||
+        s.includes("warehouse") ||
+        s.includes("مستودع") ||
+        s.includes("مخزن") ||
+        s.includes("inventory")
+      );
+    };
+
+    const isQAQC = (p: string) => {
+      const s = (p || "").toLowerCase();
+      return s.includes("qa") || s.includes("qc") || s.includes("جودة") || s.includes("quality");
+    };
+
+    const isDC = (p: string) => {
+      const s = (p || "").toLowerCase();
+      return s.includes("document") || s.includes("وثائق") || s.includes("مستندات") || s.includes("dc");
+    };
+
+    const isEngineer = (p: string) => {
+      const s = (p || "").toLowerCase();
+      return (
+        s.includes("engineer") ||
+        s.includes("مهندس") ||
+        s.includes("civil") ||
+        s.includes("architect") ||
+        s.includes("electrical") ||
+        s.includes("mechanical") ||
+        s.includes("مدني") ||
+        s.includes("معماري") ||
+        s.includes("كهربا") ||
+        s.includes("ميكانيك")
+      );
+    };
+
+    const isInspector = (p: string) => {
+      const s = (p || "").toLowerCase();
+      return (
+        s.includes("inspector") ||
+        s.includes("مراقب") ||
+        s.includes("معاين") ||
+        s.includes("technician") ||
+        s.includes("فني")
+      );
+    };
+
+    const isExecOrAdmin = (p: string) => {
+      const s = (p || "").toLowerCase();
+      return (
+        s.includes("admin") ||
+        s.includes("ceo") ||
+        s.includes("general manager") ||
+        s.includes("مدير عام") ||
+        s.includes("owner representative") ||
+        s.includes("ممثل المالك") ||
+        s.includes("تنفيذي")
+      );
+    };
+
+    const format = (m: any) => ({
+      id: m.id,
+      name: m.nameArabic || m.name,
+      position: m.position || null,
+      orgType:
+        m.orgType === "contractor"
+          ? "المقاول"
+          : m.orgType === "consultant"
+          ? "الاستشاري"
+          : m.orgType === "developer"
+          ? "المالك/المطور"
+          : "المشروع",
+    });
+
+    const filterOrFallback = (
+      list: any[],
+      predicate: (m: any) => boolean,
+      fallbackList: any[] = []
+    ) => {
+      const matched = list.filter(predicate);
+      if (matched.length > 0) return matched.map(format);
+      if (fallbackList.length > 0) return fallbackList.map(format);
+      return [];
+    };
+
+    return {
+      // 1. المشتريات
+      po_draft: filterOrFallback(
+        [...contractorMembers, ...developerMembers],
+        (m) =>
+          isPM(m.position) ||
+          isEngineer(m.position) ||
+          isDC(m.position) ||
+          isStorekeeper(m.position),
+        [...contractorMembers, ...developerMembers]
+      ),
+      po_approve: filterOrFallback(
+        [...developerMembers, ...contractorMembers],
+        (m) => isPM(m.position) || isExecOrAdmin(m.position),
+        developerMembers.length > 0 ? developerMembers : contractorMembers
+      ),
+
+      // 2. المستودع والتوريدات
+      wh_receive: filterOrFallback(
+        contractorMembers,
+        (m) => isStorekeeper(m.position) || isEngineer(m.position) || isQAQC(m.position),
+        contractorMembers
+      ),
+      wh_issue_create: filterOrFallback(
+        contractorMembers,
+        (m) => isEngineer(m.position) || isPM(m.position) || isQAQC(m.position),
+        contractorMembers
+      ),
+      wh_issue_approve: filterOrFallback(
+        contractorMembers,
+        (m) => isStorekeeper(m.position) || isPM(m.position),
+        contractorMembers.filter((m) => isPM(m.position))
+      ),
+      wh_adjust: filterOrFallback(
+        [...contractorMembers, ...developerMembers],
+        (m) => isPM(m.position) || isExecOrAdmin(m.position),
+        [...contractorMembers, ...developerMembers].filter((m) => isPM(m.position))
+      ),
+
+      // 3. طلبات الفحص الهندسية - الخطوات الـ 7
+      req_contractor_prep: filterOrFallback(
+        contractorMembers,
+        (m) => isQAQC(m.position) || isEngineer(m.position) || isDC(m.position),
+        contractorMembers
+      ),
+      req_contractor_submit: filterOrFallback(
+        contractorMembers,
+        (m) => isDC(m.position) || isQAQC(m.position) || isEngineer(m.position),
+        contractorMembers
+      ),
+      req_contractor_pm: filterOrFallback(
+        contractorMembers,
+        (m) => isPM(m.position),
+        contractorMembers
+      ),
+      req_eng_review: filterOrFallback(
+        consultantMembers,
+        (m) => isEngineer(m.position),
+        consultantMembers
+      ),
+      req_site_inspect: filterOrFallback(
+        consultantMembers,
+        (m) => isInspector(m.position) || isEngineer(m.position),
+        consultantMembers
+      ),
+      req_consultant_pm: filterOrFallback(
+        consultantMembers,
+        (m) => isPM(m.position),
+        consultantMembers
+      ),
+      req_final_approve: filterOrFallback(
+        [...consultantMembers, ...developerMembers],
+        (m) => isPM(m.position) || isExecOrAdmin(m.position),
+        consultantMembers.filter((m) => isPM(m.position))
+      ),
+
+      // Legacy stages mapping (for backward compatibility)
+      req_submit: filterOrFallback(
+        contractorMembers,
+        (m) => isQAQC(m.position) || isDC(m.position) || isEngineer(m.position),
+        contractorMembers
+      ),
+      req_inspect: filterOrFallback(
+        consultantMembers,
+        (m) => isInspector(m.position) || isEngineer(m.position),
+        consultantMembers
+      ),
+      req_approve: filterOrFallback(
+        [...consultantMembers, ...developerMembers],
+        (m) => isPM(m.position) || isExecOrAdmin(m.position),
+        consultantMembers.filter((m) => isPM(m.position))
+      ),
+
+      // 4. قائمة الملاحظات (الخطوات الـ 4 لدورة حياة الملاحظات)
+      snag_create: filterOrFallback(
+        [...consultantMembers, ...developerMembers],
+        (m) =>
+          isEngineer(m.position) ||
+          isInspector(m.position) ||
+          isQAQC(m.position) ||
+          isPM(m.position),
+        [...consultantMembers, ...developerMembers]
+      ),
+      snag_issue: filterOrFallback(
+        consultantMembers,
+        (m) => isPM(m.position) || isDC(m.position) || isQAQC(m.position),
+        consultantMembers
+      ),
+      snag_rectify: filterOrFallback(
+        contractorMembers,
+        (m) => isEngineer(m.position) || isQAQC(m.position) || isInspector(m.position),
+        contractorMembers
+      ),
+      snag_close: filterOrFallback(
+        [...consultantMembers, ...developerMembers],
+        (m) => isPM(m.position) || isEngineer(m.position),
+        consultantMembers
+      ),
+    };
+  }
+
+  app.get("/api/projects/:projectId/workflow-assignments", async (req, res) => {
+    try {
+      const currentUser = await getCurrentUserWithOrg(req);
+      if (!currentUser) return res.status(401).json({ error: "Authentication required" });
+
+      const project = await storage.getProject(req.params.projectId);
+      if (!project) return res.status(404).json({ error: "Project not found" });
+
+      const userOrgId = currentUser.user.organizationId;
+      const userSector = currentUser.user.organizationSectorType;
+
+      const isConsultant =
+        userSector === "Consultant" ||
+        (!!project.consultantId && userOrgId === project.consultantId);
+
+      const isContractor =
+        userSector === "Contractor" ||
+        (!!project.contractorId && userOrgId === project.contractorId);
+
+      const isOwnerOrDeveloper =
+        currentUser.user.role === "developer_admin" ||
+        userSector === "Developer" ||
+        (!!project.organizationId && userOrgId === project.organizationId);
+
+      // Super Admin, Developer/Owner Admins, and Contractor Admins can manage workflow. Consultant is strictly excluded.
+      const canManage =
+        !isConsultant &&
+        (currentUser.user.role === "super_admin" ||
+          (currentUser.user.role !== "user" && (isOwnerOrDeveloper || isContractor)));
+
+      const [assignments, allMembers, allPositions, allOrgs] = await Promise.all([
+        storage.getProjectWorkflowAssignments(req.params.projectId),
+        storage.getAllTeamMembers(),
+        storage.getAllPositions(),
+        storage.getAllOrganizations(),
+      ]);
+
+      const projectOrgIds = new Set(
+        [project.organizationId, project.contractorId, project.consultantId].filter(Boolean)
+      );
+
+      const candidates = projectOrgIds.size > 0
+        ? allMembers.filter((m) => m.organizationId && projectOrgIds.has(m.organizationId))
+        : allMembers;
+
+      const orgMap = new Map((allOrgs || []).map((o: any) => [o.id, o]));
+
+      // Attach organization metadata to candidates for clear UI presentation
+      const enrichedCandidates = candidates.map((m) => {
+        let orgType = "other";
+        let orgName = "";
+        if (m.organizationId) {
+          const org = orgMap.get(m.organizationId);
+          orgName = org?.name || "";
+          if (m.organizationId === project.contractorId) orgType = "contractor";
+          else if (m.organizationId === project.consultantId) orgType = "consultant";
+          else if (m.organizationId === project.organizationId) orgType = "developer";
+        }
+        return {
+          ...m,
+          orgType,
+          orgName,
+        };
+      });
+
+      // Compute default qualified members per stage
+      const defaultMembers = computeDefaultWorkflowMembers(enrichedCandidates, project);
+
+      res.json({
+        assignments,
+        candidates: enrichedCandidates,
+        defaultMembers,
+        positions: allPositions,
+        canManage,
+      });
+    } catch (error) {
+      handleError(res, error);
+    }
+  });
+
+  app.put("/api/projects/:projectId/workflow-assignments", async (req, res) => {
+    try {
+      const currentUser = await getCurrentUserWithOrg(req);
+      if (!currentUser) return res.status(401).json({ error: "Authentication required" });
+
+      const project = await storage.getProject(req.params.projectId);
+      if (!project) return res.status(404).json({ error: "Project not found" });
+
+      const userOrgId = currentUser.user.organizationId;
+      const userSector = currentUser.user.organizationSectorType;
+
+      const isConsultant =
+        userSector === "Consultant" ||
+        (!!project.consultantId && userOrgId === project.consultantId);
+
+      const isContractor =
+        userSector === "Contractor" ||
+        (!!project.contractorId && userOrgId === project.contractorId);
+
+      const isOwnerOrDeveloper =
+        currentUser.user.role === "developer_admin" ||
+        userSector === "Developer" ||
+        (!!project.organizationId && userOrgId === project.organizationId);
+
+      const canManage =
+        !isConsultant &&
+        (currentUser.user.role === "super_admin" ||
+          (currentUser.user.role !== "user" && (isOwnerOrDeveloper || isContractor)));
+
+      if (!canManage) {
+        return res.status(403).json({
+          error: isConsultant
+            ? "لا يمكن للاستشاري تعديل مسارات العمل. التحكم متاح للمطور/المالك والمقاول فقط."
+            : "You do not have permission to modify workflow assignments",
+        });
+      }
+
+      const bodySchema = z.object({
+        assignments: z.array(
+          z.object({
+            module: z.string(),
+            stage: z.string(),
+            teamMemberIds: z.array(z.string()),
+          })
+        ),
+      });
+
+      const { assignments } = bodySchema.parse(req.body);
+      await storage.saveProjectWorkflowAssignments(req.params.projectId, assignments);
+      const updated = await storage.getProjectWorkflowAssignments(req.params.projectId);
+      res.json(updated);
+    } catch (error) {
+      handleError(res, error);
+    }
+  });
+
+  app.get("/api/projects/:projectId/workflow-permissions", async (req, res) => {
+    try {
+      const currentUser = await getCurrentUserWithOrg(req);
+      if (!currentUser) return res.status(401).json({ error: "Authentication required" });
+
+      const perms = await storage.getProjectWorkflowPermissions(currentUser.user.id, req.params.projectId);
+      res.json(perms);
+    } catch (error) {
+      handleError(res, error);
+    }
+  });
+
   app.get("/api/projects/:projectId/low-stock", async (req, res) => {
     try {
       const currentUser = await getCurrentUserWithOrg(req);
@@ -6326,6 +6704,82 @@ export async function registerRoutes(app: Express): Promise<Server> {
     console.log(`[Approve] revisionId=${revisionId}, stepName=${stepName}, autoAdvanceToStep=${autoAdvanceToStep}`);
 
     try {
+      const revision = await storage.getRequestRevisionById(revisionId);
+      if (!revision) {
+        return res.status(404).json({ error: "Revision not found" });
+      }
+
+      const reqRecord = await storage.getRequest(revision.requestId);
+      if (reqRecord) {
+        const wfPerms = await storage.getProjectWorkflowPermissions(userId, reqRecord.projectId);
+        
+        // 7. Check final approval assignment
+        const finalApprovePerm = wfPerms.req_final_approve?.hasConfig ? wfPerms.req_final_approve : wfPerms.req_approve;
+        if (
+          (stepName === "Final Approval" || stepName === "Consultant Manager Approval") &&
+          finalApprovePerm?.hasConfig &&
+          !finalApprovePerm.allowed
+        ) {
+          const names = finalApprovePerm.assignedMembers.map((m) => m.name).join(", ");
+          return res.status(403).json({ error: `الاعتماد النهائي للطلب مخصص للأعضاء: ${names}` });
+        }
+
+        // 6. Check consultant PM approval/review assignment
+        const consultantPmPerm = wfPerms.req_consultant_pm?.hasConfig ? wfPerms.req_consultant_pm : wfPerms.req_approve;
+        if (
+          (stepName === "Consultant PM Approval" || stepName === "Consultant PM Review") &&
+          consultantPmPerm?.hasConfig &&
+          !consultantPmPerm.allowed
+        ) {
+          const names = consultantPmPerm.assignedMembers.map((m) => m.name).join(", ");
+          return res.status(403).json({ error: `مراجعة واعتماد مدير مشروع الاستشاري مخصصة للأعضاء: ${names}` });
+        }
+
+        // 5. Check site inspection assignment
+        const siteInspectPerm = wfPerms.req_site_inspect?.hasConfig ? wfPerms.req_site_inspect : wfPerms.req_inspect;
+        if (
+          (stepName === "Site Inspection" || stepName === "Consultant Team Approval") &&
+          siteInspectPerm?.hasConfig &&
+          !siteInspectPerm.allowed
+        ) {
+          const names = siteInspectPerm.assignedMembers.map((m) => m.name).join(", ");
+          return res.status(403).json({ error: `المعاينة الميدانية وتعبئة القوائم مخصصة للأعضاء: ${names}` });
+        }
+
+        // 4. Check engineer review assignment
+        const engReviewPerm = wfPerms.req_eng_review?.hasConfig ? wfPerms.req_eng_review : wfPerms.req_inspect;
+        if (
+          stepName === "Engineer Review" &&
+          engReviewPerm?.hasConfig &&
+          !engReviewPerm.allowed
+        ) {
+          const names = engReviewPerm.assignedMembers.map((m) => m.name).join(", ");
+          return res.status(403).json({ error: `مراجعة المهندس الاستشاري مخصصة للأعضاء: ${names}` });
+        }
+
+        // 3. Check contractor PM approval
+        const contractorPmPerm = wfPerms.req_contractor_pm?.hasConfig ? wfPerms.req_contractor_pm : wfPerms.req_submit;
+        if (
+          (stepName === "Contractor PM Approval" || stepName === "Contractor Manager Approval") &&
+          contractorPmPerm?.hasConfig &&
+          !contractorPmPerm.allowed
+        ) {
+          const names = contractorPmPerm.assignedMembers.map((m) => m.name).join(", ");
+          return res.status(403).json({ error: `اعتماد مدير مشروع المقاول مخصص للأعضاء: ${names}` });
+        }
+
+        // 2. Check contractor submission
+        const contractorSubmitPerm = wfPerms.req_contractor_submit?.hasConfig ? wfPerms.req_contractor_submit : wfPerms.req_submit;
+        if (
+          (stepName === "Contractor Submission" || stepName === "Contractor Team Approval") &&
+          contractorSubmitPerm?.hasConfig &&
+          !contractorSubmitPerm.allowed
+        ) {
+          const names = contractorSubmitPerm.assignedMembers.map((m) => m.name).join(", ");
+          return res.status(403).json({ error: `تقديم الطلب مخصص للأعضاء: ${names}` });
+        }
+      }
+
       // Step 106 (Consultant Manager Approval) and SI Step 1102 (Consultant PM Approval) are restricted to Project Managers only
       if (stepName === "Consultant Manager Approval" || stepName === "Consultant PM Approval") {
         const isPM = await isUserProjectManager(userId);
@@ -6342,11 +6796,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         changedBy: userId,
         remarks: `Step approved: ${stepName}`,
       });
-
-      const revision = await storage.getRequestRevisionById(revisionId);
-      if (!revision) {
-        return res.status(404).json({ error: "Revision not found" });
-      }
 
       if (approvalStatusCode) {
         const validCode = await storage.getApprovalStatusCode(approvalStatusCode);
@@ -8793,13 +9242,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!currentUser) {
         return res.status(401).json({ error: "Authentication required" });
       }
-      const canApprove =
-        currentUser.user.role === "super_admin" ||
-        currentUser.user.role === "developer_admin" ||
-        currentUser.user.role === "org_admin";
-      if (!canApprove) {
-        return res.status(403).json({ error: "You do not have permission to approve purchase orders" });
+
+      const existingPo = await storage.getPurchaseOrder(req.params.id);
+      if (!existingPo) {
+        return res.status(404).json({ error: "Purchase order not found" });
       }
+
+      // Check workflow control assignments for this project
+      const wfPerms = await storage.getProjectWorkflowPermissions(currentUser.user.id, existingPo.projectId);
+      if (wfPerms.po_approve?.hasConfig) {
+        if (!wfPerms.po_approve.allowed) {
+          const names = wfPerms.po_approve.assignedMembers.map((m) => m.name).join(", ");
+          return res.status(403).json({
+            error: `اعتماد أمر الشراء مخصص للأعضاء: ${names || "لا يوجد أعضاء محددين"}`
+          });
+        }
+      } else {
+        const canApprove =
+          currentUser.user.role === "super_admin" ||
+          currentUser.user.role === "developer_admin" ||
+          currentUser.user.role === "org_admin";
+        if (!canApprove) {
+          return res.status(403).json({ error: "You do not have permission to approve purchase orders" });
+        }
+      }
+
       const po = await storage.approvePurchaseOrder(req.params.id, currentUser.user.id);
       res.json(po);
       webhookService.emit({ event: "purchase_order", action: "approved", projectId: po.projectId, recordId: po.id, actorId: currentUser.user.id });

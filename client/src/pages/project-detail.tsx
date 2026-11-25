@@ -1,4 +1,5 @@
 import { PaymentActionButtons } from "@/components/payments/payment-actions";
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useParams, useLocation } from "wouter";
 import {
@@ -31,6 +32,7 @@ import {
   Wallet,
   Landmark,
   HardHat,
+  ShieldCheck,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { format, differenceInDays, startOfDay } from "@/lib/date-format";
@@ -38,6 +40,7 @@ import { cn } from "@/lib/utils";
 import type { Project } from "@shared/schema";
 import { useAuth } from "@/lib/auth";
 import { ProjectPartiesCard } from "@/components/project-parties-card";
+import { ProjectWorkflowMatrixDialog } from "@/components/workflow/project-workflow-matrix-dialog";
 
 const statusConfig = {
   active: { label: "Active", className: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20" },
@@ -48,10 +51,11 @@ const statusConfig = {
 };
 
 export default function ProjectDetail() {
-  const { t } = useTranslation(["projects", "common"]);
+  const { t, i18n } = useTranslation(["projects", "common"]);
   const { projectId } = useParams();
   const [, navigate] = useLocation();
   const { user } = useAuth();
+  const [workflowOpen, setWorkflowOpen] = useState(false);
 
   const { data: project, isLoading } = useQuery<Project>({
     queryKey: ["/api/projects", projectId],
@@ -62,6 +66,25 @@ export default function ProjectDetail() {
       return response.json();
     },
   });
+
+  const userOrgId = user?.organizationId;
+  const isConsultant =
+    user?.organizationSectorType === "Consultant" ||
+    (!!project?.consultantId && userOrgId === project.consultantId);
+
+  const isContractor =
+    user?.organizationSectorType === "Contractor" ||
+    (!!project?.contractorId && userOrgId === project.contractorId);
+
+  const isOwnerOrDeveloper =
+    user?.role === "developer_admin" ||
+    user?.organizationSectorType === "Developer" ||
+    (!!project?.organizationId && userOrgId === project.organizationId);
+
+  const canManageWorkflow =
+    !isConsultant &&
+    (user?.role === "super_admin" ||
+      (user?.role !== "user" && (isOwnerOrDeveloper || isContractor)));
 
   // Light summary of the progress matrix (مصفوفة الإنجاز) for the section card
   const { data: matrixSummary } = useQuery<{ projectProgress: number; nodeCount: number; certificateCount: number }>({
@@ -301,7 +324,19 @@ export default function ProjectDetail() {
         </div>
 
         <div className="flex items-center gap-3 shrink-0 z-10">
-          {/* Right side spacer/buttons */}
+          {canManageWorkflow && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setWorkflowOpen(true)}
+              className="gap-2 font-bold rounded-xl border-primary/20 hover:border-primary/50 hover:bg-primary/5 text-primary text-xs shadow-xs"
+            >
+              <ShieldCheck className="w-4 h-4 text-primary" />
+              <span>
+                {i18n.language === "ar" ? "مركز تحكم سير العمل" : "Workflow Control"}
+              </span>
+            </Button>
+          )}
         </div>
       </div>
 
@@ -510,6 +545,12 @@ export default function ProjectDetail() {
         })}
         </div>
       </div>
+
+      <ProjectWorkflowMatrixDialog
+        open={workflowOpen}
+        onOpenChange={setWorkflowOpen}
+        projectId={projectId || ""}
+      />
     </div>
   );
 }

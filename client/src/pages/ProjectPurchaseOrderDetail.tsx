@@ -92,6 +92,19 @@ export default function ProjectPurchaseOrderDetail() {
     enabled: !!poId,
   });
 
+  const { data: workflowPerms } = useQuery<
+    Record<string, { allowed: boolean; hasConfig: boolean; assignedMembers: { id: string; name: string }[] }>
+  >({
+    queryKey: ["/api/projects", projectId, "workflow-permissions"],
+    enabled: !!projectId,
+  });
+
+  const canApproveWf = !workflowPerms?.po_approve?.hasConfig || workflowPerms.po_approve.allowed;
+  const approverNames = workflowPerms?.po_approve?.assignedMembers?.map((m) => m.name).join("، ");
+
+  const canReceiveWf = !workflowPerms?.wh_receive?.hasConfig || workflowPerms.wh_receive.allowed;
+  const receiverNames = workflowPerms?.wh_receive?.assignedMembers?.map((m) => m.name).join("، ");
+
   const approveMutation = useMutation({
     mutationFn: async () => apiRequest("POST", `/api/purchase-orders/${poId}/approve`),
     onSuccess: () => {
@@ -228,8 +241,14 @@ export default function ProjectPurchaseOrderDetail() {
               </Button>
               <Button
                 onClick={() => setApproveOpen(true)}
-                disabled={!po.expectedDeliveryDate}
-                title={!po.expectedDeliveryDate ? t("detail.edit.date_required") : undefined}
+                disabled={!po.expectedDeliveryDate || !canApproveWf}
+                title={
+                  !canApproveWf
+                    ? `اعتماد أمر الشراء مخصص للأعضاء: ${approverNames || "أعضاء محددين"}`
+                    : !po.expectedDeliveryDate
+                    ? t("detail.edit.date_required")
+                    : undefined
+                }
                 className="rounded-xl gap-1.5 font-bold"
               >
                 <CheckCircle2 className="w-4 h-4" />
@@ -240,7 +259,16 @@ export default function ProjectPurchaseOrderDetail() {
           {/* Hidden once every line is fully received: a completed order has nothing left
               to receive, and a primary action there is just noise. */}
           {po.isReceivable && !po.fullyReceived && (
-            <Button onClick={() => setReceiveOpen(true)} className="rounded-xl gap-1.5 font-bold">
+            <Button
+              onClick={() => setReceiveOpen(true)}
+              disabled={!canReceiveWf}
+              title={
+                !canReceiveWf
+                  ? `استلام التوريد مخصص للأعضاء: ${receiverNames || "أعضاء محددين"}`
+                  : undefined
+              }
+              className="rounded-xl gap-1.5 font-bold"
+            >
               <Warehouse className="w-4 h-4" />
               {t("detail.receive_btn")}
             </Button>

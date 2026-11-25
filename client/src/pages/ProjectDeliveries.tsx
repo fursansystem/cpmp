@@ -135,6 +135,16 @@ export default function ProjectDeliveries({
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
+  const { data: workflowPerms } = useQuery<
+    Record<string, { allowed: boolean; hasConfig: boolean; assignedMembers: { id: string; name: string }[] }>
+  >({
+    queryKey: ["/api/projects", projectId, "workflow-permissions"],
+    enabled: !!projectId,
+  });
+
+  const canReceiveWf = !workflowPerms?.wh_receive?.hasConfig || workflowPerms.wh_receive.allowed;
+  const receiverNames = workflowPerms?.wh_receive?.assignedMembers?.map((m) => m.name).join("، ");
+
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
       await apiRequest("DELETE", `/api/deliveries/${id}`);
@@ -261,7 +271,12 @@ export default function ProjectDeliveries({
         </div>
 
         <div className="flex items-center gap-3 shrink-0 z-10">
-          <Button onClick={handleAdd} className="shadow-lg rounded-full font-black text-[10px] uppercase tracking-widest px-6 h-9 lg:h-11 bg-primary hover:bg-primary/90 text-primary-foreground transition-all active:scale-95">
+          <Button
+            onClick={handleAdd}
+            disabled={!canReceiveWf}
+            title={!canReceiveWf ? `تسجيل التوريد مخصص للأعضاء: ${receiverNames || "أعضاء محددين"}` : undefined}
+            className="shadow-lg rounded-full font-black text-[10px] uppercase tracking-widest px-6 h-9 lg:h-11 bg-primary hover:bg-primary/90 text-primary-foreground transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
             <Plus className="w-4 h-4 me-2" />
             Add Delivery
           </Button>
@@ -290,7 +305,12 @@ export default function ProjectDeliveries({
 
       {embedded && (
         <div className="flex justify-end">
-          <Button onClick={handleAdd} className="rounded-xl font-bold gap-1.5 text-xs h-9">
+          <Button
+            onClick={handleAdd}
+            disabled={!canReceiveWf}
+            title={!canReceiveWf ? `تسجيل التوريد مخصص للأعضاء: ${receiverNames || "أعضاء محددين"}` : undefined}
+            className="rounded-xl font-bold gap-1.5 text-xs h-9"
+          >
             <Plus className="w-4 h-4" />
             إضافة توريد
           </Button>

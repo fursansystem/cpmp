@@ -42,6 +42,7 @@ import { StockAdjustmentDialog } from "@/components/warehouse/stock-adjustment-d
 import { StockTransferDialog } from "@/components/warehouse/stock-transfer-dialog";
 import { DeliveriesList } from "@/components/warehouse/deliveries-list";
 import { ApproverSettingsDialog } from "@/components/warehouse/approver-settings-dialog";
+import { ProjectWorkflowMatrixDialog } from "@/components/workflow/project-workflow-matrix-dialog";
 import { WarehouseOverview } from "@/components/warehouse/warehouse-overview";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
@@ -92,6 +93,7 @@ export default function ProjectWarehouse() {
   const [rejectReason, setRejectReason] = useState("");
   const [cancelling, setCancelling] = useState<any>(null);
   const [approversOpen, setApproversOpen] = useState(false);
+  const [workflowOpen, setWorkflowOpen] = useState(false);
 
   const { data: permissions } = useQuery<any>({
     queryKey: ["/api/projects", projectId, "inventory-permissions"],
@@ -220,15 +222,26 @@ export default function ProjectWarehouse() {
             </Button>
           )}
           {permissions?.canManageApprovers && (
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={() => setApproversOpen(true)}
-              title={t("actions.approvers_settings")}
-              className="rounded-xl h-10 w-10"
-            >
-              <ShieldCheck className="w-4 h-4" />
-            </Button>
+            <>
+              <Button
+                variant="outline"
+                onClick={() => setWorkflowOpen(true)}
+                title="مركز تحكم مسارات العمل"
+                className="rounded-xl gap-1.5 font-bold"
+              >
+                <ShieldCheck className="w-4 h-4 text-primary" />
+                <span className="hidden sm:inline">سير العمل</span>
+              </Button>
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={() => setApproversOpen(true)}
+                title={t("actions.approvers_settings")}
+                className="rounded-xl h-10 w-10"
+              >
+                <ShieldCheck className="w-4 h-4" />
+              </Button>
+            </>
           )}
         </div>
       </div>
@@ -621,6 +634,7 @@ export default function ProjectWarehouse() {
         </TabsContent>
       </Tabs>
 
+      <ProjectWorkflowMatrixDialog open={workflowOpen} onOpenChange={setWorkflowOpen} projectId={projectId || ""} />
       <ApproverSettingsDialog open={approversOpen} onOpenChange={setApproversOpen} projectId={projectId || ""} />
       <MaterialIssueDialog open={issueOpen} onOpenChange={setIssueOpen} projectId={projectId || ""} warehouses={warehouses} />
       <StockAdjustmentDialog open={adjustOpen} onOpenChange={setAdjustOpen} projectId={projectId || ""} warehouses={warehouses} />
