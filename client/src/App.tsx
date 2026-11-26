@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from "react";
+import React, { Suspense, lazy, useEffect, useRef } from "react";
 import { Switch, Route, useLocation } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { useQuery, defaultShouldDehydrateQuery } from "@tanstack/react-query";
@@ -14,53 +14,61 @@ import { ThemeProvider } from "@/components/theme-provider";
 import { LanguageProvider } from "@/lib/language-provider";
 import { AuthProvider, RequireAuth, useAuth } from "@/lib/auth";
 import type { TeamMember, Organization, UserTeamMember } from "@shared/schema";
-import Home from "@/pages/home";
-import Projects from "@/pages/projects";
-import ProjectDetail from "@/pages/project-detail";
-import ProjectStorage from "@/pages/ProjectStorage";
-import ProjectRequests from "@/pages/project-requests";
-import Tasks from "@/pages/tasks";
-import Organizations from "@/pages/organizations";
-import Team from "@/pages/team";
-import Budget from "@/pages/budget";
-import Documents from "@/pages/documents";
-import AuditLog from "@/pages/audit-log";
-import Settings from "@/pages/settings";
-import About from "@/pages/about";
-import Webhooks from "@/pages/webhooks";
-import Admin from "@/pages/admin";
-import ListLibrary from "@/pages/list-library";
-import WorkList from "@/pages/work-list";
-import Checklist from "@/pages/checklist";
-import ActivityChecklistLink from "@/pages/activity-checklist-link";
-import CreateWirRequest from "@/pages/create-wir-request";
-import RequestDetail from "@/pages/request-detail";
-import Notifications from "@/pages/notifications";
-import ProjectDeliveries from "@/pages/ProjectDeliveries";
-import ProjectPurchaseOrders from "@/pages/ProjectPurchaseOrders";
-import ProjectCreateRfq from "@/pages/ProjectCreateRfq";
-import ProjectCreatePo from "@/pages/ProjectCreatePo";
-import ProjectPurchaseOrderDetail from "@/pages/ProjectPurchaseOrderDetail";
-import ProjectWarehouse from "@/pages/ProjectWarehouse";
-import ProjectRfqDetail from "@/pages/ProjectRfqDetail";
-import ProjectMaterialGallery from "@/pages/ProjectMaterialGallery";
-import ProjectSnagList from "@/pages/ProjectSnagList";
-import ProjectProgressMatrix from "@/pages/ProjectProgressMatrix";
-import ProjectSubcontractors from "@/pages/ProjectSubcontractors";
-import SubcontractorCertificateDetail from "@/pages/SubcontractorCertificateDetail";
-import Payments from "@/pages/Payments";
-import Permits from "@/pages/Permits";
-import Services from "@/pages/Services";
-import PermitDetail from "@/pages/PermitDetail";
-import UnitHandover from "@/pages/UnitHandover";
-import UnitHandoverDetail from "@/pages/UnitHandoverDetail";
-import Reports from "@/pages/Reports";
-import Login from "@/pages/login";
-import ForgotPassword from "@/pages/forgot-password";
-import ResetPassword from "@/pages/reset-password";
-import AcceptInvitation from "@/pages/accept-invitation";
-import Invitations from "@/pages/invitations";
-import NotFound from "@/pages/not-found";
+const Home = lazy(() => import("@/pages/home"));
+const Projects = lazy(() => import("@/pages/projects"));
+const ProjectDetail = lazy(() => import("@/pages/project-detail"));
+const ProjectStorage = lazy(() => import("@/pages/ProjectStorage"));
+const ProjectRequests = lazy(() => import("@/pages/project-requests"));
+const Tasks = lazy(() => import("@/pages/tasks"));
+const Organizations = lazy(() => import("@/pages/organizations"));
+const Team = lazy(() => import("@/pages/team"));
+const Budget = lazy(() => import("@/pages/budget"));
+const Documents = lazy(() => import("@/pages/documents"));
+const AuditLog = lazy(() => import("@/pages/audit-log"));
+const Settings = lazy(() => import("@/pages/settings"));
+const About = lazy(() => import("@/pages/about"));
+const Webhooks = lazy(() => import("@/pages/webhooks"));
+const Admin = lazy(() => import("@/pages/admin"));
+const ListLibrary = lazy(() => import("@/pages/list-library"));
+const WorkList = lazy(() => import("@/pages/work-list"));
+const Checklist = lazy(() => import("@/pages/checklist"));
+const ActivityChecklistLink = lazy(() => import("@/pages/activity-checklist-link"));
+const CreateWirRequest = lazy(() => import("@/pages/create-wir-request"));
+const RequestDetail = lazy(() => import("@/pages/request-detail"));
+const Notifications = lazy(() => import("@/pages/notifications"));
+const ProjectDeliveries = lazy(() => import("@/pages/ProjectDeliveries"));
+const ProjectPurchaseOrders = lazy(() => import("@/pages/ProjectPurchaseOrders"));
+const ProjectCreateRfq = lazy(() => import("@/pages/ProjectCreateRfq"));
+const ProjectCreatePo = lazy(() => import("@/pages/ProjectCreatePo"));
+const ProjectPurchaseOrderDetail = lazy(() => import("@/pages/ProjectPurchaseOrderDetail"));
+const ProjectWarehouse = lazy(() => import("@/pages/ProjectWarehouse"));
+const ProjectRfqDetail = lazy(() => import("@/pages/ProjectRfqDetail"));
+const ProjectMaterialGallery = lazy(() => import("@/pages/ProjectMaterialGallery"));
+const ProjectSnagList = lazy(() => import("@/pages/ProjectSnagList"));
+const ProjectProgressMatrix = lazy(() => import("@/pages/ProjectProgressMatrix"));
+const ProjectSubcontractors = lazy(() => import("@/pages/ProjectSubcontractors"));
+const SubcontractorCertificateDetail = lazy(() => import("@/pages/SubcontractorCertificateDetail"));
+const Payments = lazy(() => import("@/pages/Payments"));
+const Permits = lazy(() => import("@/pages/Permits"));
+const Services = lazy(() => import("@/pages/Services"));
+const PermitDetail = lazy(() => import("@/pages/PermitDetail"));
+const UnitHandover = lazy(() => import("@/pages/UnitHandover"));
+const UnitHandoverDetail = lazy(() => import("@/pages/UnitHandoverDetail"));
+const Reports = lazy(() => import("@/pages/Reports"));
+const Login = lazy(() => import("@/pages/login"));
+const ForgotPassword = lazy(() => import("@/pages/forgot-password"));
+const ResetPassword = lazy(() => import("@/pages/reset-password"));
+const AcceptInvitation = lazy(() => import("@/pages/accept-invitation"));
+const Invitations = lazy(() => import("@/pages/invitations"));
+const NotFound = lazy(() => import("@/pages/not-found"));
+
+function PageFallback() {
+  return (
+    <div className="flex items-center justify-center min-h-[40vh] p-8">
+      <div className="h-7 w-7 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+    </div>
+  );
+}
 
 const persister = createSyncStoragePersister({
   storage: window.localStorage,
@@ -99,7 +107,8 @@ function BackgroundDataPreloader() {
 
 function ProtectedRoutes() {
   return (
-    <Switch>
+    <Suspense fallback={<PageFallback />}>
+      <Switch>
       <Route path="/" component={Home} />
       <Route path="/dashboard" component={Home} />
       <Route path="/projects" component={Projects} />
@@ -144,7 +153,8 @@ function ProtectedRoutes() {
       <Route path="/requests/:requestId" component={RequestDetail} />
       <Route path="/notifications" component={Notifications} />
       <Route component={NotFound} />
-    </Switch>
+      </Switch>
+    </Suspense>
   );
 }
 
@@ -222,7 +232,9 @@ function App() {
         <TooltipProvider>
           <ThemeProvider>
             <AuthProvider>
-              <Router />
+              <Suspense fallback={<PageFallback />}>
+                <Router />
+              </Suspense>
               <Toaster />
             </AuthProvider>
           </ThemeProvider>

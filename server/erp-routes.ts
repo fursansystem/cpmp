@@ -935,22 +935,44 @@ export function registerErpRoutes(app: Express, deps: Deps) {
   });
 
   // كشف حساب المورد: ERPNext's General Ledger for one supplier, grouped by voucher
-  app.get(`${base}/statement`, route(async (req, res, _cu, orgId) => {
+  app.get(`${base}/statement`, userRoute(async (req, res, _cu, orgId) => {
     const q = statementSchema.parse(req.query);
     const c = await requireConnection(orgId);
     if (!c.company) fail(400, "Set the ERPNext company on the connection first");
+
+    // Resolve supplier display name -> ERPNext supplier ID (erpName) when not yet linked
+    let erpParty = q.supplier.trim();
+    const orgSuppliers = await db.select({ erpName: erpSuppliers.erpName, supplierName: erpSuppliers.supplierName })
+      .from(erpSuppliers)
+      .where(eq(erpSuppliers.organizationId, orgId));
+    const exactId = orgSuppliers.find((s) => s.erpName === erpParty);
+    if (!exactId) {
+      const lower = erpParty.toLowerCase();
+      const byName = orgSuppliers.find((s) => s.supplierName.trim().toLowerCase() === lower);
+      if (byName) erpParty = byName.erpName;
+    }
+
     const filters = {
       company: c.company,
       from_date: q.from,
       to_date: q.to,
       party_type: "Supplier",
-      party: [q.supplier],
+      party: [erpParty],
       group_by: "Group by Voucher (Consolidated)",
+      show_remarks: 1,
     };
-    const out = await erpFetch(c, "api/method/frappe.desk.query_report.run", {
-      method: "POST",
-      body: JSON.stringify({ report_name: "General Ledger", filters: JSON.stringify(filters), ignore_prepared_report: true }),
-    });
+    let out: any;
+    try {
+      out = await erpFetch(c, "api/method/frappe.desk.query_report.run", {
+        method: "POST",
+        body: JSON.stringify({ report_name: "General Ledger", filters: JSON.stringify(filters), ignore_prepared_report: true }),
+      });
+    } catch (err) {
+      if (err instanceof ErpError && err.status === 417) {
+        return fail(404, `المورد أو المقاول "${q.supplier}" غير موجود أو غير مربوط في ERPNext — يرجى ربطه بمعرّف المورد في ERPNext أولاً`);
+      }
+      throw err;
+    }
     const rows: any[] = Array.isArray(out?.message?.result) ? out.message.result : [];
     const num = (v: unknown) => Number(v ?? 0) || 0;
     // The report's own Opening / Total / Closing rows carry a quoted label in "account"

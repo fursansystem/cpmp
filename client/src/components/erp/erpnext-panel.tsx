@@ -186,22 +186,26 @@ export function StatementDialog({ supplier, orgQuery = "", onClose }: { supplier
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Date</TableHead>
-                    <TableHead>Voucher</TableHead>
-                    <TableHead className="text-end">Debit</TableHead>
-                    <TableHead className="text-end">Credit</TableHead>
-                    <TableHead className="text-end">Balance</TableHead>
+                    <TableHead>Date · التاريخ</TableHead>
+                    <TableHead>Voucher · السند</TableHead>
+                    <TableHead>Remarks · البيان / الملاحظات</TableHead>
+                    <TableHead className="text-end">Debit · مدين</TableHead>
+                    <TableHead className="text-end">Credit · دائن</TableHead>
+                    <TableHead className="text-end">Balance · الرصيد</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {data.entries.length === 0 ? (
-                    <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground py-6">No entries in this period</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground py-6">No entries in this period</TableCell></TableRow>
                   ) : data.entries.map((e, i) => (
                     <TableRow key={`${e.voucherNo}-${i}`}>
                       <TableCell className="whitespace-nowrap text-xs">{e.date}</TableCell>
-                      <TableCell>
+                      <TableCell className="whitespace-nowrap">
                         <p className="text-xs font-medium">{e.voucherNo}</p>
-                        <p className="text-[11px] text-muted-foreground">{e.voucherType}{e.remarks ? ` · ${e.remarks}` : ""}</p>
+                        <p className="text-[11px] text-muted-foreground">{e.voucherType}</p>
+                      </TableCell>
+                      <TableCell className="text-xs max-w-md whitespace-pre-wrap break-words">
+                        {e.remarks?.trim() || "—"}
                       </TableCell>
                       <TableCell className="text-end tabular-nums text-xs">{e.debit ? money(e.debit) : ""}</TableCell>
                       <TableCell className="text-end tabular-nums text-xs">{e.credit ? money(e.credit) : ""}</TableCell>
