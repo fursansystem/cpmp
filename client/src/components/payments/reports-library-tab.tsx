@@ -18,6 +18,7 @@ import {
 } from "@shared/payments";
 import { PoCard, fmtDate, getJson, money, paymentsQuery, supplierKey, type PaymentsContext, type PaymentsOverview } from "./payments-common";
 import { enumText } from "@/lib/enums";
+import { StatementDialog } from "@/components/erp/erpnext-panel";
 import {
   type Sheet,
   todayIso,
@@ -52,7 +53,7 @@ const same = (a?: string | null, b?: string | null) => (a ?? "").trim().toLowerC
 
 // Title, print and Excel for one report. Print opens just the report in its own window so the
 // sidebar and header stay out of the paper copy.
-function ReportShell({ title, subtitle, sheets, children }: { title: string; subtitle: string; sheets: Sheet[]; children: ReactNode }) {
+function ReportShell({ title, subtitle, sheets, extraActions, children }: { title: string; subtitle: string; sheets: Sheet[]; extraActions?: ReactNode; children: ReactNode }) {
   const { t, i18n } = useTranslation("payments");
   const body = useRef<HTMLDivElement>(null);
 
@@ -81,7 +82,8 @@ th,td{border:1px solid #bbb;padding:5px 7px;text-align:start}th{background:#f3f4
           <CardTitle className="text-base">{title}</CardTitle>
           <p className="text-xs text-muted-foreground mt-1">{subtitle}</p>
         </div>
-        <div className="flex gap-2 print:hidden">
+        <div className="flex flex-wrap gap-2 print:hidden">
+          {extraActions}
           <Button variant="outline" size="sm" onClick={exportExcel}><FileSpreadsheet className="w-4 h-4 me-1" /> Excel</Button>
           <Button variant="outline" size="sm" onClick={print}><Printer className="w-4 h-4 me-1" /> {t("reports_lib.th.print")}</Button>
         </div>
@@ -198,15 +200,17 @@ function AgingReport({ data, projectName }: { data: PaymentsOverview; projectNam
 // ---------------------------------------------------- 2. Subcontractor statement
 
 function SubcontractorStatement({ data, projectName }: { data: PaymentsOverview; projectName: string }) {
-  const { t } = useTranslation("payments");
+  const { t, i18n } = useTranslation("payments");
+  const isAr = i18n.language === "ar";
   const subs = useMemo(() => {
     // Every subcontractor in the register, with or without certificates: a deduction alone is worth a statement
     return (data.subcontractors ?? [])
-      .map((s: any) => ({ key: s.id as string, id: s.id as string, projectId: s.projectId as string, projectName: s.projectName as string, name: s.name as string }))
+      .map((s: any) => ({ key: s.id as string, id: s.id as string, projectId: s.projectId as string, projectName: s.projectName as string, name: s.name as string, erpSupplier: (s.erpSupplier as string | null | undefined) ?? null }))
       .sort((a, b) => a.name.localeCompare(b.name));
   }, [data]);
 
   const [pick, setPick] = useState("");
+  const [erpStatementOpen, setErpStatementOpen] = useState(false);
   const sel = subs.find((s) => s.key === pick) ?? subs[0] ?? null;
 
   const view = useMemo(() => {
@@ -275,7 +279,22 @@ function SubcontractorStatement({ data, projectName }: { data: PaymentsOverview;
           <SelectContent>{subs.map((s) => <SelectItem key={s.key} value={s.key}>{s.name} — {s.projectName}</SelectItem>)}</SelectContent>
         </Select>
       </div>
-      <ReportShell title={`${t("reports_lib.reports.sub.title")}: ${sel.name}`} subtitle={sel.projectName} sheets={sheets}>
+      <ReportShell
+        title={`${t("reports_lib.reports.sub.title")}: ${sel.name}`}
+        subtitle={sel.projectName}
+        sheets={sheets}
+        extraActions={
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setErpStatementOpen(true)}
+            title={!sel.erpSupplier ? (isAr ? "سيتم البحث بالاسم لعدم ربط المقاول بمعرّف ERP" : "Not linked to ERP ID; will query by name") : undefined}
+          >
+            <FileText className="w-4 h-4 me-1" />
+            {isAr ? "كشف حساب ERP" : "ERP Statement"}
+          </Button>
+        }
+      >
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <Mini label={t("reports_lib.reports.sub.contract_value")} value={view.contractValue ? money(view.contractValue) : "—"} />
           <Mini label={t("reports_lib.reports.sub.certified")} value={money(view.certified)} />
@@ -329,6 +348,10 @@ function SubcontractorStatement({ data, projectName }: { data: PaymentsOverview;
         </Table>
         <p className="text-xs text-muted-foreground">{t("reports_lib.reports.sub.note")}</p>
       </ReportShell>
+      <StatementDialog
+        supplier={erpStatementOpen ? { erpName: sel.erpSupplier || sel.name, supplierName: sel.name } : null}
+        onClose={() => setErpStatementOpen(false)}
+      />
     </div>
   );
 }
@@ -864,20 +887,23 @@ function BudgetReport({ projectId, projectName }: { projectId: string; projectNa
 // ------------------------------------------------------ 10. Supplier statement
 
 function SupplierStatement({ data, projectName }: { data: PaymentsOverview; projectName: string }) {
-  const { t } = useTranslation("payments");
+  const { t, i18n } = useTranslation("payments");
+  const isAr = i18n.language === "ar";
   // One supplier across projects: suppliers are per project, so group them by tax number (or name)
   const groups = useMemo(() => {
-    const map = new Map<string, { key: string; name: string; ids: Set<string> }>();
-    for (const s of data.suppliers) {
+    const map = new Map<string, { key: string; name: string; ids: Set<string>; erpSupplier: string | null }>();
+    for (const s of data.suppliers as any[]) {
       const key = supplierKey(s);
-      const g = map.get(key) ?? { key, name: s.name, ids: new Set<string>() };
+      const g = map.get(key) ?? { key, name: s.name, ids: new Set<string>(), erpSupplier: null };
       g.ids.add(s.id);
+      if (!g.erpSupplier && s.erpSupplier) g.erpSupplier = s.erpSupplier;
       map.set(key, g);
     }
     return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
   }, [data.suppliers]);
 
   const [pick, setPick] = useState("");
+  const [erpStatementOpen, setErpStatementOpen] = useState(false);
   const withActivity = useMemo(
     () => groups.filter((g) => data.purchaseOrders.some((p) => p.supplierId && g.ids.has(p.supplierId)) || data.billRequests.some((b) => (b.supplierId && g.ids.has(b.supplierId)) || same(b.payeeName, g.name))),
     [groups, data],
@@ -927,6 +953,17 @@ function SupplierStatement({ data, projectName }: { data: PaymentsOverview; proj
         title={`${t("reports_lib.reports.supplier.title")}: ${sel.name}`}
         subtitle={t("reports_lib.reports.supplier.subtitle", { project: projectName })}
         sheets={sheets}
+        extraActions={
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setErpStatementOpen(true)}
+            title={!sel.erpSupplier ? (isAr ? "سيتم البحث بالاسم لعدم ربط المورد بمعرّف ERP" : "Not linked to ERP ID; will query by name") : undefined}
+          >
+            <FileText className="w-4 h-4 me-1" />
+            {isAr ? "كشف حساب ERP" : "ERP Statement"}
+          </Button>
+        }
       >
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
           <Mini label={t("reports_lib.reports.supplier.po_value")} value={money(view.poValue)} />
@@ -985,6 +1022,10 @@ function SupplierStatement({ data, projectName }: { data: PaymentsOverview; proj
           </Table>
         </div>
       </ReportShell>
+      <StatementDialog
+        supplier={erpStatementOpen ? { erpName: sel.erpSupplier || sel.name, supplierName: sel.name } : null}
+        onClose={() => setErpStatementOpen(false)}
+      />
     </div>
   );
 }

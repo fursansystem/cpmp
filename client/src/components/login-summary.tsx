@@ -89,22 +89,22 @@ export function LoginSummary() {
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && close()}>
-      <DialogContent hideCloseButton className="max-w-lg max-h-[85vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2"><BellRing className="w-5 h-5 text-primary" /> {t("notifications:summary.title")}</DialogTitle>
-          <DialogDescription>{t("notifications:summary.description")}</DialogDescription>
+      <DialogContent hideCloseButton className="flex flex-col max-w-lg w-[calc(100vw-2rem)] max-h-[85vh] overflow-y-auto overflow-x-hidden">
+        <DialogHeader className="min-w-0">
+          <DialogTitle className="flex items-center gap-2"><BellRing className="w-5 h-5 shrink-0 text-primary" /> <span className="min-w-0 break-words">{t("notifications:summary.title")}</span></DialogTitle>
+          <DialogDescription className="break-words">{t("notifications:summary.description")}</DialogDescription>
         </DialogHeader>
 
         {waiting.length > 0 && (
-          <section className="space-y-2">
-            <h3 className="text-sm font-bold flex items-center gap-2"><ClipboardCheck className="w-4 h-4" /> {t("notifications:summary.required_from_you")}</h3>
-            <ul className="space-y-1.5">
+          <section className="space-y-2 min-w-0 w-full">
+            <h3 className="text-sm font-bold flex items-center gap-2"><ClipboardCheck className="w-4 h-4 shrink-0" /> <span className="min-w-0 break-words">{t("notifications:summary.required_from_you")}</span></h3>
+            <ul className="space-y-1.5 min-w-0">
               {waiting.map((i) => (
-                <li key={i.key}>
-                  <button type="button" onClick={() => go(`/payments?tab=${i.tab}${i.projectId ? `&project=${i.projectId}` : ""}${i.ids.length === 1 ? `&focus=${i.ids[0]}` : ""}`)} className="w-full flex items-center gap-3 rounded-xl border bg-primary/5 px-3 py-2 text-start hover-elevate">
-                    <span className="min-w-8 text-center rounded-full bg-primary text-primary-foreground text-sm font-bold px-2">{i.count}</span>
-                    <span className="flex-1 text-sm">{t(`notifications:summary.inbox.${i.key}`, { defaultValue: i.label })}</span>
-                    <ChevronLeft className="w-4 h-4 text-muted-foreground rtl:rotate-180" />
+                <li key={i.key} className="min-w-0">
+                  <button type="button" onClick={() => go(`/payments?tab=${i.tab}${i.projectId ? `&project=${i.projectId}` : ""}${i.ids.length === 1 ? `&focus=${i.ids[0]}` : ""}`)} className="w-full min-w-0 overflow-hidden flex items-center gap-3 rounded-xl border bg-primary/5 px-3 py-2 text-start hover-elevate">
+                    <span className="min-w-8 shrink-0 text-center rounded-full bg-primary text-primary-foreground text-sm font-bold px-2">{i.count}</span>
+                    <span className="flex-1 min-w-0 text-sm break-words line-clamp-2">{t(`notifications:summary.inbox.${i.key}`, { defaultValue: i.label })}</span>
+                    <ChevronLeft className="w-4 h-4 shrink-0 text-muted-foreground rtl:rotate-180" />
                   </button>
                 </li>
               ))}
@@ -113,18 +113,18 @@ export function LoginSummary() {
         )}
 
         {groups.length > 0 && (
-          <section className="space-y-2">
-            <h3 className="text-sm font-bold">{t("notifications:summary.unread_count", { count: summary.data?.total ?? 0 })}</h3>
-            <ul className="space-y-1.5">
+          <section className="space-y-2 min-w-0 w-full">
+            <h3 className="text-sm font-bold break-words">{t("notifications:summary.unread_count", { count: summary.data?.total ?? 0 })}</h3>
+            <ul className="space-y-1.5 min-w-0">
               {groups.map((g) => (
-                <li key={g.key}>
-                  <button type="button" disabled={!g.link} onClick={() => g.link && go(g.link)} className="w-full flex items-center gap-3 rounded-xl border px-3 py-2 text-start hover-elevate">
-                    <span className="min-w-8 text-center rounded-full bg-muted text-sm font-bold px-2">{g.count}</span>
+                <li key={g.key} className="min-w-0">
+                  <button type="button" disabled={!g.link} onClick={() => g.link && go(g.link)} className="w-full min-w-0 overflow-hidden flex items-center gap-3 rounded-xl border px-3 py-2 text-start hover-elevate">
+                    <span className="min-w-8 shrink-0 text-center rounded-full bg-muted text-sm font-bold px-2">{g.count}</span>
                     <span className="flex-1 min-w-0">
-                      <span className="block text-sm font-semibold">{g.label}</span>
-                      <span className="block text-xs text-muted-foreground truncate" dir="auto">{g.latestTitle}{g.latestMessage ? ` — ${g.latestMessage}` : ""}</span>
+                      <span className="block text-sm font-semibold break-words line-clamp-1">{g.label}</span>
+                      <span className="block text-xs text-muted-foreground break-words line-clamp-2" dir="auto">{g.latestTitle}{g.latestMessage ? ` — ${g.latestMessage}` : ""}</span>
                     </span>
-                    {g.link && <ChevronLeft className="w-4 h-4 text-muted-foreground rtl:rotate-180" />}
+                    {g.link && <ChevronLeft className="w-4 h-4 shrink-0 text-muted-foreground rtl:rotate-180" />}
                   </button>
                 </li>
               ))}
@@ -132,12 +132,12 @@ export function LoginSummary() {
           </section>
         )}
 
-        <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer" htmlFor="login-summary-hide">
-          <input id="login-summary-hide" type="checkbox" className="h-4 w-4" checked={hideNext} onChange={(e) => setHideNext(e.target.checked)} />
-          {t("notifications:summary.do_not_show")}
+        <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer min-w-0" htmlFor="login-summary-hide">
+          <input id="login-summary-hide" type="checkbox" className="h-4 w-4 shrink-0" checked={hideNext} onChange={(e) => setHideNext(e.target.checked)} />
+          <span className="min-w-0 break-words">{t("notifications:summary.do_not_show")}</span>
         </label>
 
-        <DialogFooter className="gap-2 sm:gap-2">
+        <DialogFooter className="flex-wrap gap-2 sm:gap-2">
           {groups.length > 0 && <Button variant="outline" disabled={markAll.isPending} onClick={() => markAll.mutate()}>{t("notifications:summary.mark_all_read")}</Button>}
           <Button onClick={close}>{t("notifications:summary.close")}</Button>
         </DialogFooter>

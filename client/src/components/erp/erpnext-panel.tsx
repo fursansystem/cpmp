@@ -138,7 +138,7 @@ function SetupGuide({ conn }: { conn: ErpConnectionSummary }) {
   );
 }
 
-function StatementDialog({ supplier, orgQuery, onClose }: { supplier: ErpSupplierEntry | null; orgQuery: string; onClose: () => void }) {
+export function StatementDialog({ supplier, orgQuery = "", onClose }: { supplier: { erpName: string; supplierName: string } | null; orgQuery?: string; onClose: () => void }) {
   const yearStart = `${new Date().getFullYear()}-01-01`;
   const today = new Date().toISOString().slice(0, 10);
   const [from, setFrom] = useState(yearStart);
