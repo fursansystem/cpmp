@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useSearch } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { BackButton } from "@/components/back-button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -18,9 +19,11 @@ const param = (key: string) => {
 // The reports page (the «Reports» item in the header). The Payments tabs link here with ?report=<id>.
 export default function Reports() {
   const { t } = useTranslation("payments");
+  const search = useSearch();
   const [projectId, setProjectId] = useState(param("project") || "all");
   // No ?report means the library itself: the reports are a browsable shelf, not a dropdown
-  const initialReport: ReportId | null = isReportId(param("report")) ? (param("report") as ReportId) : null;
+  const reportParam = new URLSearchParams(search).get("report");
+  const initialReport: ReportId | null = isReportId(reportParam) ? (reportParam as ReportId) : null;
 
   const { data: ctx } = useQuery<PaymentsContext>({
     queryKey: ["payments", "context"],
@@ -36,13 +39,18 @@ export default function Reports() {
 
   const projectName = projectId === "all" ? t("common.all_projects") : ctx?.projects.find((p) => p.id === projectId)?.name ?? "";
 
+  const pageTitle = initialReport ? t(`reports_lib.reports.${initialReport}.title`) : t("reports_page.title");
+  const pageDescription = initialReport ? t(`reports_lib.reports.${initialReport}.desc`) : t("reports_page.description");
+
   return (
     <div className="p-6 lg:p-8 space-y-6" data-testid="page-reports">
-      <BackButton label={t("reports_page.back")} to={projectId === "all" ? "/payments" : `/payments?project=${projectId}`} />
+      {initialReport && (
+        <BackButton label={t("reports_lib.all_reports")} to={projectId === "all" ? "/reports" : `/reports?project=${projectId}`} />
+      )}
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div>
-          <h1 className="text-3xl font-bold font-display mb-2">{t("reports_page.title")}</h1>
-          <p className="text-muted-foreground">{t("reports_page.description")}</p>
+          <h1 className="text-3xl font-bold font-display mb-2">{pageTitle}</h1>
+          <p className="text-muted-foreground">{pageDescription}</p>
         </div>
         <div className="flex items-center gap-2">
           <Select value={projectId} onValueChange={setProjectId}>
@@ -58,7 +66,7 @@ export default function Reports() {
       {!ctx || isLoading || !data ? (
         <Skeleton className="h-96 rounded-2xl" />
       ) : (
-        <ReportsLibraryTab ctx={ctx} projectId={projectId} projectName={projectName} data={data} initialReport={initialReport} initialPoId={param("po") ?? undefined} />
+        <ReportsLibraryTab ctx={ctx} projectId={projectId} projectName={projectName} data={data} initialReport={initialReport} initialPoId={param("po") ?? undefined} hideInlineHeader />
       )}
     </div>
   );

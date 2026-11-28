@@ -1,5 +1,6 @@
 import { OPEN_PERMIT, type PermitFeeRow } from "@shared/permits";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useSearch } from "wouter";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowRight, FileSpreadsheet, FileText, HardHat, Hourglass, Landmark, PackageSearch, PieChart, Printer, Scissors, Store, Timer, TrendingUp } from "lucide-react";
@@ -1147,11 +1148,16 @@ const readReportParam = (): ReportId | null => {
   }
 };
 
-export function ReportsLibraryTab({ projectId, projectName, data, initialReport = null, initialPoId }: Props & { initialReport?: ReportId | null; initialPoId?: string }) {
+export function ReportsLibraryTab({ projectId, projectName, data, initialReport = null, initialPoId, hideInlineHeader = false }: Props & { initialReport?: ReportId | null; initialPoId?: string; hideInlineHeader?: boolean }) {
   const { t } = useTranslation("payments");
+  const search = useSearch();
   const [report, setReport] = useState<ReportId | null>(initialReport);
 
-  // Back and Forward move between the library and the open report
+  // Sync when URL search changes (from header dropdown links or Back/Forward)
+  useEffect(() => {
+    setReport(readReportParam());
+  }, [search, initialReport]);
+
   useEffect(() => {
     const sync = () => setReport(readReportParam());
     window.addEventListener("popstate", sync);
@@ -1166,20 +1172,14 @@ export function ReportsLibraryTab({ projectId, projectName, data, initialReport 
   const current = REPORT_DEFS.find((r) => r.id === report)!;
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center gap-2">
-        <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground" onClick={close} data-testid="button-reports-library">
-          <ArrowRight className="w-4 h-4 me-1 ltr:rotate-180" /> {t("reports_lib.all_reports")}
-        </Button>
-        <Select value={report} onValueChange={(v) => open(v as ReportId)}>
-          <SelectTrigger className="w-[280px]" data-testid="select-report"><SelectValue /></SelectTrigger>
-          <SelectContent>
-            {REPORT_DEFS.map((r) => (
-              <SelectItem key={r.id} value={r.id}>{t(`reports_lib.reports.${r.id}.title`)}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <span className="hidden text-xs text-muted-foreground sm:inline">{t(`reports_lib.reports.${current.id}.desc`)}</span>
-      </div>
+      {!hideInlineHeader && (
+        <div className="flex flex-wrap items-center gap-2">
+          <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground" onClick={close} data-testid="button-reports-library">
+            <ArrowRight className="w-4 h-4 me-1 ltr:rotate-180" /> {t("reports_lib.all_reports")}
+          </Button>
+          <span className="hidden text-xs text-muted-foreground sm:inline">{t(`reports_lib.reports.${current.id}.desc`)}</span>
+        </div>
+      )}
       {report === "aging" && <AgingReport data={data} projectName={projectName} />}
       {report === "cashflow" && <CashFlowForecast data={data} projectName={projectName} />}
       {report === "sub" && <SubcontractorStatement data={data} projectName={projectName} />}
